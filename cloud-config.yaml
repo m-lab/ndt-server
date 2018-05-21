@@ -6,13 +6,15 @@ write_files:
     owner: root:root
     content: |
       #!/bin/bash
+      VDLIMIT_TEXT=""
       VDLIMIT_FILE="/var/spool/node_exporter/vdlimit.prom"
-      USED=$(df --output="used,avail,size" /mnt/stateful_partition | tail -n1 | awk {'print $1'})
-      FREE=$(df --output="used,avail,size" /mnt/stateful_partition | tail -n1 | awk {'print $2'})
-      SIZE=$(df --output="used,avail,size" /mnt/stateful_partition | tail -n1 | awk {'print $3'})
-      echo "vdlimit_used{experiment=\"ndt.iupui\"} ${USED}" > $VDLIMIT_FILE
-      echo "vdlimit_free{experiment=\"ndt.iupui\"} ${FREE}" >> $VDLIMIT_FILE
-      echo "vdlimit_total{experiment=\"ndt.iupui\"} ${SIZE}" >> $VDLIMIT_FILE
+      USED=$(df --output="used" /mnt/stateful_partition | tail -n1 )
+      FREE=$(df --output="avail" /mnt/stateful_partition | tail -n1 )
+      SIZE=$(df --output="size" /mnt/stateful_partition | tail -n1 )
+      VDLIMIT_TEXT="vdlimit_used{experiment=\"ndt.iupui\"} ${USED}\n"
+      VDLIMIT_TEXT+="vdlimit_free{experiment=\"ndt.iupui\"} ${FREE}\n"
+      VDLIMIT_TEXT+="vdlimit_total{experiment=\"ndt.iupui\"} ${SIZE}\n"
+      echo -e $VDLIMIT_TEXT > $VDLIMIT_FILE
   - path: /etc/systemd/system/prom-vdlimit-metrics.service
     permissions: 0644
     owner: root:root
@@ -34,6 +36,10 @@ write_files:
       [Install]
       WantedBy=multi-user.target
 
+# The iptables command below is necessary due to the way that the Google
+# Container-Optimized OS works. For COS, it is necessary to both open holes in
+# the VPC firewall as well as opening the firewall on the VM itself.
+# https://cloud.google.com/container-optimized-os/docs/how-to/firewall
 runcmd:
   - systemctl daemon-reload
   - systemctl enable prom-vdlimit-metrics.service
