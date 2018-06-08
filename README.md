@@ -3,7 +3,7 @@
 To run the server locally, first run `gen_local_test_certs.sh`, and then run the
 commands
 ```bash
-docker build -t ndtgo
+docker build . -t ndtgo
 ```
 and
 ```bash
