@@ -103,6 +103,10 @@ type tcpKeepAliveListener struct {
 	*net.TCPListener
 }
 
+func newKeepAliveListener(l net.Listener) net.Listener {
+	return tcpKeepAliveListener{l.(*net.TCPListener)}
+}
+
 func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
 	tc, err := ln.AcceptTCP()
 	if err != nil {
@@ -132,6 +136,18 @@ type NdtJSONMessage struct {
 	tests string
 }
 
+// NdtS2CResult
+type NdtS2CResult struct {
+	ThroughputValue  float64
+	UnsentDataAmount int64
+	TotalSentByte    int64
+}
+
+func (n *NdtS2CResult) String() string {
+	b, _ := json.Marshal(n)
+	return string(b)
+}
+
 func readJSONMessage(ws *websocket.Conn, expectedType byte) NdtJSONMessage {
 	var message NdtJSONMessage
 	var arbitraryMessage interface{}
@@ -153,7 +169,7 @@ func readJSONMessage(ws *websocket.Conn, expectedType byte) NdtJSONMessage {
 	return message
 }
 
-func sendPreformattedNdtMessage(msgType byte, message []byte, ws *websocket.Conn) {
+func sendPreformattedNdtMessage(msgType byte, message string, ws *websocket.Conn) {
 	outbuff := make([]byte, 3+len(message))
 	outbuff[0] = msgType
 	outbuff[1] = byte((len(message) >> 8) & 0xFF)
@@ -167,8 +183,9 @@ func sendPreformattedNdtMessage(msgType byte, message []byte, ws *websocket.Conn
 	}
 }
 
-func sendNdtMessage(msgType byte, msg []byte, ws *websocket.Conn) {
-	message := []byte("{ \"msg\": \"" + string(msg) + "\" }")
+func sendNdtMessage(msgType byte, msg string, ws *websocket.Conn) {
+	// message := []byte("{ \"msg\": \"" + msg + "\" }")
+	message := "{ \"msg\": \"" + msg + "\" }"
 	sendPreformattedNdtMessage(msgType, message, ws)
 }
 
@@ -305,12 +322,11 @@ func manageC2sTest(ws *websocket.Conn) float64 {
 			http.HandlerFunc(testResponder.C2STestServer)))
 	// Start listening
 	s := http.Server{
-		Addr:    ":0", // let OS randomly select port.
 		Handler: serveMux,
 	}
 	defer s.Close()
 
-	ln, err := net.Listen("tcp", s.Addr)
+	ln, err := net.ListenTCP("tcp", &net.TCPAddr{})
 	if err != nil {
 		log.Println(ws.RemoteAddr(), "ERROR C2S: Failed to listen on:", s.Addr, err)
 		return -1
@@ -319,21 +335,23 @@ func manageC2sTest(ws *websocket.Conn) float64 {
 	c2sServerPort := ln.Addr().(*net.TCPAddr).Port
 	go func() {
 		log.Println(c2sServerPort, "C2S: About to listen for C2S on", ln.Addr())
-		_ = s.ServeTLS(tcpKeepAliveListener{ln.(*net.TCPListener)}, *certFile, *keyFile)
+		// s.ServeTLS(tcpKeepAliveListener{ln.(*net.TCPListener)}, *certFile, *keyFile)
+		s.ServeTLS(tcpKeepAliveListener{ln}, *certFile, *keyFile)
+		// s.ServeTLS(newKeepAliveListener(ln), *certFile, *keyFile)
 	}()
 	testResponder.port = c2sServerPort
 
 	// Tell the client to go
-	sendNdtMessage(TestPrepare, []byte(strconv.Itoa(c2sServerPort)), ws)
+	sendNdtMessage(TestPrepare, strconv.Itoa(c2sServerPort), ws)
 	c2sReady := <-testResponder.response
 	if c2sReady != C2sReady {
 		log.Println(c2sServerPort, "ERROR C2S: Bad value received on the c2s channel", c2sReady)
 		return -1
 	}
-	sendNdtMessage(TestStart, []byte(""), ws)
+	sendNdtMessage(TestStart, "", ws)
 	c2sRate := <-testResponder.response
-	sendNdtMessage(TestMsg, []byte(fmt.Sprintf("%.4f", c2sRate)), ws)
-	sendNdtMessage(TestFinalize, []byte(""), ws)
+	sendNdtMessage(TestMsg, fmt.Sprintf("%.4f", c2sRate), ws)
+	sendNdtMessage(TestFinalize, "", ws)
 	return c2sRate
 }
 
@@ -367,17 +385,21 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 	}()
 
 	// Tell the client to go
-	sendNdtMessage(TestPrepare, []byte(strconv.Itoa(int(s2cServerPort))), ws)
+	sendNdtMessage(TestPrepare, strconv.Itoa(int(s2cServerPort)), ws)
 	s2cReady := <-testResponder.response
 	if s2cReady != S2cReady {
 		log.Println(s2cServerPort, "S2C: Bad value received on the s2c channel", s2cReady)
 		return -1
 	}
-	sendNdtMessage(TestStart, []byte(""), ws)
+	sendNdtMessage(TestStart, "", ws)
 	s2cRate := <-testResponder.response
-	sendPreformattedNdtMessage(TestMsg,
-		[]byte(fmt.Sprintf("{ \"ThroughputValue\": %.4f, \"UnsentDataAmount\": 0, \"TotalSentByte\": %d}",
-			s2cRate, int64(s2cRate*10*100/8))), ws)
+
+	result := NdtS2CResult{
+		ThroughputValue:  s2cRate,
+		UnsentDataAmount: 0,
+		TotalSentByte:    int64(s2cRate * 1000 / 8),
+	}
+	sendPreformattedNdtMessage(TestMsg, result.String(), ws)
 	clientRateMsg := readJSONMessage(ws, TestMsg)
 	log.Println(s2cServerPort, "S2C: The client sent us:", clientRateMsg.msg)
 	requiredWeb100Vars := []string{"AckPktsIn", "CountRTT", "CongestionSignals", "CurRTO", "CurMSS",
@@ -386,9 +408,9 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 		"MaxRTT", "MinRTT"}
 
 	for _, web100Var := range requiredWeb100Vars {
-		sendNdtMessage(TestMsg, []byte(web100Var+": 0"), ws)
+		sendNdtMessage(TestMsg, web100Var+": 0", ws)
 	}
-	sendNdtMessage(TestFinalize, []byte(""), ws)
+	sendNdtMessage(TestFinalize, "", ws)
 	clientRate, err := strconv.ParseFloat(clientRateMsg.msg, 64)
 	if err != nil {
 		log.Println(s2cServerPort, "S2C: Bad client rate:", err)
@@ -399,14 +421,14 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 }
 
 func runMetaTest(ws *websocket.Conn) {
-	sendNdtMessage(TestPrepare, []byte(""), ws)
-	sendNdtMessage(TestStart, []byte(""), ws)
+	sendNdtMessage(TestPrepare, "", ws)
+	sendNdtMessage(TestStart, "", ws)
 	message := readJSONMessage(ws, TestMsg)
 	for message.msg != "" {
 		log.Println("Meta message: ", message)
 		message = readJSONMessage(ws, TestMsg)
 	}
-	sendNdtMessage(TestFinalize, []byte(""), ws)
+	sendNdtMessage(TestFinalize, "", ws)
 }
 
 // The whole of the NDT server socket communication is run from this method.
@@ -438,9 +460,9 @@ func NdtServer(w http.ResponseWriter, r *http.Request) {
 		tests_to_run = append(tests_to_run, strconv.Itoa(TEST_S2C))
 	}
 
-	sendNdtMessage(SrvQueue, []byte("0"), ws)
-	sendNdtMessage(MsgLogin, []byte("v5.0-NDTinGO"), ws)
-	sendNdtMessage(MsgLogin, []byte(strings.Join(tests_to_run, " ")), ws)
+	sendNdtMessage(SrvQueue, "0", ws)
+	sendNdtMessage(MsgLogin, "v5.0-NDTinGO", ws)
+	sendNdtMessage(MsgLogin, strings.Join(tests_to_run, " "), ws)
 
 	var c2sRate, s2cRate float64
 	if run_c2s {
@@ -456,8 +478,8 @@ func NdtServer(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	sendNdtMessage(MsgResults, []byte(fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate, s2cRate)), ws)
-	sendNdtMessage(MsgLogout, []byte(""), ws)
+	sendNdtMessage(MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate, s2cRate), ws)
+	sendNdtMessage(MsgLogout, "", ws)
 }
 
 func DefaultHandler(w http.ResponseWriter, req *http.Request) {
@@ -493,8 +515,5 @@ func main() {
 				http.HandlerFunc(NdtServer))))
 
 	log.Println("About to listen on " + *NdtPort + ". Go to http://127.0.0.1:" + *NdtPort + "/")
-	err := http.ListenAndServeTLS(":"+*NdtPort, *certFile, *keyFile, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
+	log.Fatal(http.ListenAndServeTLS(":"+*NdtPort, *certFile, *keyFile, nil))
 }
