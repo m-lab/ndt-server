@@ -103,10 +103,6 @@ type tcpKeepAliveListener struct {
 	*net.TCPListener
 }
 
-func newKeepAliveListener(l net.Listener) net.Listener {
-	return tcpKeepAliveListener{l.(*net.TCPListener)}
-}
-
 func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
 	tc, err := ln.AcceptTCP()
 	if err != nil {
@@ -136,7 +132,7 @@ type NdtJSONMessage struct {
 	tests string
 }
 
-// NdtS2CResult
+// NdtS2CResult is the result object returned to S2C clients as JSON.
 type NdtS2CResult struct {
 	ThroughputValue  float64
 	UnsentDataAmount int64
@@ -184,8 +180,7 @@ func sendPreformattedNdtMessage(msgType byte, message string, ws *websocket.Conn
 }
 
 func sendNdtMessage(msgType byte, msg string, ws *websocket.Conn) {
-	// message := []byte("{ \"msg\": \"" + msg + "\" }")
-	message := "{ \"msg\": \"" + msg + "\" }"
+	message := `{"msg": "` + msg + `"}`
 	sendPreformattedNdtMessage(msgType, message, ws)
 }
 
@@ -321,23 +316,19 @@ func manageC2sTest(ws *websocket.Conn) float64 {
 			testCount.MustCurryWith(prometheus.Labels{"direction": "c2s"}),
 			http.HandlerFunc(testResponder.C2STestServer)))
 	// Start listening
-	s := http.Server{
-		Handler: serveMux,
-	}
+	s := http.Server{Handler: serveMux}
 	defer s.Close()
 
 	ln, err := net.ListenTCP("tcp", &net.TCPAddr{})
 	if err != nil {
-		log.Println(ws.RemoteAddr(), "ERROR C2S: Failed to listen on:", s.Addr, err)
+		log.Println(ws.RemoteAddr(), "ERROR C2S: Failed to listen on any port:", err)
 		return -1
 	}
 	defer ln.Close()
 	c2sServerPort := ln.Addr().(*net.TCPAddr).Port
 	go func() {
 		log.Println(c2sServerPort, "C2S: About to listen for C2S on", ln.Addr())
-		// s.ServeTLS(tcpKeepAliveListener{ln.(*net.TCPListener)}, *certFile, *keyFile)
 		s.ServeTLS(tcpKeepAliveListener{ln}, *certFile, *keyFile)
-		// s.ServeTLS(newKeepAliveListener(ln), *certFile, *keyFile)
 	}()
 	testResponder.port = c2sServerPort
 
@@ -366,14 +357,11 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 			testCount.MustCurryWith(prometheus.Labels{"direction": "s2c"}),
 			http.HandlerFunc(testResponder.S2CTestServer)))
 	// Start listening
-	s := http.Server{
-		Addr:    ":0", // let OS randomly select port.
-		Handler: serveMux,
-	}
+	s := http.Server{Handler: serveMux}
 	defer s.Close()
-	ln, err := net.Listen("tcp", s.Addr)
+	ln, err := net.ListenTCP("tcp", &net.TCPAddr{})
 	if err != nil {
-		log.Println("S2C: Failed to listen on:", s.Addr, err)
+		log.Println("S2C: Failed to listen on any port:", err)
 		return -1
 	}
 	defer ln.Close()
@@ -381,7 +369,7 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 	testResponder.port = s2cServerPort
 	go func() {
 		log.Println(s2cServerPort, "S2C: About to listen for S2C on", s2cServerPort)
-		_ = s.ServeTLS(tcpKeepAliveListener{ln.(*net.TCPListener)}, *certFile, *keyFile)
+		s.ServeTLS(tcpKeepAliveListener{ln}, *certFile, *keyFile)
 	}()
 
 	// Tell the client to go
