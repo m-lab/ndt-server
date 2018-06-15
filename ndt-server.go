@@ -113,23 +113,41 @@ func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
 	return tc, nil
 }
 
-func readMessage(ws *websocket.Conn, expectedType byte) []byte {
+func readNdtMessage(ws *websocket.Conn, expectedType byte) ([]byte, error) {
 	_, buffer, err := ws.ReadMessage()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	if buffer[0] != expectedType {
-		log.Fatal("Wrong message type. Wanted", expectedType, "got", buffer[0])
+		return nil, fmt.Errorf("Read wrong message type. Wanted 0x%x, got 0x%x", expectedType, buffer[0])
 	}
-	return buffer[3:]
+	// TODO: what's in bytes [1:3]?
+	return buffer[3:], nil
+}
+
+func writeNdtMessage(ws *websocket.Conn, msgType byte, msg fmt.Stringer) error {
+	message := msg.String()
+	outbuff := make([]byte, 3+len(message))
+	outbuff[0] = msgType
+	outbuff[1] = byte((len(message) >> 8) & 0xFF)
+	outbuff[2] = byte(len(message) & 0xFF)
+	for i := range message {
+		outbuff[i+3] = message[i]
+	}
+	return ws.WriteMessage(websocket.BinaryMessage, outbuff)
 }
 
 // NdtJSONMessage holds the JSON messages we can receive from the server. We
 // only support the subset of the NDT JSON protocol that has two fields: msg,
 // and tests.
 type NdtJSONMessage struct {
-	msg   string
-	tests string
+	Msg   string `json:"msg"`
+	Tests string `json:"tests,omitempty"`
+}
+
+func (n *NdtJSONMessage) String() string {
+	b, _ := json.Marshal(n)
+	return string(b)
 }
 
 // NdtS2CResult is the result object returned to S2C clients as JSON.
@@ -144,55 +162,32 @@ func (n *NdtS2CResult) String() string {
 	return string(b)
 }
 
-func readJSONMessage(ws *websocket.Conn, expectedType byte) NdtJSONMessage {
-	var message NdtJSONMessage
-	var arbitraryMessage interface{}
-	jsonString := readMessage(ws, expectedType)
-	err := json.Unmarshal(jsonString, &arbitraryMessage)
+func recvNdtJSONMessage(ws *websocket.Conn, expectedType byte) (*NdtJSONMessage, error) {
+	message := &NdtJSONMessage{}
+	jsonString, err := readNdtMessage(ws, expectedType)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	for k, v := range arbitraryMessage.(map[string]interface{}) {
-		switch k {
-		case "msg":
-			message.msg = v.(string)
-		case "tests":
-			message.tests = v.(string)
-		default:
-			log.Fatal("Surprise JSON element:", k, v)
-		}
+	err = json.Unmarshal(jsonString, &message)
+	if err != nil {
+		return nil, err
 	}
-	return message
+	return message, nil
 }
 
-func sendPreformattedNdtMessage(msgType byte, message string, ws *websocket.Conn) {
-	outbuff := make([]byte, 3+len(message))
-	outbuff[0] = msgType
-	outbuff[1] = byte((len(message) >> 8) & 0xFF)
-	outbuff[2] = byte(len(message) & 0xFF)
-	for i := range message {
-		outbuff[i+3] = message[i]
-	}
-	err := ws.WriteMessage(websocket.BinaryMessage, outbuff)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func sendNdtMessage(msgType byte, msg string, ws *websocket.Conn) {
-	message := `{"msg": "` + msg + `"}`
-	sendPreformattedNdtMessage(msgType, message, ws)
+func sendNdtMessage(msgType byte, msg string, ws *websocket.Conn) error {
+	message := &NdtJSONMessage{Msg: msg}
+	return writeNdtMessage(ws, msgType, message)
 }
 
 func makeNdtUpgrader(protocols []string) websocket.Upgrader {
 	return websocket.Upgrader{
-		ReadBufferSize:    819200,
-		WriteBufferSize:   819200,
+		ReadBufferSize:    81920,
+		WriteBufferSize:   81920,
 		Subprotocols:      protocols,
 		EnableCompression: false,
 		CheckOrigin: func(r *http.Request) bool {
 			// TODO: make this check more appropriate -- added to get initial html5 widget to work.
-			// log.Println("Origin:", r.Header.Get("Origin"))
 			return true
 		},
 	}
@@ -223,21 +218,73 @@ func (tr *TestResponder) S2CTestServer(w http.ResponseWriter, r *http.Request) {
 		log.Println(tr.port, "ERROR S2C: Could not make prepared message:", err)
 		return
 	}
+
+	// Signal control channel that we are about to start the test.
 	tr.response <- S2cReady
-	totalBytes := float64(0)
-	startTime := time.Now()
-	endTime := startTime.Add(10 * time.Second)
-	log.Println(tr.port, "S2C: Test starts at", time.Now().Format(time.RFC3339), "and ends in", (10 * time.Second))
-	for time.Now().Before(endTime) {
-		err := ws.WritePreparedMessage(messageToSend)
-		if err != nil {
-			log.Println(tr.port, "ERROR S2C: readmessage", err)
-			return
+
+	// Create ticker to enforce timeout on
+	ticker := time.NewTicker(11 * time.Second)
+	defer ticker.Stop()
+	done := make(chan float64)
+
+	go func() {
+		totalBytes := float64(0)
+		log.Println(tr.port, "S2C: Test starts at", time.Now().Format(time.RFC3339), "and ends in", (10 * time.Second))
+		startTime := time.Now()
+		endTime := startTime.Add(10 * time.Second)
+		for time.Now().Before(endTime) {
+			err := ws.WritePreparedMessage(messageToSend)
+			if err != nil {
+				log.Println(tr.port, "ERROR S2C: sending message", err)
+				done <- -1
+				return
+			}
+			totalBytes += float64(len(dataToSend))
 		}
-		totalBytes += float64(len(dataToSend))
+		done <- totalBytes / float64(time.Since(startTime)/time.Second)
+	}()
+
+	log.Println(tr.port, "S2C: Waiting for test to complete or timeout")
+	select {
+	case bytesPerSecond := <-done:
+		tr.response <- bytesPerSecond
+		break
+	case <-ticker.C:
+		tr.response <- -1
+		break
 	}
-	megabitsPerSecond := float64(8) * totalBytes / float64(1000) / float64(time.Since(startTime)/time.Second)
-	tr.response <- megabitsPerSecond
+}
+
+func recvC2SUntil(ws *websocket.Conn, d time.Duration) float64 {
+	ticker := time.NewTicker(d + time.Second)
+	defer ticker.Stop()
+	done := make(chan float64)
+
+	go func() {
+		totalBytes := float64(0)
+		startTime := time.Now()
+		endTime := startTime.Add(d)
+		i := 0
+		for time.Now().Before(endTime) {
+			_, buffer, err := ws.ReadMessage()
+			if err != nil {
+				done <- -1
+				return
+			}
+			totalBytes += float64(len(buffer))
+			i++
+		}
+		bytesPerSecond := totalBytes / float64(time.Since(startTime)/time.Second)
+		done <- bytesPerSecond
+	}()
+
+	log.Println(ws.RemoteAddr().String(), "C2S: Waiting for reader or ticker")
+	select {
+	case bytesPerSecond := <-done:
+		return bytesPerSecond
+	case <-ticker.C:
+		return -1
+	}
 }
 
 // C2STestServer performs the NDT c2s test.
@@ -251,57 +298,12 @@ func (tr *TestResponder) C2STestServer(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 	tr.response <- C2sReady
-	totalBytes := float64(0)
-	startTime := time.Now()
-	endTime := startTime.Add(10 * time.Second)
-	log.Println(tr.port, "C2S: Test starts at", time.Now().Format(time.RFC3339), "and ends in", (10 * time.Second))
-	i := 0
-	for time.Now().Before(endTime) {
-		// if i%200 == 0 {
-		// log.Println("C2S: ReadMessage at", time.Now().Format(time.RFC3339))
-		// }
-		_, buffer, err := ws.ReadMessage()
-		if err != nil {
-			log.Println(tr.port, "ERROR C2S: readmessage", err)
-			return
-		}
-		totalBytes += float64(len(buffer))
-		i++
-	}
-	megabitsPerSecond := float64(8) * totalBytes / float64(1000) / float64(time.Since(startTime)/time.Second)
-	log.Println(tr.port, "C2S: Reporting rate:", megabitsPerSecond)
-	tr.response <- megabitsPerSecond
+	bytesPerSecond := recvC2SUntil(ws, 10*time.Second)
+	tr.response <- bytesPerSecond
 
-	ticker := time.NewTicker(4 * time.Second)
-	defer ticker.Stop()
-	done := make(chan bool)
-
-	// TODO: does this need to be 4s?
-	// Drain the buffer for a while.
-	go func() {
-		endTime = time.Now().Add(4 * time.Second)
-		for time.Now().Before(endTime) {
-			//log.Println("reading second message")
-			_, _, err := ws.ReadMessage()
-			if err != nil {
-				// log.Println("ERROR C2S: returning due to error in second read:", err)
-				done <- true
-				return
-			}
-			//log.Println("got second message")
-		}
-		done <- true
-	}()
+	// Drain client for a few more seconds, and discard results.
 	ts := time.Now()
-	log.Println(tr.port, "C2S: Waiting for reader or ticker")
-	select {
-	case <-done:
-		// fmt.Println("Done!")
-		break
-	case <-ticker.C:
-		//fmt.Println("Current time: ", t)
-		break
-	}
+	_ = recvC2SUntil(ws, 4*time.Second)
 	log.Println(tr.port, "C2S: wait time", time.Now().Sub(ts))
 }
 
@@ -380,16 +382,25 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 		return -1
 	}
 	sendNdtMessage(TestStart, "", ws)
-	s2cRate := <-testResponder.response
+	s2cBytesPerSecond := <-testResponder.response
+	s2cKbps := 8 * s2cBytesPerSecond / 1000.0
 
-	result := NdtS2CResult{
-		ThroughputValue:  s2cRate,
+	resultMsg := &NdtS2CResult{
+		ThroughputValue:  s2cKbps,
 		UnsentDataAmount: 0,
-		TotalSentByte:    int64(s2cRate * 1000 / 8),
+		TotalSentByte:    int64(10 * s2cBytesPerSecond), // TODO: use actual bytes sent.
 	}
-	sendPreformattedNdtMessage(TestMsg, result.String(), ws)
-	clientRateMsg := readJSONMessage(ws, TestMsg)
-	log.Println(s2cServerPort, "S2C: The client sent us:", clientRateMsg.msg)
+	err = writeNdtMessage(ws, TestMsg, resultMsg)
+	if err != nil {
+		log.Println(s2cServerPort, "S2C: Failed to write JSON message:", err)
+		return -1
+	}
+	clientRateMsg, err := recvNdtJSONMessage(ws, TestMsg)
+	if err != nil {
+		log.Println(s2cServerPort, "S2C: Failed to read JSON message:", err)
+		return -1
+	}
+	log.Println(s2cServerPort, "S2C: The client sent us:", clientRateMsg.Msg)
 	requiredWeb100Vars := []string{"AckPktsIn", "CountRTT", "CongestionSignals", "CurRTO", "CurMSS",
 		"DataBytesOut", "DupAcksIn", "MaxCwnd", "MaxRwinRcvd", "PktsOut", "PktsRetrans", "RcvWinScale",
 		"Sndbuf", "SndLimTimeCwnd", "SndLimTimeRwin", "SndLimTimeSender", "SndWinScale", "SumRTT", "Timeouts",
@@ -399,29 +410,40 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 		sendNdtMessage(TestMsg, web100Var+": 0", ws)
 	}
 	sendNdtMessage(TestFinalize, "", ws)
-	clientRate, err := strconv.ParseFloat(clientRateMsg.msg, 64)
+	clientRate, err := strconv.ParseFloat(clientRateMsg.Msg, 64)
 	if err != nil {
 		log.Println(s2cServerPort, "S2C: Bad client rate:", err)
 		return -1
 	}
-	log.Println(s2cServerPort, "S2C: client rate:", clientRate, "vs", s2cRate)
-	return s2cRate // clientRate
+	log.Println(s2cServerPort, "S2C: client rate:", clientRate, "vs", s2cKbps)
+	return s2cKbps
 }
 
+// TODO: run meta test.
 func runMetaTest(ws *websocket.Conn) {
+	var err error
+	var message *NdtJSONMessage
+
 	sendNdtMessage(TestPrepare, "", ws)
 	sendNdtMessage(TestStart, "", ws)
-	message := readJSONMessage(ws, TestMsg)
-	for message.msg != "" {
+	for {
+		message, err = recvNdtJSONMessage(ws, TestMsg)
+		if message.Msg == "" || err != nil {
+			break
+		}
 		log.Println("Meta message: ", message)
-		message = readJSONMessage(ws, TestMsg)
+	}
+	if err != nil {
+		log.Println("Error reading JSON message:", err)
+		return
 	}
 	sendNdtMessage(TestFinalize, "", ws)
 }
 
-// The whole of the NDT server socket communication is run from this method.
-// Returning will close the websocket connection, and should only be done after
-// all tests are run.
+// NdtServer is the command channel for the NDT-WS test. All subsequent client
+// communication is synchronized with this method. Returning closes the
+// websocket connection, so only occurs after all tests complete or an
+// unrecoverable error.
 func NdtServer(w http.ResponseWriter, r *http.Request) {
 	upgrader := makeNdtUpgrader([]string{"ndt"})
 	ws, err := upgrader.Upgrade(w, r, nil)
@@ -431,35 +453,43 @@ func NdtServer(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 
-	message := readJSONMessage(ws, MsgExtendedLogin)
-	tests, err := strconv.ParseInt(message.tests, 10, 64)
+	message, err := recvNdtJSONMessage(ws, MsgExtendedLogin)
+	if err != nil {
+		log.Println("Error reading JSON message:", err)
+		return
+	}
+	tests, err := strconv.ParseInt(message.Tests, 10, 64)
+	if err != nil {
+		log.Println("Failed to parse Tests integer:", err)
+		return
+	}
 	if (tests & TEST_STATUS) == 0 {
 		log.Println("We don't support clients that don't support TEST_STATUS")
 		return
 	}
-	tests_to_run := []string{}
-	run_c2s := (tests & TEST_C2S) != 0
-	run_s2c := (tests & TEST_S2C) != 0
+	testsToRun := []string{}
+	runC2s := (tests & TEST_C2S) != 0
+	runS2c := (tests & TEST_S2C) != 0
 
-	if run_c2s {
-		tests_to_run = append(tests_to_run, strconv.Itoa(TEST_C2S))
+	if runC2s {
+		testsToRun = append(testsToRun, strconv.Itoa(TEST_C2S))
 	}
-	if run_s2c {
-		tests_to_run = append(tests_to_run, strconv.Itoa(TEST_S2C))
+	if runS2c {
+		testsToRun = append(testsToRun, strconv.Itoa(TEST_S2C))
 	}
 
 	sendNdtMessage(SrvQueue, "0", ws)
 	sendNdtMessage(MsgLogin, "v5.0-NDTinGO", ws)
-	sendNdtMessage(MsgLogin, strings.Join(tests_to_run, " "), ws)
+	sendNdtMessage(MsgLogin, strings.Join(testsToRun, " "), ws)
 
 	var c2sRate, s2cRate float64
-	if run_c2s {
+	if runC2s {
 		c2sRate = manageC2sTest(ws)
 		if c2sRate > 0 {
 			testRate.WithLabelValues("c2s").Observe(c2sRate / 1000.0)
 		}
 	}
-	if run_s2c {
+	if runS2c {
 		s2cRate = manageS2cTest(ws)
 		if s2cRate > 0 {
 			testRate.WithLabelValues("s2c").Observe(s2cRate / 1000.0)
