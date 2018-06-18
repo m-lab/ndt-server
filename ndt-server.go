@@ -229,13 +229,12 @@ func (tr *TestResponder) S2CTestServer(w http.ResponseWriter, r *http.Request) {
 	tr.response <- sendS2CUntil(tr.ctx, ws, messageToSend, len(dataToSend))
 }
 
-func sendS2CUntil(ctx context.Context, ws *websocket.Conn, msg *websocket.PreparedMessage, len int) float64 {
+func sendS2CUntil(ctx context.Context, ws *websocket.Conn, msg *websocket.PreparedMessage, dataLen int) float64 {
 	// Create ticker to enforce timeout on
 	done := make(chan float64)
 
 	go func() {
 		totalBytes := float64(0)
-		// log.Println("S2C: Test starts at", time.Now().Format(time.RFC3339), "and ends in", (10 * time.Second))
 		startTime := time.Now()
 		endTime := startTime.Add(10 * time.Second)
 		for time.Now().Before(endTime) {
@@ -245,7 +244,7 @@ func sendS2CUntil(ctx context.Context, ws *websocket.Conn, msg *websocket.Prepar
 				done <- -1
 				return
 			}
-			totalBytes += float64(81920)
+			totalBytes += float64(dataLen)
 		}
 		done <- totalBytes / float64(time.Since(startTime)/time.Second)
 	}()
