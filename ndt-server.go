@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -69,12 +70,12 @@ var (
 			Name: "ndt_test_rate_mbps",
 			Help: "A histogram of request rates.",
 			Buckets: []float64{
-				1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100,
-				110, 120, 130, 140, 150, 160, 170, 180, 190, 200,
-				220, 240, 260, 280, 300,
-				333, 366, 400,
-				450, 500,
-				600, 700, 800, 900, 1000},
+				1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95,
+				100, 110, 120, 130, 140, 150, 160, 170, 180, 190,
+				200, 220, 240, 260, 280,
+				300, 333, 366,
+				400, 450,
+				500, 600, 700, 800, 900, 1000},
 		},
 		[]string{"direction"},
 	)
@@ -197,6 +198,10 @@ func makeNdtUpgrader(protocols []string) websocket.Upgrader {
 type TestResponder struct {
 	response chan float64
 	port     int
+	ln       net.Listener
+	s        *http.Server
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 // S2CTestServer performs the NDT s2c test.
@@ -205,7 +210,7 @@ func (tr *TestResponder) S2CTestServer(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		// Upgrade should have already returned an HTTP error code.
-		log.Println(tr.port, "ERROR S2C: upgrader", err)
+		log.Println("ERROR S2C: upgrader", err)
 		return
 	}
 	defer ws.Close()
@@ -215,55 +220,55 @@ func (tr *TestResponder) S2CTestServer(w http.ResponseWriter, r *http.Request) {
 	}
 	messageToSend, err := websocket.NewPreparedMessage(websocket.BinaryMessage, dataToSend)
 	if err != nil {
-		log.Println(tr.port, "ERROR S2C: Could not make prepared message:", err)
+		log.Println("ERROR S2C: Could not make prepared message:", err)
 		return
 	}
 
 	// Signal control channel that we are about to start the test.
 	tr.response <- S2cReady
+	tr.response <- sendS2CUntil(tr.ctx, ws, messageToSend, len(dataToSend))
+}
 
+func sendS2CUntil(ctx context.Context, ws *websocket.Conn, msg *websocket.PreparedMessage, len int) float64 {
 	// Create ticker to enforce timeout on
-	ticker := time.NewTicker(11 * time.Second)
-	defer ticker.Stop()
 	done := make(chan float64)
 
 	go func() {
 		totalBytes := float64(0)
-		log.Println(tr.port, "S2C: Test starts at", time.Now().Format(time.RFC3339), "and ends in", (10 * time.Second))
+		// log.Println("S2C: Test starts at", time.Now().Format(time.RFC3339), "and ends in", (10 * time.Second))
 		startTime := time.Now()
 		endTime := startTime.Add(10 * time.Second)
 		for time.Now().Before(endTime) {
-			err := ws.WritePreparedMessage(messageToSend)
+			err := ws.WritePreparedMessage(msg)
 			if err != nil {
-				log.Println(tr.port, "ERROR S2C: sending message", err)
+				log.Println("ERROR S2C: sending message", err)
 				done <- -1
 				return
 			}
-			totalBytes += float64(len(dataToSend))
+			totalBytes += float64(81920)
 		}
 		done <- totalBytes / float64(time.Since(startTime)/time.Second)
 	}()
 
-	log.Println(tr.port, "S2C: Waiting for test to complete or timeout")
+	log.Println("S2C: Waiting for test to complete or timeout")
 	select {
+	case <-ctx.Done():
+		log.Println("S2C: Context timeout!!!")
+		ws.Close()
+		<-done
+		return -1
 	case bytesPerSecond := <-done:
-		tr.response <- bytesPerSecond
-		break
-	case <-ticker.C:
-		tr.response <- -1
-		break
+		return bytesPerSecond
 	}
 }
 
-func recvC2SUntil(ws *websocket.Conn, d time.Duration) float64 {
-	ticker := time.NewTicker(d + time.Second)
-	defer ticker.Stop()
+func recvC2SUntil(ctx context.Context, ws *websocket.Conn) float64 {
 	done := make(chan float64)
 
 	go func() {
 		totalBytes := float64(0)
 		startTime := time.Now()
-		endTime := startTime.Add(d)
+		endTime := startTime.Add(10 * time.Second)
 		i := 0
 		for time.Now().Before(endTime) {
 			_, buffer, err := ws.ReadMessage()
@@ -278,12 +283,15 @@ func recvC2SUntil(ws *websocket.Conn, d time.Duration) float64 {
 		done <- bytesPerSecond
 	}()
 
-	log.Println(ws.RemoteAddr().String(), "C2S: Waiting for reader or ticker")
+	log.Println("C2S: Waiting for test to complete or timeout")
 	select {
+	case <-ctx.Done():
+		log.Println("C2S: Context timeout!!!")
+		ws.Close()
+		<-done
+		return -1
 	case bytesPerSecond := <-done:
 		return bytesPerSecond
-	case <-ticker.C:
-		return -1
 	}
 }
 
@@ -293,98 +301,127 @@ func (tr *TestResponder) C2STestServer(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		// Upgrade should have already returned an HTTP error code.
-		log.Println(tr.port, "ERROR C2S: upgrader", err)
+		log.Println("ERROR C2S: upgrader", err)
 		return
 	}
 	defer ws.Close()
 	tr.response <- C2sReady
-	bytesPerSecond := recvC2SUntil(ws, 10*time.Second)
+	bytesPerSecond := recvC2SUntil(tr.ctx, ws)
 	tr.response <- bytesPerSecond
 
 	// Drain client for a few more seconds, and discard results.
-	ts := time.Now()
-	_ = recvC2SUntil(ws, 4*time.Second)
-	log.Println(tr.port, "C2S: wait time", time.Now().Sub(ts))
+	// ts := time.Now()
+	_ = recvC2SUntil(tr.ctx, ws)
+	// log.Println("C2S: wait time", time.Now().Sub(ts))
+}
+
+func (tr *TestResponder) StartTLSAsync(mux *http.ServeMux, msg string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	tr.ctx = ctx
+	tr.cancel = cancel
+	tr.response = make(chan float64)
+	ln, port, err := listenRandom()
+	if err != nil {
+		log.Println("ERROR: Failed to listen on any port:", err)
+		return err
+	}
+	tr.port = port
+	tr.ln = ln
+	tr.s = &http.Server{Handler: mux}
+	go func() {
+		log.Printf("%s: Serving for test on %s", msg, ln.Addr())
+		tr.s.ServeTLS(ln, *certFile, *keyFile)
+	}()
+	return nil
+}
+
+func (tr *TestResponder) Port() int {
+	return tr.port
+}
+
+func (tr *TestResponder) Close() {
+	if tr.ln != nil {
+		tr.ln.Close()
+	}
+	if tr.s != nil {
+		tr.s.Close()
+	}
 }
 
 func manageC2sTest(ws *websocket.Conn) float64 {
-	// Open the socket
+	// Create a testResponder instance.
+	testResponder := &TestResponder{}
+
+	// Create a TLS server for running the C2S test.
 	serveMux := http.NewServeMux()
-	testResponder := &TestResponder{
-		response: make(chan float64),
-	}
 	serveMux.HandleFunc("/ndt_protocol",
 		promhttp.InstrumentHandlerCounter(
 			testCount.MustCurryWith(prometheus.Labels{"direction": "c2s"}),
 			http.HandlerFunc(testResponder.C2STestServer)))
-	// Start listening
-	s := http.Server{Handler: serveMux}
-	defer s.Close()
-
-	ln, err := net.ListenTCP("tcp", &net.TCPAddr{})
+	err := testResponder.StartTLSAsync(serveMux, "C2S")
 	if err != nil {
-		log.Println(ws.RemoteAddr(), "ERROR C2S: Failed to listen on any port:", err)
 		return -1
 	}
-	defer ln.Close()
-	c2sServerPort := ln.Addr().(*net.TCPAddr).Port
-	go func() {
-		log.Println(c2sServerPort, "C2S: About to listen for C2S on", ln.Addr())
-		s.ServeTLS(tcpKeepAliveListener{ln}, *certFile, *keyFile)
-	}()
-	testResponder.port = c2sServerPort
+	defer testResponder.Close()
 
-	// Tell the client to go
-	sendNdtMessage(TestPrepare, strconv.Itoa(c2sServerPort), ws)
+	// Wait for test to run. ///////////////////////////////////////////
+	// Send the server port to the client.
+	sendNdtMessage(TestPrepare, strconv.Itoa(testResponder.Port()), ws)
 	c2sReady := <-testResponder.response
 	if c2sReady != C2sReady {
-		log.Println(c2sServerPort, "ERROR C2S: Bad value received on the c2s channel", c2sReady)
+		log.Println("ERROR C2S: Bad value received on the c2s channel", c2sReady)
 		return -1
 	}
 	sendNdtMessage(TestStart, "", ws)
-	c2sRate := <-testResponder.response
-	sendNdtMessage(TestMsg, fmt.Sprintf("%.4f", c2sRate), ws)
+	c2sBytesPerSecond := <-testResponder.response
+	c2sKbps := 8 * c2sBytesPerSecond / 1000.0
+
+	sendNdtMessage(TestMsg, fmt.Sprintf("%.4f", c2sKbps), ws)
 	sendNdtMessage(TestFinalize, "", ws)
-	return c2sRate
+	log.Println("C2S: server rate:", c2sKbps)
+	return c2sKbps
+}
+
+// Listen on a random port.
+func listenRandom() (net.Listener, int, error) {
+	// Start listening
+	ln, err := net.ListenTCP("tcp", &net.TCPAddr{})
+	if err != nil {
+		return nil, 0, err
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	return tcpKeepAliveListener{ln}, port, nil
 }
 
 func manageS2cTest(ws *websocket.Conn) float64 {
-	// Open the socket
+	// Create a testResponder instance.
+	testResponder := &TestResponder{}
+
+	// Create a TLS server for running the S2C test.
 	serveMux := http.NewServeMux()
-	testResponder := &TestResponder{
-		response: make(chan float64),
-	}
 	serveMux.HandleFunc("/ndt_protocol",
 		promhttp.InstrumentHandlerCounter(
 			testCount.MustCurryWith(prometheus.Labels{"direction": "s2c"}),
 			http.HandlerFunc(testResponder.S2CTestServer)))
-	// Start listening
-	s := http.Server{Handler: serveMux}
-	defer s.Close()
-	ln, err := net.ListenTCP("tcp", &net.TCPAddr{})
+	err := testResponder.StartTLSAsync(serveMux, "S2C")
 	if err != nil {
-		log.Println("S2C: Failed to listen on any port:", err)
 		return -1
 	}
-	defer ln.Close()
-	s2cServerPort := ln.Addr().(*net.TCPAddr).Port
-	testResponder.port = s2cServerPort
-	go func() {
-		log.Println(s2cServerPort, "S2C: About to listen for S2C on", s2cServerPort)
-		s.ServeTLS(tcpKeepAliveListener{ln}, *certFile, *keyFile)
-	}()
+	defer testResponder.Close()
 
-	// Tell the client to go
-	sendNdtMessage(TestPrepare, strconv.Itoa(int(s2cServerPort)), ws)
+	// Wait for test to run. ///////////////////////////////////////////
+	// Send the server port to the client.
+	sendNdtMessage(TestPrepare, strconv.Itoa(testResponder.Port()), ws)
 	s2cReady := <-testResponder.response
 	if s2cReady != S2cReady {
-		log.Println(s2cServerPort, "S2C: Bad value received on the s2c channel", s2cReady)
+		log.Println("ERROR S2C: Bad value received on the s2c channel", s2cReady)
 		return -1
 	}
 	sendNdtMessage(TestStart, "", ws)
 	s2cBytesPerSecond := <-testResponder.response
 	s2cKbps := 8 * s2cBytesPerSecond / 1000.0
 
+	// Send additional download results to the client.
 	resultMsg := &NdtS2CResult{
 		ThroughputValue:  s2cKbps,
 		UnsentDataAmount: 0,
@@ -392,18 +429,19 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 	}
 	err = writeNdtMessage(ws, TestMsg, resultMsg)
 	if err != nil {
-		log.Println(s2cServerPort, "S2C: Failed to write JSON message:", err)
+		log.Println("S2C: Failed to write JSON message:", err)
 		return -1
 	}
 	clientRateMsg, err := recvNdtJSONMessage(ws, TestMsg)
 	if err != nil {
-		log.Println(s2cServerPort, "S2C: Failed to read JSON message:", err)
+		log.Println("S2C: Failed to read JSON message:", err)
 		return -1
 	}
-	log.Println(s2cServerPort, "S2C: The client sent us:", clientRateMsg.Msg)
-	requiredWeb100Vars := []string{"AckPktsIn", "CountRTT", "CongestionSignals", "CurRTO", "CurMSS",
-		"DataBytesOut", "DupAcksIn", "MaxCwnd", "MaxRwinRcvd", "PktsOut", "PktsRetrans", "RcvWinScale",
-		"Sndbuf", "SndLimTimeCwnd", "SndLimTimeRwin", "SndLimTimeSender", "SndWinScale", "SumRTT", "Timeouts",
+	log.Println("S2C: The client sent us:", clientRateMsg.Msg)
+	requiredWeb100Vars := []string{ //"AckPktsIn", "CountRTT", "CongestionSignals",
+		//"CurRTO", "CurMSS", "DataBytesOut", "DupAcksIn", "MaxCwnd", "MaxRwinRcvd",
+		//"PktsOut", "PktsRetrans", "RcvWinScale", "Sndbuf", "SndLimTimeCwnd",
+		//"SndLimTimeRwin", "SndLimTimeSender", "SndWinScale", "SumRTT", "Timeouts",
 		"MaxRTT", "MinRTT"}
 
 	for _, web100Var := range requiredWeb100Vars {
@@ -412,10 +450,10 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 	sendNdtMessage(TestFinalize, "", ws)
 	clientRate, err := strconv.ParseFloat(clientRateMsg.Msg, 64)
 	if err != nil {
-		log.Println(s2cServerPort, "S2C: Bad client rate:", err)
+		log.Println("S2C: Bad client rate:", err)
 		return -1
 	}
-	log.Println(s2cServerPort, "S2C: client rate:", clientRate, "vs", s2cKbps)
+	log.Println("S2C: server rate:", s2cKbps, "vs client rate:", clientRate)
 	return s2cKbps
 }
 
@@ -495,7 +533,7 @@ func NdtServer(w http.ResponseWriter, r *http.Request) {
 			testRate.WithLabelValues("s2c").Observe(s2cRate / 1000.0)
 		}
 	}
-
+	log.Printf("NDT: %s uploaded at %.4f and downloaded at %.4f", r.RemoteAddr, c2sRate, s2cRate)
 	sendNdtMessage(MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate, s2cRate), ws)
 	sendNdtMessage(MsgLogout, "", ws)
 }
