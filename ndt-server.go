@@ -115,15 +115,22 @@ func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
 }
 
 func readNdtMessage(ws *websocket.Conn, expectedType byte) ([]byte, error) {
-	_, buffer, err := ws.ReadMessage()
+	_, inbuff, err := ws.ReadMessage()
 	if err != nil {
 		return nil, err
 	}
-	if buffer[0] != expectedType {
-		return nil, fmt.Errorf("Read wrong message type. Wanted 0x%x, got 0x%x", expectedType, buffer[0])
+	if inbuff[0] != expectedType {
+		return nil, fmt.Errorf("Read wrong message type. Wanted 0x%x, got 0x%x", expectedType, inbuff[0])
 	}
-	// TODO: what's in bytes [1:3]?
-	return buffer[3:], nil
+	// Verify that the expected length matches the given data.
+	expectedLen := int(inbuff[1])<<8 + int(inbuff[2])
+	log.Println(expectedLen)
+	if expectedLen != len(inbuff[3:]) {
+		return nil, fmt.Errorf("Message length (%d) does not match length of data received (%d)",
+			expectedLen, len(inbuff[3:]))
+	}
+	log.Println(string(inbuff[3:]))
+	return inbuff[3:], nil
 }
 
 func writeNdtMessage(ws *websocket.Conn, msgType byte, msg fmt.Stringer) error {
