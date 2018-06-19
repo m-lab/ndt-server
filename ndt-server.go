@@ -124,7 +124,6 @@ func readNdtMessage(ws *websocket.Conn, expectedType byte) ([]byte, error) {
 	}
 	// Verify that the expected length matches the given data.
 	expectedLen := int(inbuff[1])<<8 + int(inbuff[2])
-	log.Println(expectedLen)
 	if expectedLen != len(inbuff[3:]) {
 		return nil, fmt.Errorf("Message length (%d) does not match length of data received (%d)",
 			expectedLen, len(inbuff[3:]))
