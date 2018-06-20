@@ -7,5 +7,4 @@ before_script:
 
 script:
 - go test -v -coverprofile=ndt.cov github.com/m-lab/ndt-cloud
-- cat /tmp/err
 - $GOPATH/bin/goveralls -coverprofile=ndt.cov -service=travis-ci
