@@ -40,8 +40,7 @@ func Test_NDTe2e(t *testing.T) {
 	tests := []string{
 		// Upload
 		"node ./testdata/unittest_client.js --server=" + u.Hostname() +
-			" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=18 2> /tmp/err",
-		"cat /tmp/err",
+			" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=18",
 		// Download
 		"node ./testdata/unittest_client.js --server=" + u.Hostname() +
 			" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=20",
@@ -51,10 +50,12 @@ func Test_NDTe2e(t *testing.T) {
 	}
 
 	for _, testCmd := range tests {
-		err = pipe.Run(pipe.System(testCmd))
+		stdout, stderr, err := pipe.DividedOutput(pipe.System(testCmd))
 		if err != nil {
-			t.Error(err)
+			t.Errorf("ERROR Command: %s\nStdout: %s\nStderr: %s\n",
+				testCmd, string(stdout), string(stderr))
 		}
+		t.Log(string(stdout))
 	}
 }
 
