@@ -36,21 +36,32 @@ func Test_NDTe2e(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// TODO: add a multi-client test.
 	// Run the unittest client using `node`.
-	tests := []string{
-		// Upload
-		"node ./testdata/unittest_client.js --server=" + u.Hostname() +
-			" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=18",
-		// Download
-		"node ./testdata/unittest_client.js --server=" + u.Hostname() +
-			" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=20",
-		// Both
-		"node ./testdata/unittest_client.js --server=" + u.Hostname() +
-			" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=22",
+	tests := []struct {
+		name string
+		cmd  string
+	}{
+		{
+			name: "Upload",
+			cmd: "node ./testdata/unittest_client.js --server=" + u.Hostname() +
+				" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=18",
+		},
+		{
+			name: "Download",
+			cmd: "node ./testdata/unittest_client.js --server=" + u.Hostname() +
+				" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=20",
+		},
+		{
+			name: "Upload & Download",
+			cmd: "node ./testdata/unittest_client.js --server=" + u.Hostname() +
+				" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=22",
+		},
 	}
 
 	for _, testCmd := range tests {
-		stdout, stderr, err := pipe.DividedOutput(pipe.System(testCmd))
+		stdout, stderr, err := pipe.DividedOutput(
+			pipe.Script(testCmd.name, pipe.System(testCmd.cmd)))
 		if err != nil {
 			t.Errorf("ERROR Command: %s\nStdout: %s\nStderr: %s\n",
 				testCmd, string(stdout), string(stderr))
@@ -58,6 +69,3 @@ func Test_NDTe2e(t *testing.T) {
 		t.Log(string(stdout))
 	}
 }
-
-// $ node --version
-// v8.11.0
