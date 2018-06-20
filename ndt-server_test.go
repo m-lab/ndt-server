@@ -40,7 +40,8 @@ func Test_NDTe2e(t *testing.T) {
 	tests := []string{
 		// Upload
 		"node ./testdata/unittest_client.js --server=" + u.Hostname() +
-			" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=18",
+			" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=18 2> /tmp/err",
+		"cat /tmp/err",
 		// Download
 		"node ./testdata/unittest_client.js --server=" + u.Hostname() +
 			" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=20",
