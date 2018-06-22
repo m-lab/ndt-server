@@ -334,7 +334,10 @@ func (tr *TestResponder) StartTLSAsync(mux *http.ServeMux, msg string) error {
 	tr.s = &http.Server{Handler: mux}
 	go func() {
 		log.Printf("%s: Serving for test on %s", msg, ln.Addr())
-		tr.s.ServeTLS(ln, *certFile, *keyFile)
+		err := tr.s.ServeTLS(ln, *certFile, *keyFile)
+		if err != nil {
+			log.Printf("ERROR: %s Starting TLS server: %s", msg, err)
+		}
 	}()
 	return nil
 }
