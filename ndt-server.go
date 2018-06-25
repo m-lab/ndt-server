@@ -92,9 +92,6 @@ var (
 	lameDuck = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "lame_duck_experiment",
 		Help: "Indicates when the server is in lame duck",
-		ConstLabels: map[string]string{
-			"experiment": "ndt.iupui",
-		},
 	})
 )
 
