@@ -9,8 +9,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -86,6 +89,10 @@ var (
 		},
 		[]string{"direction", "code"},
 	)
+	lameDuck = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "lame_duck_experiment",
+		Help: "Indicates when the server is in lame duck",
+	})
 )
 
 func init() {
@@ -93,6 +100,7 @@ func init() {
 	prometheus.MustRegister(testDuration)
 	prometheus.MustRegister(testCount)
 	prometheus.MustRegister(testRate)
+	prometheus.MustRegister(lameDuck)
 }
 
 // Note: Copied from net/http package.
@@ -556,9 +564,25 @@ You can monitor its status on port :9090/metrics.
 `))
 }
 
+func catchSigterm() {
+	// Disable lame duck status.
+	lameDuck.Set(0)
+
+	// Register channel to receive SIGTERM events.
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGTERM)
+
+	for {
+		// Wait until we receive a SIGTERM.
+		fmt.Println("Received signal:", <-c)
+		// Set lame duck status. This will remain set until exit.
+		lameDuck.Set(1)
+	}
+}
+
 func main() {
 	flag.Parse()
-
+	go catchSigterm()
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/debug/pprof/", pprof.Index)
