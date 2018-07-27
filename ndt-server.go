@@ -240,10 +240,10 @@ func (tr *TestResponder) S2CTestServer(w http.ResponseWriter, r *http.Request) {
 
 	// Signal control channel that we are about to start the test.
 	tr.response <- cReadyS2C
-	tr.response <- sendS2CUntil(tr.ctx, ws, messageToSend, len(dataToSend))
+	tr.response <- tr.sendS2CUntil(ws, messageToSend, len(dataToSend))
 }
 
-func sendS2CUntil(ctx context.Context, ws *websocket.Conn, msg *websocket.PreparedMessage, dataLen int) float64 {
+func (tr *TestResponder) sendS2CUntil(ws *websocket.Conn, msg *websocket.PreparedMessage, dataLen int) float64 {
 	// Create ticker to enforce timeout on
 	done := make(chan float64)
 
@@ -255,7 +255,7 @@ func sendS2CUntil(ctx context.Context, ws *websocket.Conn, msg *websocket.Prepar
 			err := ws.WritePreparedMessage(msg)
 			if err != nil {
 				log.Println("ERROR S2C: sending message", err)
-				done <- cError
+				tr.cancel()
 				return
 			}
 			totalBytes += float64(dataLen)
@@ -265,17 +265,17 @@ func sendS2CUntil(ctx context.Context, ws *websocket.Conn, msg *websocket.Prepar
 
 	log.Println("S2C: Waiting for test to complete or timeout")
 	select {
-	case <-ctx.Done():
-		log.Println("S2C: Context timeout!!!")
+	case <-tr.ctx.Done():
+		log.Println("S2C: Context Done!", tr.ctx.Err())
 		ws.Close()
-		<-done
-		return cError
+		// Return zero on error.
+		return 0
 	case bytesPerSecond := <-done:
 		return bytesPerSecond
 	}
 }
 
-func recvC2SUntil(ctx context.Context, ws *websocket.Conn) float64 {
+func (tr *TestResponder) recvC2SUntil(ws *websocket.Conn) float64 {
 	done := make(chan float64)
 
 	go func() {
@@ -285,7 +285,7 @@ func recvC2SUntil(ctx context.Context, ws *websocket.Conn) float64 {
 		for time.Now().Before(endTime) {
 			_, buffer, err := ws.ReadMessage()
 			if err != nil {
-				done <- cError
+				tr.cancel()
 				return
 			}
 			totalBytes += float64(len(buffer))
@@ -296,11 +296,11 @@ func recvC2SUntil(ctx context.Context, ws *websocket.Conn) float64 {
 
 	log.Println("C2S: Waiting for test to complete or timeout")
 	select {
-	case <-ctx.Done():
-		log.Println("C2S: Context timeout!!!")
+	case <-tr.ctx.Done():
+		log.Println("C2S: Context Done!", tr.ctx.Err())
 		ws.Close()
-		<-done
-		return cError
+		// Return zero on error.
+		return 0
 	case bytesPerSecond := <-done:
 		return bytesPerSecond
 	}
@@ -317,13 +317,13 @@ func (tr *TestResponder) C2STestServer(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 	tr.response <- cReadyC2S
-	bytesPerSecond := recvC2SUntil(tr.ctx, ws)
+	bytesPerSecond := tr.recvC2SUntil(ws)
 	tr.response <- bytesPerSecond
 
 	// Drain client for a few more seconds, and discard results.
-	// ts := time.Now()
-	_ = recvC2SUntil(tr.ctx, ws)
-	// log.Println("C2S: wait time", time.Now().Sub(ts))
+	tr.cancel()
+	tr.ctx, tr.cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	_ = tr.recvC2SUntil(ws)
 }
 
 func (tr *TestResponder) StartTLSAsync(mux *http.ServeMux, msg string) error {
@@ -342,7 +342,7 @@ func (tr *TestResponder) StartTLSAsync(mux *http.ServeMux, msg string) error {
 	go func() {
 		log.Printf("%s: Serving for test on %s", msg, ln.Addr())
 		err := tr.s.ServeTLS(ln, *certFile, *keyFile)
-		if err != nil {
+		if err != nil && err != http.ErrServerClosed {
 			log.Printf("ERROR: %s Starting TLS server: %s", msg, err)
 		}
 	}()
@@ -355,6 +355,7 @@ func (tr *TestResponder) Port() int {
 
 // Close will shutdown, cancel, or close all resources used by the test.
 func (tr *TestResponder) Close() {
+	log.Println("Closing Test Responder")
 	if tr.s != nil {
 		// Shutdown the server for the test.
 		tr.s.Close()
@@ -578,17 +579,17 @@ func NdtServer(w http.ResponseWriter, r *http.Request) {
 	if runC2s {
 		c2sRate, err = manageC2sTest(ws)
 		if err != nil {
-			testRate.WithLabelValues("c2s").Observe(c2sRate / 1000.0)
+			log.Println("ERROR: manageC2sTest", err)
 		} else {
-			log.Println("ERROR:", err)
+			testRate.WithLabelValues("c2s").Observe(c2sRate / 1000.0)
 		}
 	}
 	if runS2c {
 		s2cRate, err = manageS2cTest(ws)
 		if err != nil {
-			testRate.WithLabelValues("s2c").Observe(s2cRate / 1000.0)
+			log.Println("ERROR: manageS2cTest", err)
 		} else {
-			log.Println("ERROR:", err)
+			testRate.WithLabelValues("s2c").Observe(s2cRate / 1000.0)
 		}
 	}
 	log.Printf("NDT: %s uploaded at %.4f and downloaded at %.4f", r.RemoteAddr, c2sRate, s2cRate)
