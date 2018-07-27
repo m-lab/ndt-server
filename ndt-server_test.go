@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"runtime"
 	"testing"
 
 	"gopkg.in/m-lab/pipe.v3"
@@ -57,14 +58,30 @@ func Test_NDTe2e(t *testing.T) {
 			cmd: "node ./testdata/unittest_client.js --server=" + u.Hostname() +
 				" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=22",
 		},
+		{
+			// Start both tests, but kill the client during the upload test.
+			// This causes the server to wait for a test that never comes. After the
+			// timeout, the server should have cleaned up all outstanding goroutines.
+			name: "Upload & Download with S2C Timeout",
+			cmd: "node ./testdata/unittest_client.js --server=" + u.Hostname() +
+				" --port=" + u.Port() +
+				" --protocol=wss --acceptinvalidcerts --tests=22 & " +
+				"sleep 1 && kill %1 && sleep 25",
+		},
 	}
 
 	for _, testCmd := range tests {
+		before := runtime.NumGoroutine()
 		stdout, stderr, err := pipe.DividedOutput(
 			pipe.Script(testCmd.name, pipe.System(testCmd.cmd)))
 		if err != nil {
 			t.Errorf("ERROR Command: %s\nStdout: %s\nStderr: %s\n",
 				testCmd, string(stdout), string(stderr))
+		}
+		after := runtime.NumGoroutine()
+		if before != after {
+			t.Errorf("After running %s NumGoroutines changed: %d to %d",
+				testCmd.name, before, after)
 		}
 		t.Log(string(stdout))
 	}
