@@ -65,8 +65,8 @@ func Test_NDTe2e(t *testing.T) {
 			name: "Upload & Download with S2C Timeout",
 			cmd: "node ./testdata/unittest_client.js --server=" + u.Hostname() +
 				" --port=" + u.Port() +
-				" --protocol=wss --acceptinvalidcerts --tests=22 & " +
-				"sleep 1 && kill $(jobs -p) && sleep 25",
+				" --protocol=wss --acceptinvalidcerts --abort-c2s-early --tests=22 & " +
+				"sleep 25",
 		},
 	}
 
