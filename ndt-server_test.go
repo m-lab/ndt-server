@@ -66,7 +66,7 @@ func Test_NDTe2e(t *testing.T) {
 			cmd: "node ./testdata/unittest_client.js --server=" + u.Hostname() +
 				" --port=" + u.Port() +
 				" --protocol=wss --acceptinvalidcerts --tests=22 & " +
-				"sleep 1 && kill %1 && sleep 25",
+				"sleep 1 && kill $(jobs -p) && sleep 25",
 		},
 	}
 
