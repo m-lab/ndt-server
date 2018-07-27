@@ -44,7 +44,6 @@ const (
 const (
 	cReadyC2S = float64(-1)
 	cReadyS2C = float64(-1)
-	cError    = float64(-2)
 )
 
 // Flags that can be passed in on the command line
@@ -321,8 +320,9 @@ func (tr *TestResponder) C2STestServer(w http.ResponseWriter, r *http.Request) {
 	tr.response <- bytesPerSecond
 
 	// Drain client for a few more seconds, and discard results.
+	deadline, _ := tr.ctx.Deadline()
 	tr.cancel()
-	tr.ctx, tr.cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	tr.ctx, tr.cancel = context.WithDeadline(context.Background(), deadline)
 	_ = tr.recvC2SUntil(ws)
 }
 
@@ -604,7 +604,7 @@ This is an NDT server.
 
 It only works with Websockets and SSL.
 
-You can run a test here: /static/widget.html
+You can run a test here: :3010/static/widget.html
 You can monitor its status on port :9090/metrics.
 `))
 }
