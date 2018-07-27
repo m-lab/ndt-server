@@ -281,7 +281,6 @@ func recvC2SUntil(ctx context.Context, ws *websocket.Conn) float64 {
 		totalBytes := float64(0)
 		startTime := time.Now()
 		endTime := startTime.Add(10 * time.Second)
-		i := 0
 		for time.Now().Before(endTime) {
 			_, buffer, err := ws.ReadMessage()
 			if err != nil {
@@ -289,7 +288,6 @@ func recvC2SUntil(ctx context.Context, ws *websocket.Conn) float64 {
 				return
 			}
 			totalBytes += float64(len(buffer))
-			i++
 		}
 		bytesPerSecond := totalBytes / float64(time.Since(startTime)/time.Second)
 		done <- bytesPerSecond
@@ -379,22 +377,36 @@ func manageC2sTest(ws *websocket.Conn) float64 {
 	}
 	defer testResponder.Close()
 
-	// Wait for test to run. ///////////////////////////////////////////
-	// Send the server port to the client.
-	sendNdtMessage(TestPrepare, strconv.Itoa(testResponder.Port()), ws)
-	c2sReady := <-testResponder.response
-	if c2sReady != C2sReady {
-		log.Println("ERROR C2S: Bad value received on the c2s channel", c2sReady)
-		return -1
-	}
-	sendNdtMessage(TestStart, "", ws)
-	c2sBytesPerSecond := <-testResponder.response
-	c2sKbps := 8 * c2sBytesPerSecond / 1000.0
+	done := make(chan float64)
+	go func() {
+		// Wait for test to run. ///////////////////////////////////////////
+		// Send the server port to the client.
+		sendNdtMessage(TestPrepare, strconv.Itoa(testResponder.Port()), ws)
+		c2sReady := <-testResponder.response
+		if c2sReady != C2sReady {
+			log.Println("ERROR C2S: Bad value received on the c2s channel", c2sReady)
+			done <- -1
+			return
+		}
+		sendNdtMessage(TestStart, "", ws)
+		c2sBytesPerSecond := <-testResponder.response
+		c2sKbps := 8 * c2sBytesPerSecond / 1000.0
 
-	sendNdtMessage(TestMsg, fmt.Sprintf("%.4f", c2sKbps), ws)
-	sendNdtMessage(TestFinalize, "", ws)
-	log.Println("C2S: server rate:", c2sKbps)
-	return c2sKbps
+		sendNdtMessage(TestMsg, fmt.Sprintf("%.4f", c2sKbps), ws)
+		sendNdtMessage(TestFinalize, "", ws)
+		log.Println("C2S: server rate:", c2sKbps)
+		done <- c2sKbps
+	}()
+
+	defer testResponder.cancel()
+	select {
+	case <-testResponder.ctx.Done():
+		close(testResponder.response)
+		log.Println("C2S: ctx done!")
+		return -1
+	case value := <-done:
+		return value
+	}
 }
 
 // Listen on a random port.
@@ -424,52 +436,66 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 	}
 	defer testResponder.Close()
 
-	// Wait for test to run. ///////////////////////////////////////////
-	// Send the server port to the client.
-	sendNdtMessage(TestPrepare, strconv.Itoa(testResponder.Port()), ws)
-	s2cReady := <-testResponder.response
-	if s2cReady != S2cReady {
-		log.Println("ERROR S2C: Bad value received on the s2c channel", s2cReady)
-		return -1
-	}
-	sendNdtMessage(TestStart, "", ws)
-	s2cBytesPerSecond := <-testResponder.response
-	s2cKbps := 8 * s2cBytesPerSecond / 1000.0
+	done := make(chan float64)
+	go func() {
+		// Wait for test to run. ///////////////////////////////////////////
+		// Send the server port to the client.
+		sendNdtMessage(TestPrepare, strconv.Itoa(testResponder.Port()), ws)
+		s2cReady := <-testResponder.response
+		if s2cReady != S2cReady {
+			log.Println("ERROR S2C: Bad value received on the s2c channel", s2cReady)
+			done <- -1
+			return
+		}
+		sendNdtMessage(TestStart, "", ws)
+		s2cBytesPerSecond := <-testResponder.response
+		s2cKbps := 8 * s2cBytesPerSecond / 1000.0
 
-	// Send additional download results to the client.
-	resultMsg := &NdtS2CResult{
-		ThroughputValue:  s2cKbps,
-		UnsentDataAmount: 0,
-		TotalSentByte:    int64(10 * s2cBytesPerSecond), // TODO: use actual bytes sent.
-	}
-	err = writeNdtMessage(ws, TestMsg, resultMsg)
-	if err != nil {
-		log.Println("S2C: Failed to write JSON message:", err)
-		return -1
-	}
-	clientRateMsg, err := recvNdtJSONMessage(ws, TestMsg)
-	if err != nil {
-		log.Println("S2C: Failed to read JSON message:", err)
-		return -1
-	}
-	log.Println("S2C: The client sent us:", clientRateMsg.Msg)
-	requiredWeb100Vars := []string{ //"AckPktsIn", "CountRTT", "CongestionSignals",
-		//"CurRTO", "CurMSS", "DataBytesOut", "DupAcksIn", "MaxCwnd", "MaxRwinRcvd",
-		//"PktsOut", "PktsRetrans", "RcvWinScale", "Sndbuf", "SndLimTimeCwnd",
-		//"SndLimTimeRwin", "SndLimTimeSender", "SndWinScale", "SumRTT", "Timeouts",
-		"MaxRTT", "MinRTT"}
+		// Send additional download results to the client.
+		resultMsg := &NdtS2CResult{
+			ThroughputValue:  s2cKbps,
+			UnsentDataAmount: 0,
+			TotalSentByte:    int64(10 * s2cBytesPerSecond), // TODO: use actual bytes sent.
+		}
+		err = writeNdtMessage(ws, TestMsg, resultMsg)
+		if err != nil {
+			log.Println("S2C: Failed to write JSON message:", err)
+			done <- -1
+			return
+		}
+		clientRateMsg, err := recvNdtJSONMessage(ws, TestMsg)
+		if err != nil {
+			log.Println("S2C: Failed to read JSON message:", err)
+			done <- -1
+			return
+		}
+		log.Println("S2C: The client sent us:", clientRateMsg.Msg)
+		requiredWeb100Vars := []string{"MaxRTT", "MinRTT"}
 
-	for _, web100Var := range requiredWeb100Vars {
-		sendNdtMessage(TestMsg, web100Var+": 0", ws)
-	}
-	sendNdtMessage(TestFinalize, "", ws)
-	clientRate, err := strconv.ParseFloat(clientRateMsg.Msg, 64)
-	if err != nil {
-		log.Println("S2C: Bad client rate:", err)
+		for _, web100Var := range requiredWeb100Vars {
+			sendNdtMessage(TestMsg, web100Var+": 0", ws)
+		}
+		sendNdtMessage(TestFinalize, "", ws)
+		clientRate, err := strconv.ParseFloat(clientRateMsg.Msg, 64)
+		if err != nil {
+			log.Println("S2C: Bad client rate:", err)
+			done <- -1
+			return
+		}
+		log.Println("S2C: server rate:", s2cKbps, "vs client rate:", clientRate)
+		done <- s2cKbps
+	}()
+
+	defer testResponder.cancel()
+	select {
+	case <-testResponder.ctx.Done():
+		log.Println("S2C: ctx done!")
+		close(testResponder.response)
 		return -1
+	case value := <-done:
+		log.Println("S2C: finished ", value)
+		return value
 	}
-	log.Println("S2C: server rate:", s2cKbps, "vs client rate:", clientRate)
-	return s2cKbps
 }
 
 // TODO: run meta test.
@@ -560,6 +586,7 @@ This is an NDT server.
 
 It only works with Websockets and SSL.
 
+You can run a test here: /static/widget.html
 You can monitor its status on port :9090/metrics.
 `))
 }
