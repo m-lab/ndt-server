@@ -42,8 +42,9 @@ const (
 
 // Message constants for use in their respective channels
 const (
-	C2sReady = float64(-1)
-	S2cReady = float64(-1)
+	cReadyC2S = float64(-1)
+	cReadyS2C = float64(-1)
+	cError    = float64(-2)
 )
 
 // Flags that can be passed in on the command line
@@ -238,7 +239,7 @@ func (tr *TestResponder) S2CTestServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Signal control channel that we are about to start the test.
-	tr.response <- S2cReady
+	tr.response <- cReadyS2C
 	tr.response <- sendS2CUntil(tr.ctx, ws, messageToSend, len(dataToSend))
 }
 
@@ -254,7 +255,7 @@ func sendS2CUntil(ctx context.Context, ws *websocket.Conn, msg *websocket.Prepar
 			err := ws.WritePreparedMessage(msg)
 			if err != nil {
 				log.Println("ERROR S2C: sending message", err)
-				done <- -1
+				done <- cError
 				return
 			}
 			totalBytes += float64(dataLen)
@@ -268,7 +269,7 @@ func sendS2CUntil(ctx context.Context, ws *websocket.Conn, msg *websocket.Prepar
 		log.Println("S2C: Context timeout!!!")
 		ws.Close()
 		<-done
-		return -1
+		return cError
 	case bytesPerSecond := <-done:
 		return bytesPerSecond
 	}
@@ -284,7 +285,7 @@ func recvC2SUntil(ctx context.Context, ws *websocket.Conn) float64 {
 		for time.Now().Before(endTime) {
 			_, buffer, err := ws.ReadMessage()
 			if err != nil {
-				done <- -1
+				done <- cError
 				return
 			}
 			totalBytes += float64(len(buffer))
@@ -299,7 +300,7 @@ func recvC2SUntil(ctx context.Context, ws *websocket.Conn) float64 {
 		log.Println("C2S: Context timeout!!!")
 		ws.Close()
 		<-done
-		return -1
+		return cError
 	case bytesPerSecond := <-done:
 		return bytesPerSecond
 	}
@@ -315,7 +316,7 @@ func (tr *TestResponder) C2STestServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer ws.Close()
-	tr.response <- C2sReady
+	tr.response <- cReadyC2S
 	bytesPerSecond := recvC2SUntil(tr.ctx, ws)
 	tr.response <- bytesPerSecond
 
@@ -352,16 +353,28 @@ func (tr *TestResponder) Port() int {
 	return tr.port
 }
 
+// Close will shutdown, cancel, or close all resources used by the test.
 func (tr *TestResponder) Close() {
-	if tr.ln != nil {
-		tr.ln.Close()
-	}
 	if tr.s != nil {
+		// Shutdown the server for the test.
 		tr.s.Close()
 	}
+	if tr.ln != nil {
+		// Shutdown the socket listener.
+		tr.ln.Close()
+	}
+	if tr.cancel != nil {
+		// Cancel the test responder context.
+		tr.cancel()
+	}
+	// Close channel for communication between the control routine and test routine.
+	close(tr.response)
 }
 
-func manageC2sTest(ws *websocket.Conn) float64 {
+func manageC2sTest(ws *websocket.Conn) (float64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
 	// Create a testResponder instance.
 	testResponder := &TestResponder{}
 
@@ -373,7 +386,7 @@ func manageC2sTest(ws *websocket.Conn) float64 {
 			http.HandlerFunc(testResponder.C2STestServer)))
 	err := testResponder.StartTLSAsync(serveMux, "C2S")
 	if err != nil {
-		return -1
+		return 0, err
 	}
 	defer testResponder.Close()
 
@@ -383,9 +396,9 @@ func manageC2sTest(ws *websocket.Conn) float64 {
 		// Send the server port to the client.
 		sendNdtMessage(TestPrepare, strconv.Itoa(testResponder.Port()), ws)
 		c2sReady := <-testResponder.response
-		if c2sReady != C2sReady {
+		if c2sReady != cReadyC2S {
 			log.Println("ERROR C2S: Bad value received on the c2s channel", c2sReady)
-			done <- -1
+			cancel()
 			return
 		}
 		sendNdtMessage(TestStart, "", ws)
@@ -398,14 +411,13 @@ func manageC2sTest(ws *websocket.Conn) float64 {
 		done <- c2sKbps
 	}()
 
-	defer testResponder.cancel()
 	select {
-	case <-testResponder.ctx.Done():
-		close(testResponder.response)
-		log.Println("C2S: ctx done!")
-		return -1
+	case <-ctx.Done():
+		log.Println("C2S: ctx Done!")
+		return 0, ctx.Err()
 	case value := <-done:
-		return value
+		log.Println("C2S: finished ", value)
+		return value, nil
 	}
 }
 
@@ -420,7 +432,10 @@ func listenRandom() (net.Listener, int, error) {
 	return tcpKeepAliveListener{ln}, port, nil
 }
 
-func manageS2cTest(ws *websocket.Conn) float64 {
+func manageS2cTest(ws *websocket.Conn) (float64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
 	// Create a testResponder instance.
 	testResponder := &TestResponder{}
 
@@ -432,7 +447,7 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 			http.HandlerFunc(testResponder.S2CTestServer)))
 	err := testResponder.StartTLSAsync(serveMux, "S2C")
 	if err != nil {
-		return -1
+		return 0, err
 	}
 	defer testResponder.Close()
 
@@ -442,9 +457,9 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 		// Send the server port to the client.
 		sendNdtMessage(TestPrepare, strconv.Itoa(testResponder.Port()), ws)
 		s2cReady := <-testResponder.response
-		if s2cReady != S2cReady {
+		if s2cReady != cReadyS2C {
 			log.Println("ERROR S2C: Bad value received on the s2c channel", s2cReady)
-			done <- -1
+			cancel()
 			return
 		}
 		sendNdtMessage(TestStart, "", ws)
@@ -460,13 +475,13 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 		err = writeNdtMessage(ws, TestMsg, resultMsg)
 		if err != nil {
 			log.Println("S2C: Failed to write JSON message:", err)
-			done <- -1
+			cancel()
 			return
 		}
 		clientRateMsg, err := recvNdtJSONMessage(ws, TestMsg)
 		if err != nil {
 			log.Println("S2C: Failed to read JSON message:", err)
-			done <- -1
+			cancel()
 			return
 		}
 		log.Println("S2C: The client sent us:", clientRateMsg.Msg)
@@ -479,22 +494,20 @@ func manageS2cTest(ws *websocket.Conn) float64 {
 		clientRate, err := strconv.ParseFloat(clientRateMsg.Msg, 64)
 		if err != nil {
 			log.Println("S2C: Bad client rate:", err)
-			done <- -1
+			cancel()
 			return
 		}
 		log.Println("S2C: server rate:", s2cKbps, "vs client rate:", clientRate)
 		done <- s2cKbps
 	}()
 
-	defer testResponder.cancel()
 	select {
-	case <-testResponder.ctx.Done():
+	case <-ctx.Done():
 		log.Println("S2C: ctx done!")
-		close(testResponder.response)
-		return -1
-	case value := <-done:
-		log.Println("S2C: finished ", value)
-		return value
+		return 0, ctx.Err()
+	case rate := <-done:
+		log.Println("S2C: finished ", rate)
+		return rate, nil
 	}
 }
 
@@ -563,15 +576,19 @@ func NdtServer(w http.ResponseWriter, r *http.Request) {
 
 	var c2sRate, s2cRate float64
 	if runC2s {
-		c2sRate = manageC2sTest(ws)
-		if c2sRate > 0 {
+		c2sRate, err = manageC2sTest(ws)
+		if err != nil {
 			testRate.WithLabelValues("c2s").Observe(c2sRate / 1000.0)
+		} else {
+			log.Println("ERROR:", err)
 		}
 	}
 	if runS2c {
-		s2cRate = manageS2cTest(ws)
-		if s2cRate > 0 {
+		s2cRate, err = manageS2cTest(ws)
+		if err != nil {
 			testRate.WithLabelValues("s2c").Observe(s2cRate / 1000.0)
+		} else {
+			log.Println("ERROR:", err)
 		}
 	}
 	log.Printf("NDT: %s uploaded at %.4f and downloaded at %.4f", r.RemoteAddr, c2sRate, s2cRate)
