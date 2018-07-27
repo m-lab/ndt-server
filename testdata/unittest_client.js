@@ -22,7 +22,8 @@ var argv = require('minimist')(process.argv.slice(2),
                                             'port': 3001,
                                             'protocol': 'ws',
                                             'tests': (2 | 4 | 32),
-                                            'acceptinvalidcerts': false},
+                                            'acceptinvalidcerts': false,
+                                            'abort-c2s-early': false},
                                 'string': ['server'],
                                 'boolean': [ 'quiet', 'debug']}),
     COMM_FAILURE = 0,
@@ -45,6 +46,7 @@ var argv = require('minimist')(process.argv.slice(2),
     server = argv['server'],
     port = argv['port'],
     tests = argv['tests'],
+    abort_c2s_early = argv['abort-c2s-early'],
     url_protocol = argv['protocol'],
     debug = !!(argv.debug),
     quiet = !!(argv.quiet),
@@ -279,6 +281,9 @@ function ndt_c2s_test() {
             return "KEEP GOING";
         }
         if (state === "WAIT_FOR_TEST_START" && type === TEST_START) {
+            if (abort_c2s_early) {
+                die("C2S: aborting early as requested.");
+            }
             test_start = Date.now() / 1000;
             keep_sending_data();
             state = "WAIT_FOR_TEST_MSG";
