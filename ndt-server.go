@@ -63,8 +63,8 @@ var (
 			Name: "ndt_control_duration_seconds",
 			Help: "A histogram of request latencies to the control channel.",
 			// Durations will likely be tri-modal: early failures (fast),
-			// completed single test (slower), completed dual tests (slowest).
-			Buckets: []float64{.1, 1, 10, 11, 12, 13, 14, 15, 17, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 60, 180},
+			// completed single test (slower), completed dual tests (slowest) or timeouts.
+			Buckets: []float64{.1, 1, 10, 10.5, 11, 11.5, 12, 20, 21, 22, 30, 60},
 		},
 		[]string{"code"},
 	)
@@ -73,12 +73,10 @@ var (
 			Name: "ndt_test_rate_mbps",
 			Help: "A histogram of request rates.",
 			Buckets: []float64{
-				1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95,
-				100, 110, 120, 130, 140, 150, 160, 170, 180, 190,
-				200, 220, 240, 260, 280,
-				300, 333, 366,
-				400, 450,
-				500, 600, 700, 800, 900, 1000},
+				1, 1.5, 2.5, 4, 6,
+				10, 15, 25, 40, 60,
+				100, 150, 250, 400, 600,
+				1000},
 		},
 		[]string{"direction"},
 	)
