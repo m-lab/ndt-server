@@ -5,12 +5,13 @@
 To run the server locally, first run `gen_local_test_certs.sh`, and then run the
 commands
 ```bash
-docker build . -t ndtgo
+docker build . -t ndt-cloud
 ```
 and
 ```bash
-docker run --net=host -v `pwd`:/certs -it -t ndtgo
+docker run --net=host -v `pwd`:/certs -it -t ndt-cloud \
+    -cert /certs/cert.pem -key /certs/key.pem
 ```
 
 Once you have done that, you should have a server running on port 3010 on
-localhost.
+localhost with metrics available on port 9090.
