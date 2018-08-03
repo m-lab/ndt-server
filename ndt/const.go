@@ -18,3 +18,9 @@ const (
 	TestS2C    = 4
 	TestStatus = 16
 )
+
+// Message constants for use in their respective channels
+const (
+	ReadyC2S = float64(-1)
+	ReadyS2C = float64(-1)
+)
