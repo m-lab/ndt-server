@@ -7,12 +7,12 @@ import (
 	"runtime"
 	"testing"
 
-	"gopkg.in/m-lab/pipe.v3"
+	pipe "gopkg.in/m-lab/pipe.v3"
 )
 
 func Test_NDTe2e(t *testing.T) {
-	*certFile = "cert.pem"
-	*keyFile = "key.pem"
+	*fCertFile = "cert.pem"
+	*fKeyFile = "key.pem"
 
 	// Create key & self-signed certificate.
 	err := pipe.Run(
