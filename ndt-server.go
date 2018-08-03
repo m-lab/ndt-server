@@ -48,9 +48,10 @@ const (
 
 // Flags that can be passed in on the command line
 var (
-	NdtPort  = flag.String("port", "3010", "The port to use for the main NDT test")
-	certFile = flag.String("cert", "", "The file with server certificates in PEM format.")
-	keyFile  = flag.String("key", "", "The file with server key in PEM format.")
+	fNdtPort     = flag.String("port", "3010", "The port to use for the main NDT test")
+	fCertFile    = flag.String("cert", "", "The file with server certificates in PEM format.")
+	fKeyFile     = flag.String("key", "", "The file with server key in PEM format.")
+	fMetricsAddr = flag.String("metrics_address", ":9090", "Export prometheus metrics on this address and port.")
 )
 
 var (
@@ -339,7 +340,7 @@ func (tr *TestResponder) StartTLSAsync(mux *http.ServeMux, msg string) error {
 	tr.s = &http.Server{Handler: mux}
 	go func() {
 		log.Printf("%s: Serving for test on %s", msg, ln.Addr())
-		err := tr.s.ServeTLS(ln, *certFile, *keyFile)
+		err := tr.s.ServeTLS(ln, *fCertFile, *fKeyFile)
 		if err != nil && err != http.ErrServerClosed {
 			log.Printf("ERROR: %s Starting TLS server: %s", msg, err)
 		}
@@ -634,7 +635,7 @@ func main() {
 		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 		mux.Handle("/metrics", promhttp.Handler())
-		log.Fatal(http.ListenAndServe(":9090", mux))
+		log.Fatal(http.ListenAndServe(*fMetricsAddr, mux))
 	}()
 
 	http.HandleFunc("/", DefaultHandler)
@@ -644,6 +645,6 @@ func main() {
 			promhttp.InstrumentHandlerDuration(testDuration,
 				http.HandlerFunc(NdtServer))))
 
-	log.Println("About to listen on " + *NdtPort + ". Go to http://127.0.0.1:" + *NdtPort + "/")
-	log.Fatal(http.ListenAndServeTLS(":"+*NdtPort, *certFile, *keyFile, nil))
+	log.Println("About to listen on " + *fNdtPort + ". Go to http://127.0.0.1:" + *fNdtPort + "/")
+	log.Fatal(http.ListenAndServeTLS(":"+*fNdtPort, *fCertFile, *fKeyFile, nil))
 }
