@@ -17,8 +17,8 @@ const (
 
 // Responder coordinates the main control loop and subtests.
 type Responder struct {
-	Port   int
-	Result chan float64
+	port   int          // port is the random port allocated for the test server.
+	result chan float64 // result is the channel shared between the test handler and control handler.
 
 	kind     string
 	duration time.Duration
@@ -37,13 +37,13 @@ func NewResponder(kind string, duration time.Duration, certFile, keyFile string)
 // StartTLSAsync allocates a new TLS HTTP server listening on a random port. The
 // server can be stopped again using TestResponder.Close().
 func (tr *Responder) StartTLSAsync(mux *http.ServeMux) error {
-	tr.Result = make(chan float64)
+	tr.result = make(chan float64)
 	ln, port, err := listenRandom()
 	if err != nil {
 		log.Println("ERROR: Failed to listen on any port:", err)
 		return err
 	}
-	tr.Port = port
+	tr.port = port
 	tr.ln = ln
 	tr.s = &http.Server{Handler: mux}
 	go func() {
@@ -68,7 +68,7 @@ func (tr *Responder) Close() {
 		tr.ln.Close()
 	}
 	// Close channel for communication between the control routine and test routine.
-	close(tr.Result)
+	close(tr.result)
 }
 
 // MakeNdtUpgrader returns a websocket.Upgrader suitable for a legacy NDT upload

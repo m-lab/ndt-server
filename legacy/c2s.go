@@ -27,9 +27,9 @@ func (tr *Responder) C2STestHandler(w http.ResponseWriter, r *http.Request) {
 	deadline := time.Now().Add(tr.duration)
 
 	// Signal ready, and run the test.
-	tr.Result <- cReadyC2S
+	tr.result <- cReadyC2S
 	bytesPerSecond := runC2S(ws, deadline.Sub(time.Now()), true)
-	tr.Result <- bytesPerSecond
+	tr.result <- bytesPerSecond
 
 	// Drain client for a few more seconds, and discard results.
 	_ = runC2S(ws, deadline.Sub(time.Now()), false)
@@ -40,13 +40,13 @@ func (tr *Responder) C2STestHandler(w http.ResponseWriter, r *http.Request) {
 func (tr *Responder) C2SController(ws *websocket.Conn) (float64, error) {
 	// Wait for test to run.
 	// Send the server port to the client.
-	SendNdtMessage(ndt.TestPrepare, strconv.Itoa(tr.Port), ws)
-	c2sReady := <-tr.Result
+	SendNdtMessage(ndt.TestPrepare, strconv.Itoa(tr.port), ws)
+	c2sReady := <-tr.result
 	if c2sReady != cReadyC2S {
 		return 0, fmt.Errorf("ERROR C2S: Bad value received on the c2s channel: %f", c2sReady)
 	}
 	SendNdtMessage(ndt.TestStart, "", ws)
-	c2sBytesPerSecond := <-tr.Result
+	c2sBytesPerSecond := <-tr.result
 	c2sKbps := 8 * c2sBytesPerSecond / 1000.0
 
 	SendNdtMessage(ndt.TestMsg, fmt.Sprintf("%.4f", c2sKbps), ws)

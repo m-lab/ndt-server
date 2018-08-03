@@ -32,8 +32,8 @@ func (tr *Responder) S2CTestHandler(w http.ResponseWriter, r *http.Request) {
 	deadline := time.Now().Add(tr.duration)
 
 	// Signal control channel that we are about to start the test.
-	tr.Result <- cReadyS2C
-	tr.Result <- runS2C(ws, dataToSend, deadline.Sub(time.Now()))
+	tr.result <- cReadyS2C
+	tr.result <- runS2C(ws, dataToSend, deadline.Sub(time.Now()))
 }
 
 // S2CController manages communication with the S2CTestHandler from the control
@@ -41,13 +41,13 @@ func (tr *Responder) S2CTestHandler(w http.ResponseWriter, r *http.Request) {
 func (tr *Responder) S2CController(ws *websocket.Conn) (float64, error) {
 	// Wait for test to run. ///////////////////////////////////////////
 	// Send the server port to the client.
-	SendNdtMessage(ndt.TestPrepare, strconv.Itoa(tr.Port), ws)
-	s2cReady := <-tr.Result
+	SendNdtMessage(ndt.TestPrepare, strconv.Itoa(tr.port), ws)
+	s2cReady := <-tr.result
 	if s2cReady != ndt.ReadyS2C {
 		return 0, fmt.Errorf("ERROR S2C: Bad value received on the s2c channel: %f", s2cReady)
 	}
 	SendNdtMessage(ndt.TestStart, "", ws)
-	s2cBytesPerSecond := <-tr.Result
+	s2cBytesPerSecond := <-tr.result
 	s2cKbps := 8 * s2cBytesPerSecond / 1000.0
 
 	// Send additional download results to the client.
