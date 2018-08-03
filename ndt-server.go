@@ -218,7 +218,7 @@ func manageC2sTest(ws *websocket.Conn) (float64, error) {
 	serveMux.HandleFunc("/ndt_protocol",
 		promhttp.InstrumentHandlerCounter(
 			testCount.MustCurryWith(prometheus.Labels{"direction": "c2s"}),
-			http.HandlerFunc(testResponder.C2STestServer)))
+			http.HandlerFunc(testResponder.C2STestHandler)))
 	err := testResponder.StartTLSAsync(serveMux)
 	if err != nil {
 		return 0, err
@@ -230,10 +230,10 @@ func manageC2sTest(ws *websocket.Conn) (float64, error) {
 	defer cancel()
 
 	go func() {
-		c2sKbps, err := testResponder.ControlC2S(ws)
+		c2sKbps, err := testResponder.C2SController(ws)
 		if err != nil {
 			cancel()
-			log.Println("C2S: ControlC2S error:", err)
+			log.Println("C2S: C2SController error:", err)
 			return
 		}
 		done <- c2sKbps
