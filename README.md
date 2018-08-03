@@ -15,3 +15,9 @@ docker run --net=host -v `pwd`:/certs -it -t ndt-cloud \
 
 Once you have done that, you should have a server running on port 3010 on
 localhost with metrics available on port 9090.
+
+Try running a test in your browser (certs will appear invalid to your
+browser, but everything is safe because it's running locally):
+
+* https://localhost:3010/static/widget.html
+* http://localhost:9090/metrics
