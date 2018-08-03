@@ -60,8 +60,8 @@ func (tr *Responder) StartTLSAsync(mux *http.ServeMux) error {
 	return nil
 }
 
-// C2STestServer is an http.Handler that executes the NDT c2s test over websockets.
-func (tr *Responder) C2STestServer(w http.ResponseWriter, r *http.Request) {
+// C2STestHandler is an http.Handler that executes the NDT c2s test over websockets.
+func (tr *Responder) C2STestHandler(w http.ResponseWriter, r *http.Request) {
 	upgrader := makeNdtUpgrader([]string{"c2s"})
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -76,15 +76,17 @@ func (tr *Responder) C2STestServer(w http.ResponseWriter, r *http.Request) {
 
 	// Signal ready, and run the test.
 	tr.Result <- cReadyC2S
-	bytesPerSecond := runC2S(ws, deadline.Sub(time.Now()))
+	bytesPerSecond := runC2S(ws, deadline.Sub(time.Now()), true)
 	tr.Result <- bytesPerSecond
 
 	// Drain client for a few more seconds, and discard results.
-	_ = runC2S(ws, deadline.Sub(time.Now()))
+	_ = runC2S(ws, deadline.Sub(time.Now()), false)
 }
 
-func (tr *Responder) ControlC2S(ws *websocket.Conn) (float64, error) {
-	// Wait for test to run. ///////////////////////////////////////////
+// C2SController manages communication with the C2STestHandler from the control
+// channel.
+func (tr *Responder) C2SController(ws *websocket.Conn) (float64, error) {
+	// Wait for test to run.
 	// Send the server port to the client.
 	SendNdtMessage(ndt.TestPrepare, strconv.Itoa(tr.Port), ws)
 	c2sReady := <-tr.Result
@@ -119,7 +121,7 @@ func (tr *Responder) Close() {
 // runC2S performs a 10 second NDT client to server test. Runtime is
 // guaranteed to be no more than timeout. The timeout should be slightly greater
 // than 10 sec. The given websocket should be closed by the caller.
-func runC2S(ws *websocket.Conn, timeout time.Duration) float64 {
+func runC2S(ws *websocket.Conn, timeout time.Duration, logErrors bool) float64 {
 	done := make(chan float64)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -129,7 +131,9 @@ func runC2S(ws *websocket.Conn, timeout time.Duration) float64 {
 		bytesPerSec, err := recvUntil(ws, 10*time.Second)
 		if err != nil {
 			cancel()
-			log.Println("C2S: recvUntil error:", err)
+			if logErrors {
+				log.Println("C2S: recvUntil error:", err)
+			}
 			return
 		}
 		done <- bytesPerSec
@@ -137,7 +141,9 @@ func runC2S(ws *websocket.Conn, timeout time.Duration) float64 {
 
 	select {
 	case <-ctx.Done():
-		log.Println("C2S: Context Done!", ctx.Err())
+		if logErrors {
+			log.Println("C2S: Context Done!", ctx.Err())
+		}
 		// Return zero on error.
 		return 0
 	case bytesPerSecond := <-done:
