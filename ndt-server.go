@@ -35,9 +35,9 @@ const (
 	MsgWaiting       = byte(10)
 	MsgExtendedLogin = byte(11)
 
-	TEST_C2S    = 2
-	TEST_S2C    = 4
-	TEST_STATUS = 16
+	cTestC2S    = 2
+	cTestS2C    = 4
+	cTestStatus = 16
 )
 
 // Message constants for use in their respective channels
@@ -325,6 +325,8 @@ func (tr *TestResponder) C2STestServer(w http.ResponseWriter, r *http.Request) {
 	_ = tr.recvC2SUntil(ws)
 }
 
+// StartTLSAsync allocates a new TLS HTTP server listening on a random port. The
+// server can be stopped again using TestResponder.Close().
 func (tr *TestResponder) StartTLSAsync(mux *http.ServeMux, msg string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	tr.ctx = ctx
@@ -348,6 +350,8 @@ func (tr *TestResponder) StartTLSAsync(mux *http.ServeMux, msg string) error {
 	return nil
 }
 
+// Port returns the random port assigned to the TestResponder server. Must be
+// called after StartTLSAsync.
 func (tr *TestResponder) Port() int {
 	return tr.port
 }
@@ -555,19 +559,19 @@ func NdtServer(w http.ResponseWriter, r *http.Request) {
 		log.Println("Failed to parse Tests integer:", err)
 		return
 	}
-	if (tests & TEST_STATUS) == 0 {
-		log.Println("We don't support clients that don't support TEST_STATUS")
+	if (tests & cTestStatus) == 0 {
+		log.Println("We don't support clients that don't support cTestStatus")
 		return
 	}
 	testsToRun := []string{}
-	runC2s := (tests & TEST_C2S) != 0
-	runS2c := (tests & TEST_S2C) != 0
+	runC2s := (tests & cTestC2S) != 0
+	runS2c := (tests & cTestS2C) != 0
 
 	if runC2s {
-		testsToRun = append(testsToRun, strconv.Itoa(TEST_C2S))
+		testsToRun = append(testsToRun, strconv.Itoa(cTestC2S))
 	}
 	if runS2c {
-		testsToRun = append(testsToRun, strconv.Itoa(TEST_S2C))
+		testsToRun = append(testsToRun, strconv.Itoa(cTestS2C))
 	}
 
 	sendNdtMessage(SrvQueue, "0", ws)
@@ -596,7 +600,7 @@ func NdtServer(w http.ResponseWriter, r *http.Request) {
 	sendNdtMessage(MsgLogout, "", ws)
 }
 
-func DefaultHandler(w http.ResponseWriter, req *http.Request) {
+func defaultHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte(`
 This is an NDT server.
@@ -638,7 +642,7 @@ func main() {
 		log.Fatal(http.ListenAndServe(*fMetricsAddr, mux))
 	}()
 
-	http.HandleFunc("/", DefaultHandler)
+	http.HandleFunc("/", defaultHandler)
 	http.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
 	http.Handle("/ndt_protocol",
 		promhttp.InstrumentHandlerInFlight(currentTests,
