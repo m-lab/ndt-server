@@ -26,10 +26,9 @@ func (tr *Responder) C2STestHandler(w http.ResponseWriter, r *http.Request) {
 	// Define an absolute deadline for running all tests.
 	deadline := time.Now().Add(tr.duration)
 
-	// Signal ready, and run the test.
+	// Signal control channel we're ready, and run the test.
 	tr.result <- cReadyC2S
-	bytesPerSecond := runC2S(ws, deadline.Sub(time.Now()), true)
-	tr.result <- bytesPerSecond
+	tr.result <- runC2S(ws, deadline.Sub(time.Now()), true)
 
 	// Drain client for a few more seconds, and discard results.
 	_ = runC2S(ws, deadline.Sub(time.Now()), false)
