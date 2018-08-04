@@ -23,17 +23,12 @@ func (tr *Responder) S2CTestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 
-	dataToSend := make([]byte, 81920)
-	for i := range dataToSend {
-		dataToSend[i] = byte(((i * 101) % (122 - 33)) + 33)
-	}
-
 	// Define an absolute deadline for running all tests.
 	deadline := time.Now().Add(tr.duration)
 
 	// Signal control channel that we are about to start the test.
 	tr.result <- cReadyS2C
-	tr.result <- runS2C(ws, dataToSend, deadline.Sub(time.Now()))
+	tr.result <- runS2C(ws, deadline.Sub(time.Now()))
 }
 
 // S2CController manages communication with the S2CTestHandler from the control
@@ -82,13 +77,13 @@ func (tr *Responder) S2CController(ws *websocket.Conn) (float64, error) {
 // runS2C performs a 10 second NDT server to client test. Runtime is
 // guaranteed to be no more than timeout. The timeout should be slightly greater
 // than 10 sec. The given websocket should be closed by the caller.
-func runS2C(ws *websocket.Conn, data []byte, timeout time.Duration) float64 {
+func runS2C(ws *websocket.Conn, timeout time.Duration) float64 {
 	done := make(chan float64)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	go func() {
-		bytesPerSec, err := sendUntil(ws, data, 10*time.Second)
+		bytesPerSec, err := sendUntil(ws, 10*time.Second)
 		if err != nil {
 			cancel()
 			log.Println("S2C: sendUntil error:", err)
@@ -108,7 +103,11 @@ func runS2C(ws *websocket.Conn, data []byte, timeout time.Duration) float64 {
 	}
 }
 
-func sendUntil(ws *websocket.Conn, data []byte, duration time.Duration) (float64, error) {
+func sendUntil(ws *websocket.Conn, duration time.Duration) (float64, error) {
+	data := make([]byte, 81920)
+	for i := range data {
+		data[i] = byte(((i * 101) % (122 - 33)) + 33)
+	}
 	msg, err := websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 	if err != nil {
 		return 0, fmt.Errorf("ERROR S2C: Could not make prepared message: %s", err)
