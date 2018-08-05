@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bassosimone/nuvolari"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -641,6 +642,8 @@ func main() {
 		mux.Handle("/metrics", promhttp.Handler())
 		log.Fatal(http.ListenAndServe(*fMetricsAddr, mux))
 	}()
+
+	http.HandleFunc(nuvolari.DownloadURLPath, nuvolari.DownloadHandler{}.Handle)
 
 	http.HandleFunc("/", defaultHandler)
 	http.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
