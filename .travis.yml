@@ -6,5 +6,6 @@ before_script:
 - npm install --verbose ws minimist
 
 script:
+- go get -v ./cmd/ndt-cloud-client
 - go test -v -coverprofile=ndt.cov github.com/m-lab/ndt-cloud
 - $GOPATH/bin/goveralls -coverprofile=ndt.cov -service=travis-ci
