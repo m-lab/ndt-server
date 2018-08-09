@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/m-lab/ndt7"
+	"github.com/m-lab/ndt-cloud/ndt7"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
