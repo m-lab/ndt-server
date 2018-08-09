@@ -124,62 +124,38 @@ type FailureRecord struct {
 // defaultTimeout is the default value of the I/O timeout.
 const defaultTimeout = 1 * time.Second
 
-// Download runs a NDT7 download test. The |intrch| channel, if not nil, can
-// be used to interrupt the download test. Events occurring during the test
-// lifecycle will be emitted on the returned channel.
-func (cl Client) Download(intrch chan interface{}) chan Event {
-	ch := make(chan Event)
-	go func() {
-		defer close(ch)
-		ch <- Event{Key: LogEvent, Value: LogRecord{Severity: LogInfo,
-			Message: "Creating a WebSocket connection"}}
-		cl.url.Path = DownloadURLPath
-		headers := http.Header{}
-		headers.Add("Sec-WebSocket-Protocol", SecWebSocketProtocol)
-		conn, _, err := cl.dialer.Dial(cl.url.String(), headers)
+// Download runs a NDT7 download test.
+func (cl Client) Download() error {
+	log.Info("Creating a WebSocket connection")
+	cl.url.Path = DownloadURLPath
+	headers := http.Header{}
+	headers.Add("Sec-WebSocket-Protocol", SecWebSocketProtocol)
+	conn, _, err := cl.dialer.Dial(cl.url.String(), headers)
+	if err != nil {
+		return err
+	}
+	conn.SetReadLimit(MinMaxMessageSize)
+	defer conn.Close()
+	log.Info("Starting download")
+	for {
+		conn.SetReadDeadline(time.Now().Add(defaultTimeout))
+		mtype, mdata, err := conn.ReadMessage()
 		if err != nil {
-			ch <- Event{Key: FailureEvent, Value: FailureRecord{Err: err}}
-			return
-		}
-		conn.SetReadLimit(MinMaxMessageSize)
-		defer conn.Close()
-		ch <- Event{Key: LogEvent, Value: LogRecord{Severity: LogInfo,
-			Message: "Starting download"}}
-		ticker := time.NewTicker(MinMeasurementInterval)
-		defer ticker.Stop()
-		t0 := time.Now()
-		count := int64(0)
-		for running := true; running; {
-			select {
-			case t := <-ticker.C:
-				ch <- Event{Key: MeasurementEvent, Value: MeasurementRecord{
-					IsLocal: true, Measurement: Measurement{
-						Elapsed: t.Sub(t0).Nanoseconds(), NumBytes: count}}}
-			case <-intrch:
-				running = false
-				break
-			default: // None of the above, receive more data
-				conn.SetReadDeadline(time.Now().Add(defaultTimeout))
-				mtype, mdata, err := conn.ReadMessage()
-				if err != nil {
-					if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-						ch <- Event{Key: FailureEvent, Value: FailureRecord{Err: err}}
-					}
-					return
-				}
-				count += int64(len(mdata))
-				if mtype == websocket.TextMessage {
-					measurement := Measurement{}
-					err := json.Unmarshal(mdata, &measurement)
-					if err != nil {
-						ch <- Event{Key: FailureEvent, Value: FailureRecord{Err: err}}
-						return
-					}
-					ch <- Event{Key: MeasurementEvent, Value: MeasurementRecord{
-						IsLocal: false, Measurement: measurement}}
-				}
+			if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
+				return err
 			}
+			break
 		}
-	}()
-	return ch
+		if mtype == websocket.TextMessage {
+			// Unmarshaling to verify that this message is correct JSON
+			measurement := Measurement{}
+			err := json.Unmarshal(mdata, &measurement)
+			if err != nil {
+				return err
+			}
+			log.Infof("Server measurement: %s", mdata)
+		}
+	}
+	log.Info("Download complete")
+	return nil
 }
