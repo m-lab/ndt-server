@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/m-lab/ndt-cloud/ndt7"
 
@@ -85,6 +86,8 @@ func Test_NDTe2e(t *testing.T) {
 			t.Errorf("ERROR Command: %s\nStdout: %s\nStderr: %s\n",
 				testCmd, string(stdout), string(stderr))
 		}
+		// Add small delay to allow transient goroutines to quiesce.
+		time.Sleep(100 * time.Millisecond)
 		after := runtime.NumGoroutine()
 		if before != after {
 			t.Errorf("After running %s NumGoroutines changed: %d to %d",
