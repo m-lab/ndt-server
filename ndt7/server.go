@@ -22,7 +22,7 @@ type DownloadHandler struct {
 }
 
 // Handle handles the download subtest.
-func (dl DownloadHandler) Handle(writer http.ResponseWriter, request *http.Request) {
+func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	log.Debug("Processing query string")
 	duration := defaultDuration
 	{
@@ -55,8 +55,8 @@ func (dl DownloadHandler) Handle(writer http.ResponseWriter, request *http.Reque
 	conn.SetReadLimit(MinMaxMessageSize)
 	defer conn.Close()
 	log.Debug("Generating random buffer")
-	const buffersiz = 1 << 13
-	data := make([]byte, buffersiz)
+	const bufferSize = 1 << 13
+	data := make([]byte, bufferSize)
 	rand.Read(data)
 	buffer, err := websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 	if err != nil {
@@ -91,7 +91,7 @@ func (dl DownloadHandler) Handle(writer http.ResponseWriter, request *http.Reque
 				log.WithError(err).Warn("cannot send data message")
 				return
 			}
-			count += buffersiz
+			count += bufferSize
 		}
 	}
 	log.Debug("Closing the WebSocket connection")

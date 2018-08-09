@@ -643,7 +643,7 @@ func main() {
 		log.Fatal(http.ListenAndServe(*fMetricsAddr, mux))
 	}()
 
-	http.HandleFunc(ndt7.DownloadURLPath, ndt7.DownloadHandler{}.Handle)
+	http.Handle(ndt7.DownloadURLPath, ndt7.DownloadHandler{})
 
 	http.HandleFunc("/", defaultHandler)
 	http.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))

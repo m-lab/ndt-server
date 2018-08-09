@@ -31,7 +31,7 @@ func Test_NDTe2e(t *testing.T) {
 
 	// Start a test server using the NdtServer as the entry point.
 	mux := http.NewServeMux()
-	mux.HandleFunc(ndt7.DownloadURLPath, ndt7.DownloadHandler{}.Handle)
+	mux.Handle(ndt7.DownloadURLPath, ndt7.DownloadHandler{})
 	mux.Handle("/ndt_protocol", http.HandlerFunc(NdtServer))
 	ts := httptest.NewTLSServer(mux)
 	defer ts.Close()
