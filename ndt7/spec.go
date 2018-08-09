@@ -1,4 +1,4 @@
-// Package nuvolari contains a non-backwards compatible redesign of the NDT
+// Package ndt7 contains a non-backwards compatible redesign of the NDT
 // network performance measurement protocol. In particular we redesigned the
 // NDT protocol (NDP) to work natively and only over WebSocket and TLS, so
 // to remove the complexity induced by trying to be backward compatible with
@@ -8,15 +8,6 @@
 // 7.0.0 of the NDT protocol and aims to eventually live outside of this
 // specification. This is why, optimistically, we will call the protocol NDT7
 // or NDP7 in the remainder of the documentation.
-//
-// This package is called nuvolari because it aims to support the implementation
-// of an NDT "cloud" server written in Golang. You can translate "cloud" to
-// "nuvola" in Italian. Also Tazio Nuvolari was a fast formula one driver in
-// the late fourties and we aim for this implementation to be also fast to read
-// and efficient. Also Nuvolari was "basso di statura" (i.e. not so high) and
-// also my surname means "not so high", hence the name sounds perfect.
-//
-// This is the package's anthem: https://www.youtube.com/watch?v=56kHVXVQOb0.
 //
 // Protocol description
 //
@@ -86,7 +77,7 @@
 // SHOULD not close the TCP connection immediately, so that the server can
 // close it first. This allows to reuse ports more efficiently on the
 // server because we avoid TIME_WAIT.
-package nuvolari
+package ndt7
 
 import "time"
 
