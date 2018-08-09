@@ -74,53 +74,6 @@ func NewClient(settings Settings) Client {
 	return cl
 }
 
-// EvKey uniquely identifies an event.
-type EvKey int
-
-const (
-	// LogEvent indicates an event containing a log message
-	LogEvent = EvKey(iota)
-	// MeasurementEvent indicates an event containing some measurements
-	MeasurementEvent
-	// FailureEvent indicates an event containing an error
-	FailureEvent
-)
-
-// Event is the structure of a generic event
-type Event struct {
-	Key   EvKey       // Tells you the kind of the event
-	Value interface{} // Opaque event value
-}
-
-// Severity indicates the severity of a log message
-type Severity int
-
-const (
-	// LogWarning indicates a warning message
-	LogWarning = Severity(iota)
-	// LogInfo indicates an informational message
-	LogInfo
-	// LogDebug indicates a debug message
-	LogDebug
-)
-
-// LogRecord is the structure of a log event
-type LogRecord struct {
-	Severity Severity // Message severity
-	Message  string   // The message
-}
-
-// MeasurementRecord is the structure of a measurement event
-type MeasurementRecord struct {
-	Measurement      // The measurement
-	IsLocal     bool `json:"is_local"` // Whether it is a local measurement
-}
-
-// FailureRecord is the structure of a failure event
-type FailureRecord struct {
-	Err error // The error that occurred
-}
-
 // defaultTimeout is the default value of the I/O timeout.
 const defaultTimeout = 1 * time.Second
 
