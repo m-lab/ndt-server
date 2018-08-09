@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/m-lab/ndt-cloud/ndt7"
+
 	pipe "gopkg.in/m-lab/pipe.v3"
 )
 
@@ -29,6 +31,7 @@ func Test_NDTe2e(t *testing.T) {
 
 	// Start a test server using the NdtServer as the entry point.
 	mux := http.NewServeMux()
+	mux.HandleFunc(ndt7.DownloadURLPath, ndt7.DownloadHandler{}.Handle)
 	mux.Handle("/ndt_protocol", http.HandlerFunc(NdtServer))
 	ts := httptest.NewTLSServer(mux)
 	defer ts.Close()
@@ -67,6 +70,10 @@ func Test_NDTe2e(t *testing.T) {
 				" --port=" + u.Port() +
 				" --protocol=wss --acceptinvalidcerts --abort-c2s-early --tests=22 & " +
 				"sleep 25",
+		},
+		{
+			name: "Test the NDT7 protocol",
+			cmd: "ndt-cloud-client -skip-tls-verify -port " + u.Port(),
 		},
 	}
 
