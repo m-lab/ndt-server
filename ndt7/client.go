@@ -22,6 +22,7 @@ const defaultTimeout = 1 * time.Second
 // Download runs a NDT7 download test.
 func (cl Client) Download() error {
 	cl.URL.Path = DownloadURLPath
+	cl.URL.RawQuery = "duration=60"
 	log.Infof("Creating a WebSocket connection to: %s", cl.URL.String())
 	headers := http.Header{}
 	headers.Add("Sec-WebSocket-Protocol", SecWebSocketProtocol)
@@ -48,6 +49,7 @@ func (cl Client) Download() error {
 				panic("cannot unmarshal JSON")
 			}
 			log.Infof("client: %s", data)
+			log.Infof("speed: %f", (float64(num) * 8.0) / t1.Sub(t0).Seconds() / 1e06)
 		default:
 			// Just fallthrough
 		}
