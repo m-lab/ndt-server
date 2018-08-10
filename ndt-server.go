@@ -50,6 +50,7 @@ const (
 
 // Flags that can be passed in on the command line
 var (
+	fNdt7Port    = flag.Int64("ndt7-port", 443, "The port to use for the NDT7 test")
 	fNdtPort     = flag.String("port", "3010", "The port to use for the main NDT test")
 	fCertFile    = flag.String("cert", "", "The file with server certificates in PEM format.")
 	fKeyFile     = flag.String("key", "", "The file with server key in PEM format.")
@@ -102,6 +103,25 @@ func init() {
 	prometheus.MustRegister(testCount)
 	prometheus.MustRegister(testRate)
 	prometheus.MustRegister(lameDuck)
+}
+
+// Note: Copied from net/http package.
+// keepAliveListener is the place where we accept new TCP connections and
+// set specific options on such connections. Namely, we set TCP keep-alive
+// timeouts on accepted connections. This optionis used so dead TCP connections
+// (e.g. closing laptop mid-download) eventually go away.
+type keepAliveListener struct {
+	*net.TCPListener
+}
+
+func (ln keepAliveListener) Accept() (net.Conn, error) {
+	tc, err := ln.AcceptTCP()
+	if err != nil {
+		return nil, err
+	}
+	tc.SetKeepAlive(true)
+	tc.SetKeepAlivePeriod(3 * time.Minute)
+	return tc, nil
 }
 
 // Note: Copied from net/http package.
@@ -441,7 +461,7 @@ func listenRandom() (net.Listener, int, error) {
 		return nil, 0, err
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	return tcpListenerEx{ln}, port, nil
+	return keepAliveListener{ln}, port, nil
 }
 
 func manageS2cTest(ws *websocket.Conn) (float64, error) {
@@ -659,21 +679,13 @@ func main() {
 			promhttp.InstrumentHandlerDuration(testDuration,
 				http.HandlerFunc(NdtServer))))
 
+	// The following is listening on the standard NDT port and without
 	go func() {
 		log.Fatal(http.ListenAndServeTLS(":"+*fNdtPort, *fCertFile, *fKeyFile, nil))
 	}()
 	log.Println("About to listen on " + *fNdtPort + ". Go to http://127.0.0.1:" + *fNdtPort + "/")
 
-	go func() {
-		ln, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 3020})
-		if err != nil {
-			log.Fatal(err)
-		}
-		s := &http.Server{Handler: http.DefaultServeMux}
-		log.Fatal(s.ServeTLS(ln, *fCertFile, *fKeyFile))
-	}()
-
-	ln, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 3021})
+	ln, err := net.ListenTCP("tcp", &net.TCPAddr{Port: *fNdt7Port})
 	if err != nil {
 		log.Fatal(err)
 	}

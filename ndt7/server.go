@@ -14,7 +14,7 @@ import (
 const defaultDuration = 10 * time.Second
 
 // maxDuration is the maximum duration of a subtest in seconds
-const maxDuration = 600
+const maxDuration = 30
 
 // DownloadHandler handles a download subtest from the server side.
 type DownloadHandler struct {
