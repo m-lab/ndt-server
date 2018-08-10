@@ -106,25 +106,6 @@ func init() {
 }
 
 // Note: Copied from net/http package.
-// keepAliveListener is the place where we accept new TCP connections and
-// set specific options on such connections. Namely, we set TCP keep-alive
-// timeouts on accepted connections. This option is used so dead TCP connections
-// (e.g. closing laptop mid-download) eventually go away.
-type keepAliveListener struct {
-	*net.TCPListener
-}
-
-func (ln keepAliveListener) Accept() (net.Conn, error) {
-	tc, err := ln.AcceptTCP()
-	if err != nil {
-		return nil, err
-	}
-	tc.SetKeepAlive(true)
-	tc.SetKeepAlivePeriod(3 * time.Minute)
-	return tc, nil
-}
-
-// Note: Copied from net/http package.
 // tcpListenerEx is the place where we accept new TCP connections and
 // set specific options on such connections. Namely, we set TCP keep-alive
 // timeouts on accepted connections, and we turn on TCP BBR. The former
@@ -132,6 +113,7 @@ func (ln keepAliveListener) Accept() (net.Conn, error) {
 // eventually go away. The latter is used to experiment with BBR.
 type tcpListenerEx struct {
 	*net.TCPListener
+	EnableBBR bool
 }
 
 func (ln tcpListenerEx) Accept() (net.Conn, error) {
@@ -141,10 +123,11 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 	}
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
-	err = netx.EnableBBR(tc)
-	if err != nil {
-		// NOTHING: for now live with the fact that sometimes we are not able
-		// to successfully turn on TCP BBR.
+	if ln.EnableBBR {
+		err = netx.EnableBBR(tc)
+		if err != nil {
+			return nil, err  // Error already printed by EnableBBR()
+		}
 	}
 	return tc, nil
 }
@@ -461,7 +444,7 @@ func listenRandom() (net.Listener, int, error) {
 		return nil, 0, err
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	return keepAliveListener{ln}, port, nil
+	return tcpListenerEx{TCPListener: ln, EnableBBR: false}, port, nil
 }
 
 func manageS2cTest(ws *websocket.Conn) (float64, error) {
@@ -691,5 +674,6 @@ func main() {
 		log.Fatal(err)
 	}
 	s := &http.Server{Handler: http.DefaultServeMux}
-	log.Fatal(s.ServeTLS(tcpListenerEx{ln}, *fCertFile, *fKeyFile))
+	log.Fatal(s.ServeTLS(tcpListenerEx{TCPListener: ln, EnableBBR: true},
+		*fCertFile, *fKeyFile))
 }

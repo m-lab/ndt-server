@@ -19,7 +19,7 @@ func EnableBBR(tc *net.TCPConn) error {
 		syscall.TCP_CONGESTION, "bbr")
 	if err != nil {
 		log.WithError(err).Warn("SetsockoptString() failed")
-		return err
+		return nil  // Until we know we have BBR everywhere tolerate this error
 	}
 	log.Info("TCP BBR has been successfully enabled")
 	return nil
