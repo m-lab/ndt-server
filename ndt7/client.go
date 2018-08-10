@@ -25,6 +25,7 @@ func (cl Client) Download() error {
 	log.Infof("Creating a WebSocket connection to: %s", cl.URL.String())
 	headers := http.Header{}
 	headers.Add("Sec-WebSocket-Protocol", SecWebSocketProtocol)
+	cl.Dialer.HandshakeTimeout = defaultTimeout
 	conn, _, err := cl.Dialer.Dial(cl.URL.String(), headers)
 	if err != nil {
 		return err
