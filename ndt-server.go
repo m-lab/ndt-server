@@ -16,9 +16,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-cloud/ndt7"
 	"github.com/m-lab/ndt-cloud/netx"
-	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -659,12 +659,21 @@ func main() {
 			promhttp.InstrumentHandlerDuration(testDuration,
 				http.HandlerFunc(NdtServer))))
 
+	go func() {
+		log.Fatal(http.ListenAndServeTLS(":"+*fNdtPort, *fCertFile, *fKeyFile, nil))
+	}()
 	log.Println("About to listen on " + *fNdtPort + ". Go to http://127.0.0.1:" + *fNdtPort + "/")
-	port, err := strconv.Atoi(*fNdtPort)
-	if err != nil {
-		log.Fatal(err)
-	}
-	ln, err := net.ListenTCP("tcp", &net.TCPAddr{Port: port})
+
+	go func() {
+		ln, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 3020})
+		if err != nil {
+			log.Fatal(err)
+		}
+		s := &http.Server{Handler: http.DefaultServeMux}
+		log.Fatal(s.ServeTLS(ln, *fCertFile, *fKeyFile))
+	}()
+
+	ln, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 3021})
 	if err != nil {
 		log.Fatal(err)
 	}
