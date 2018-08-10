@@ -50,7 +50,7 @@ const (
 
 // Flags that can be passed in on the command line
 var (
-	fNdt7Port    = flag.Int64("ndt7-port", 443, "The port to use for the NDT7 test")
+	fNdt7Port    = flag.Int("ndt7-port", 443, "The port to use for the NDT7 test")
 	fNdtPort     = flag.String("port", "3010", "The port to use for the main NDT test")
 	fCertFile    = flag.String("cert", "", "The file with server certificates in PEM format.")
 	fKeyFile     = flag.String("key", "", "The file with server key in PEM format.")
