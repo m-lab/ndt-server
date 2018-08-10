@@ -108,7 +108,7 @@ func init() {
 // Note: Copied from net/http package.
 // keepAliveListener is the place where we accept new TCP connections and
 // set specific options on such connections. Namely, we set TCP keep-alive
-// timeouts on accepted connections. This optionis used so dead TCP connections
+// timeouts on accepted connections. This option is used so dead TCP connections
 // (e.g. closing laptop mid-download) eventually go away.
 type keepAliveListener struct {
 	*net.TCPListener
