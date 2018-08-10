@@ -679,12 +679,13 @@ func main() {
 			promhttp.InstrumentHandlerDuration(testDuration,
 				http.HandlerFunc(NdtServer))))
 
-	// The following is listening on the standard NDT port and without
+	// The following is listening on the standard NDT port and without BBR.
 	go func() {
 		log.Fatal(http.ListenAndServeTLS(":"+*fNdtPort, *fCertFile, *fKeyFile, nil))
 	}()
 	log.Println("About to listen on " + *fNdtPort + ". Go to http://127.0.0.1:" + *fNdtPort + "/")
 
+	// This is the NDT7 listener on a standard port and with TCP BBR enabled.
 	ln, err := net.ListenTCP("tcp", &net.TCPAddr{Port: *fNdt7Port})
 	if err != nil {
 		log.Fatal(err)
