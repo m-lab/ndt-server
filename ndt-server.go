@@ -16,9 +16,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-cloud/ndt7"
 	"github.com/m-lab/ndt-cloud/netx"
-	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -50,6 +50,7 @@ const (
 
 // Flags that can be passed in on the command line
 var (
+	fNdt7Port    = flag.Int("ndt7-port", 443, "The port to use for the NDT7 test")
 	fNdtPort     = flag.String("port", "3010", "The port to use for the main NDT test")
 	fCertFile    = flag.String("cert", "", "The file with server certificates in PEM format.")
 	fKeyFile     = flag.String("key", "", "The file with server key in PEM format.")
@@ -112,6 +113,7 @@ func init() {
 // eventually go away. The latter is used to experiment with BBR.
 type tcpListenerEx struct {
 	*net.TCPListener
+	EnableBBR bool
 }
 
 func (ln tcpListenerEx) Accept() (net.Conn, error) {
@@ -121,10 +123,11 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 	}
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
-	err = netx.EnableBBR(tc)
-	if err != nil {
-		// NOTHING: for now live with the fact that sometimes we are not able
-		// to successfully turn on TCP BBR.
+	if ln.EnableBBR {
+		err = netx.EnableBBR(tc)
+		if err != nil {
+			return nil, err  // Error already printed by EnableBBR()
+		}
 	}
 	return tc, nil
 }
@@ -441,7 +444,7 @@ func listenRandom() (net.Listener, int, error) {
 		return nil, 0, err
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	return tcpListenerEx{ln}, port, nil
+	return tcpListenerEx{TCPListener: ln, EnableBBR: false}, port, nil
 }
 
 func manageS2cTest(ws *websocket.Conn) (float64, error) {
@@ -659,15 +662,18 @@ func main() {
 			promhttp.InstrumentHandlerDuration(testDuration,
 				http.HandlerFunc(NdtServer))))
 
+	// The following is listening on the standard NDT port and without BBR.
+	go func() {
+		log.Fatal(http.ListenAndServeTLS(":"+*fNdtPort, *fCertFile, *fKeyFile, nil))
+	}()
 	log.Println("About to listen on " + *fNdtPort + ". Go to http://127.0.0.1:" + *fNdtPort + "/")
-	port, err := strconv.Atoi(*fNdtPort)
-	if err != nil {
-		log.Fatal(err)
-	}
-	ln, err := net.ListenTCP("tcp", &net.TCPAddr{Port: port})
+
+	// This is the NDT7 listener on a standard port and with TCP BBR enabled.
+	ln, err := net.ListenTCP("tcp", &net.TCPAddr{Port: *fNdt7Port})
 	if err != nil {
 		log.Fatal(err)
 	}
 	s := &http.Server{Handler: http.DefaultServeMux}
-	log.Fatal(s.ServeTLS(tcpListenerEx{ln}, *fCertFile, *fKeyFile))
+	log.Fatal(s.ServeTLS(tcpListenerEx{TCPListener: ln, EnableBBR: true},
+		*fCertFile, *fKeyFile))
 }

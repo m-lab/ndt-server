@@ -25,6 +25,7 @@ func (cl Client) Download() error {
 	log.Infof("Creating a WebSocket connection to: %s", cl.URL.String())
 	headers := http.Header{}
 	headers.Add("Sec-WebSocket-Protocol", SecWebSocketProtocol)
+	cl.Dialer.HandshakeTimeout = defaultTimeout
 	conn, _, err := cl.Dialer.Dial(cl.URL.String(), headers)
 	if err != nil {
 		return err
@@ -38,12 +39,15 @@ func (cl Client) Download() error {
 	for {
 		select {
 		case t1 := <-ticker.C:
-			// Print the current speed on the stdout because this gives us an idea
-			// of how fast we are downloading from the remote server.
-			v := (float64(num) * 8.0) / t1.Sub(t0).Seconds() / 1e06
-			log.Infof("Client measurement: %02f Mbit/s", v)
-			t0 = t1
-			num = int64(0)
+			mm := Measurement{
+				Elapsed: t1.Sub(t0).Nanoseconds(),
+				NumBytes: num,
+			}
+			data, err := json.Marshal(mm)
+			if err != nil {
+				panic("cannot unmarshal JSON")
+			}
+			log.Infof("client: %s", data)
 		default:
 			// Just fallthrough
 		}
@@ -64,6 +68,7 @@ func (cl Client) Download() error {
 			if err != nil {
 				return err
 			}
+			log.Infof("server: %s", mdata)
 		}
 	}
 	log.Info("Download complete")
