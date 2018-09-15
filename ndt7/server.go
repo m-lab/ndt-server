@@ -29,6 +29,9 @@ type DownloadHandler struct {
 // BBR stops growing. We use the same percentage used by the BBR paper
 // to characterize the bandwidth growth, i.e. 25%. The BBR paper can be
 // read online at <https://queue.acm.org/detail.cfm?id=3022184>.
+//
+// TODO(bassosimone): This algorithm runs every 0.25 seconds. What happens
+// if the RTT is bigger? Let's make sure that that is not a problem!
 func stoppableAccordingToBW(prev float64, cur float64) bool {
 	return cur >= prev && (cur - prev) < (0.25 * prev)
 }
