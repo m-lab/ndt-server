@@ -18,7 +18,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-cloud/ndt7"
-	"github.com/m-lab/ndt-cloud/netx"
+	"github.com/m-lab/ndt-cloud/bbr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -105,12 +105,15 @@ func init() {
 	prometheus.MustRegister(lameDuck)
 }
 
-// Note: Copied from net/http package.
 // tcpListenerEx is the place where we accept new TCP connections and
-// set specific options on such connections. Namely, we set TCP keep-alive
-// timeouts on accepted connections, and we turn on TCP BBR. The former
-// option is used so dead TCP connections (e.g. closing laptop mid-download)
-// eventually go away. The latter is used to experiment with BBR.
+// set specific options on such connections. We unconditionally set the
+// keepalive timeout for all connections, so that dead TCP connections
+// (e.g. laptop closed amid a download) eventually go aware. If the
+// EnableBBR setting is true, we additionally: (1) enable BBR on the
+// socket; (2) record the file descriptor bound to a net.TCPConn such
+// that later we can use it to collect BBR info.
+//
+// Note: Adapted from net/http package.
 type tcpListenerEx struct {
 	*net.TCPListener
 	EnableBBR bool
@@ -124,9 +127,15 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
 	if ln.EnableBBR {
-		err = netx.EnableBBR(tc)
+		err = bbr.EnableBBR(tc)
+		if err == nil {
+			err = bbr.RegisterBBRFd(tc)
+			// FALLTHROUGH
+		}
 		if err != nil {
-			return nil, err  // Error already printed by EnableBBR()
+			log.Printf("Cannot initialize BBR: %s", err.Error())
+			// Until we know for sure that we have support for BBR, it's wiser to
+			// just warn rather than erroring out here.
 		}
 	}
 	return tc, nil

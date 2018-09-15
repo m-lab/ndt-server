@@ -8,6 +8,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-cloud/bbr"
 )
 
 // defaultDuration is the default duration of a subtest in nanoseconds.
@@ -19,6 +20,17 @@ const maxDuration = 30
 // DownloadHandler handles a download subtest from the server side.
 type DownloadHandler struct {
 	Upgrader websocket.Upgrader
+}
+
+// stoppableAccordingToBW returns true when we can stop the current download
+// test based on |prev|, the previous BBR bandwidth sample, and |cur| the
+// current BBR bandwidth sample. This algorithm runs every 0.25 seconds and
+// indicates that the download can stop if the bandwidth estimated using
+// BBR stops growing. We use the same percentage used by the BBR paper
+// to characterize the bandwidth growth, i.e. 25%. The BBR paper can be
+// read online at <https://queue.acm.org/detail.cfm?id=3022184>.
+func stoppableAccordingToBW(prev float64, cur float64) bool {
+	return cur >= prev && (cur - prev) < (0.25 * prev)
 }
 
 // Handle handles the download subtest.
@@ -52,6 +64,13 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		log.WithError(err).Warn("upgrader.Upgrade() failed")
 		return
 	}
+	// TODO(bassosimone): currently we're leaking filedesc cache entries if we
+	// error out before this point. Because we have concluded that the cache
+	// cannot grow indefinitely, this is probably not a priority.
+	//
+	// We don't care much about an error here because fd is -1 on error and we
+	// will check later whether |fd| is different from that value.
+	fd, _ := bbr.ExtractBBRFd(conn.LocalAddr().String())
 	conn.SetReadLimit(MinMaxMessageSize)
 	defer conn.Close()
 	log.Debug("Generating random buffer")
@@ -68,13 +87,34 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	defer ticker.Stop()
 	t0 := time.Now()
 	count := int64(0)
+	bandwidth := float64(0)
 	for running := true; running; {
 		select {
 		case t := <-ticker.C:
 			// TODO(bassosimone): here we should also include tcp_info data
+			// TODO(bassosimone): here we should also include BBR data
 			measurement := Measurement{
 				Elapsed:  t.Sub(t0).Nanoseconds(),
 				NumBytes: count,
+			}
+			if fd != -1 {
+				bw, rtt, err := bbr.GetBBRInfo(fd)
+				if err == nil {
+					// Implementation note: the linux kernel header seems to suggest
+					// the measurement unit of the RTT is nsec, however, both empirical
+					// evidence and github.com/mikioh/tcpinfo [1] suggest that the RTT
+					// is actually in microseconds.
+					//
+					// [1] See https://github.com/mikioh/tcpinfo/blob/131b59fef27f73876a7760a644c1e08cf585075c/sys_linux.go#L313
+					log.Infof("BW: %f bytes/s; RTT: %f usec", bw, rtt)
+					// TODO(bassosimone): This algorithm is currently enabled by
+					// default by we should actually make it conditional.
+					running = !stoppableAccordingToBW(bandwidth, bw)
+					if !running {
+						log.Info("It seems bandwidth has stopped growing")
+					}
+					bandwidth = bw
+				}
 			}
 			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
 			if err := conn.WriteJSON(&measurement); err != nil {
