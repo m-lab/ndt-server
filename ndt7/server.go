@@ -84,10 +84,12 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	// TODO(bassosimone): currently we're leaking filedesc cache entries if we
 	// error out before this point. Because we have concluded that the cache
 	// cannot grow indefinitely, this is probably not a priority.
-	//
-	// We don't care much about an error here because fd is -1 on error and we
-	// will check later whether |fd| is different from that value.
-	fd, _ := bbr.ExtractBBRFd(conn.LocalAddr().String())
+	fd, err := bbr.ExtractBBRFd(conn.LocalAddr().String())
+	if err != nil {
+		log.WithError(err).Warnf("Cannot get fd for: %s", conn.LocalAddr().String())
+		// Continue processing. The |fd| will be invalid in this case but the
+		// code below consider the case where |fd| is -1.
+	}
 	conn.SetReadLimit(MinMaxMessageSize)
 	defer conn.Close()
 	log.Debug("Generating random buffer")
@@ -127,6 +129,8 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 						running = false
 					}
 					bandwidth = bw
+				} else {
+					log.WithError(err).Warn("Cannot get BBR info")
 				}
 			}
 			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
