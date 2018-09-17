@@ -107,6 +107,15 @@ type Options struct {
 	Duration int
 }
 
+// The BBRInfo struct contains information measured using BBR.
+type BBRInfo struct {
+	// Bandwidth is the bandwidth measured by BBR in bytes/s.
+	Bandwidth float64 `json:"bandwidth"`
+
+	// RTT is the RTT measured by BBR in microseconds.
+	RTT float64 `json:"rtt"`
+}
+
 // The Measurement struct contains measurement results. This structure is
 // meant to be serialised as JSON as sent on a textual message.
 type Measurement struct {
@@ -115,6 +124,9 @@ type Measurement struct {
 
 	// Number of bytes transferred since the beginning of the subtest.
 	NumBytes int64 `json:"num_bytes"`
+
+	// Data measured using TCP BBR instrumentation.
+	BBRInfo *BBRInfo `json:"bbr_info"`
 }
 
 // MinMeasurementInterval is the minimum value of the interval betwen

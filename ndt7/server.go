@@ -109,7 +109,6 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		select {
 		case t := <-ticker.C:
 			// TODO(bassosimone): here we should also include tcp_info data
-			// TODO(bassosimone): here we should also include BBR data
 			measurement := Measurement{
 				Elapsed:  t.Sub(t0).Nanoseconds(),
 				NumBytes: count,
@@ -117,6 +116,10 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 			if fd != -1 {
 				bw, rtt, err := bbr.GetBBRInfo(fd)
 				if err == nil {
+					measurement.BBRInfo = &BBRInfo{
+						Bandwidth: bw,
+						RTT: rtt,
+					}
 					log.Infof("BW: %f bytes/s; RTT: %f usec", bw, rtt)
 					stoppable := stoppableAccordingToBBR(bandwidth, bw)
 					if stoppable && adaptive {
