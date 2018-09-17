@@ -30,6 +30,9 @@ type DownloadHandler struct {
 // to characterize the bandwidth growth, i.e. 25%. The BBR paper can be
 // read online at <https://queue.acm.org/detail.cfm?id=3022184>.
 //
+// WARNING: This algorithm is still experimental and we SHOULD NOT rely on
+// it until we have gathered a better understanding of how it performs.
+//
 // TODO(bassosimone): This algorithm runs every 0.25 seconds. What happens
 // if the RTT is bigger? Let's make sure that that is not a problem!
 func stoppableAccordingToBBR(prev float64, cur float64) bool {
@@ -109,6 +112,23 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	bandwidth := float64(0)
 	for running := true; running; {
 		select {
+		// TODO(bassosimone): I am confused by some experiments that I am running
+		// where the RTT is > 0.25 s. In such cases, I do not see notifications
+		// sent from the server to the client at the beginning of the connection
+		// lifetime. Observe for example the following two seconds gap:
+		//
+		// +--------------+--------------------+----------+
+		// | elapsed (ms) | bandwidth (Gbit/s) | RTT (ms) |
+		// +--------------+--------------------+----------+
+		// |          250 |              0.019 |  499.994 |
+		// |         2250 |              0.035 |  499.994 |
+		// |         2750 |              0.059 |  499.989 |
+		// +--------------+--------------------+----------+
+		//
+		// I was actually (correctly?) expecting an event every 250 ms.
+		//
+		// What is going on? Can we observe the same issue on the server side
+		// or is this somehow a client side artifact?
 		case t := <-ticker.C:
 			// TODO(bassosimone): here we should also include tcp_info data
 			measurement := Measurement{
@@ -116,6 +136,12 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 				NumBytes: count,
 			}
 			if fd != -1 {
+				// TODO(bassosimone): I am seeing cases in the logs where either at
+				// the beginning of the connection, or after some time, I cannot get
+				// anymore BBR info because of a EBADF error. Trying to understand
+				// why this happens and whether it's specific of a specific Linux
+				// kernel or related to some other feature is probably needed before
+				// calling this code safe to be used in production.
 				bw, rtt, err := bbr.GetBBRInfo(fd)
 				if err == nil {
 					measurement.BBRInfo = &BBRInfo{
