@@ -99,6 +99,10 @@ const MinMaxMessageSize = 1 << 17
 // upgrade using the query string. If options are not provided, sensible
 // defaults SHOULD be selected by the server.
 type Options struct {
+	// Adaptive indicates whether we are allowed to stop the download early
+	// if it's safe to do so according to BBR instrumentation, because we have
+	// correctly estimated the available bandwidth.
+	Adaptive bool
 	// Duration is the expected duration (in seconds) of the subtest.
 	Duration int
 }

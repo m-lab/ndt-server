@@ -22,7 +22,7 @@ type DownloadHandler struct {
 	Upgrader websocket.Upgrader
 }
 
-// stoppableAccordingToBW returns true when we can stop the current download
+// stoppableAccordingToBBR returns true when we can stop the current download
 // test based on |prev|, the previous BBR bandwidth sample, and |cur| the
 // current BBR bandwidth sample. This algorithm runs every 0.25 seconds and
 // indicates that the download can stop if the bandwidth estimated using
@@ -32,7 +32,7 @@ type DownloadHandler struct {
 //
 // TODO(bassosimone): This algorithm runs every 0.25 seconds. What happens
 // if the RTT is bigger? Let's make sure that that is not a problem!
-func stoppableAccordingToBW(prev float64, cur float64) bool {
+func stoppableAccordingToBBR(prev float64, cur float64) bool {
 	return cur >= prev && (cur - prev) < (0.25 * prev)
 }
 
@@ -51,6 +51,20 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 				return
 			}
 			duration = time.Second * time.Duration(value)
+		}
+	}
+	adaptive := false
+	{
+		s := request.URL.Query().Get("adaptive")
+		if s != "" {
+			value, err := strconv.ParseBool(s)
+			if err != nil {
+				log.Warn("The adaptive option has an invalid value")
+				writer.Header().Set("Connection", "Close")
+				writer.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			adaptive = value
 		}
 	}
 	log.Debug("Upgrading to WebSockets")
@@ -110,11 +124,10 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 					//
 					// [1] See https://github.com/mikioh/tcpinfo/blob/131b59fef27f73876a7760a644c1e08cf585075c/sys_linux.go#L313
 					log.Infof("BW: %f bytes/s; RTT: %f usec", bw, rtt)
-					// TODO(bassosimone): This algorithm is currently enabled by
-					// default by we should actually make it conditional.
-					running = !stoppableAccordingToBW(bandwidth, bw)
-					if !running {
-						log.Info("It seems bandwidth has stopped growing")
+					stoppable := stoppableAccordingToBBR(bandwidth, bw)
+					if stoppable && adaptive {
+						log.Info("It seems we can stop the download earlier")
+						running = false
 					}
 					bandwidth = bw
 				}
