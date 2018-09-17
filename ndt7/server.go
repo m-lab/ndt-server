@@ -117,12 +117,6 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 			if fd != -1 {
 				bw, rtt, err := bbr.GetBBRInfo(fd)
 				if err == nil {
-					// Implementation note: the linux kernel header seems to suggest
-					// the measurement unit of the RTT is nsec, however, both empirical
-					// evidence and github.com/mikioh/tcpinfo [1] suggest that the RTT
-					// is actually in microseconds.
-					//
-					// [1] See https://github.com/mikioh/tcpinfo/blob/131b59fef27f73876a7760a644c1e08cf585075c/sys_linux.go#L313
 					log.Infof("BW: %f bytes/s; RTT: %f usec", bw, rtt)
 					stoppable := stoppableAccordingToBBR(bandwidth, bw)
 					if stoppable && adaptive {
