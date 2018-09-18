@@ -1,11 +1,7 @@
 package bbr
 
-// TODO(bassosimone): should I pass hardening flags here?
-//
 //CFLAGS: -Wall -Wextra -Werror -std=c11
-//
 //#include "bbr_linux.h"
-//
 import "C"
 
 import (
