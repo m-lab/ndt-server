@@ -108,7 +108,7 @@ func init() {
 // tcpListenerEx is the place where we accept new TCP connections and
 // set specific options on such connections. We unconditionally set the
 // keepalive timeout for all connections, so that dead TCP connections
-// (e.g. laptop closed amid a download) eventually go aware. If the
+// (e.g. laptop closed amid a download) eventually go away. If the
 // EnableBBR setting is true, we additionally: (1) enable BBR on the
 // socket; (2) record the file descriptor bound to a net.TCPConn such
 // that later we can use it to collect BBR info.
