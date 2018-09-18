@@ -42,40 +42,36 @@ type DownloadHandler struct {
 // WARNING: This algorithm is still experimental and we SHOULD NOT rely on
 // it until we have gathered a better understanding of how it performs.
 func stableAccordingToBBR(prev, cur, rtt float64, elapsed time.Duration) bool {
-	return elapsed >= (10.0 * time.Duration(rtt) * time.Microsecond) &&
-		cur >= prev && (cur - prev) < (0.25 * prev)
+	return elapsed >= (10.0*time.Duration(rtt)*time.Microsecond) &&
+		cur >= prev && (cur-prev) < (0.25*prev)
 }
 
 // Handle handles the download subtest.
 func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	log.Debug("Processing query string")
 	duration := defaultDuration
-	{
-		s := request.URL.Query().Get("duration")
-		if s != "" {
-			value, err := strconv.Atoi(s)
-			if err != nil || value < 0 || value > maxDuration {
-				log.Warn("The duration option has an invalid value")
-				writer.Header().Set("Connection", "Close")
-				writer.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			duration = time.Second * time.Duration(value)
+	s := request.URL.Query().Get("duration")
+	if s != "" {
+		value, err := strconv.Atoi(s)
+		if err != nil || value < 0 || value > maxDuration {
+			log.Warn("The duration option has an invalid value")
+			writer.Header().Set("Connection", "Close")
+			writer.WriteHeader(http.StatusBadRequest)
+			return
 		}
+		duration = time.Second * time.Duration(value)
 	}
 	adaptive := false
-	{
-		s := request.URL.Query().Get("adaptive")
-		if s != "" {
-			value, err := strconv.ParseBool(s)
-			if err != nil {
-				log.Warn("The adaptive option has an invalid value")
-				writer.Header().Set("Connection", "Close")
-				writer.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			adaptive = value
+	s = request.URL.Query().Get("adaptive")
+	if s != "" {
+		value, err := strconv.ParseBool(s)
+		if err != nil {
+			log.Warn("The adaptive option has an invalid value")
+			writer.Header().Set("Connection", "Close")
+			writer.WriteHeader(http.StatusBadRequest)
+			return
 		}
+		adaptive = value
 	}
 	log.Debug("Upgrading to WebSockets")
 	if request.Header.Get("Sec-WebSocket-Protocol") != SecWebSocketProtocol {
@@ -154,7 +150,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 				if err == nil {
 					measurement.BBRInfo = &BBRInfo{
 						Bandwidth: bw,
-						RTT: rtt,
+						RTT:       rtt,
 					}
 					log.Infof("BW: %f bytes/s; RTT: %f usec", bw, rtt)
 					stoppable := stableAccordingToBBR(bandwidth, bw, rtt, elapsed)
