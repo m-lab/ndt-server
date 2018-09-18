@@ -12,7 +12,6 @@ package bbr
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
-#include <assert.h>
 #include <errno.h>
 #include <stdint.h>
 #include <string.h>
@@ -26,10 +25,8 @@ int get_bbr_info(int fd, double *bw, double *rtt) {
     return EINVAL;  // You passed me an invalid argument
   }
   memset(&ti, 0, sizeof(ti));
-  errno = 0;
   socklen_t len = sizeof(ti);
   if (getsockopt(fd, IPPROTO_TCP, TCP_CC_INFO, &ti, &len) == -1) {
-    assert(errno != 0);
     return errno;  // Whatever libc said went wrong
   }
   // Apparently, tcp_bbr_info is the only congestion control data structure
