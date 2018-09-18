@@ -14,9 +14,9 @@ import (
 	"github.com/apex/log"
 )
 
-// ErrBBRNoCachedFd is the error returned when there is no file descriptor
+// ErrNoCachedFd is the error returned when there is no file descriptor
 // corresponding to a local address in the internal cache.
-var ErrBBRNoCachedFd = errors.New("No fd for the specified address")
+var ErrNoCachedFd = errors.New("No fd for the specified address")
 
 // getfd returns the fd used by a given net.TCPConn.
 func getfd(tc *net.TCPConn) (int, error) {
@@ -43,7 +43,7 @@ func getfd(tc *net.TCPConn) (int, error) {
 // Enable takes in input a TCP connection, and attempts to enable the BBR
 // congestion control algorithm for that connection. Returns nil in case
 // of success, the error that occurred otherwise. Beware that the error might
-// be ErrBBRNoSupport, in which case it's safe to continue, just knowing
+// be ErrNoSupport, in which case it's safe to continue, just knowing
 // that you don't have BBR support on this platform.
 func Enable(tc *net.TCPConn) error {
 	fd, err := getfd(tc)
@@ -107,7 +107,7 @@ func getport(addrport string) (int, error) {
 // possible to map back the corresponding connection (most likely a WebSockets
 // connection wrapping a tls.Conn connection) to the file descriptor without
 // using reflection, which might break with future versions of golang. If
-// we have no BBR support, we return ErrBBRNoSupport.
+// we have no BBR support, we return ErrNoSupport.
 func RegisterFd(tc *net.TCPConn) error {
 	fd, err := getfd(tc)
 	if err != nil {
@@ -126,9 +126,9 @@ func RegisterFd(tc *net.TCPConn) error {
 
 // ExtractFd checks whether there is a file descriptor corresponding to the
 // provided address. If there is one, such file descriptor will be removed from
-// the internal maps and returned. Otherwise ErrBBRNoFd is returned and the
+// the internal maps and returned. Otherwise ErrNoCachedFd is returned and the
 // returned file descriptor will be set to -1 in this case. If there is no
-// support for BBR, instead, ErrBBRNoSupport is returned.
+// support for BBR, instead, ErrNoSupport is returned.
 func ExtractFd(addrport string) (int, error) {
 	port, err := getport(addrport)
 	if err != nil {
@@ -138,7 +138,7 @@ func ExtractFd(addrport string) (int, error) {
 	defer mutex.Unlock()
 	fd, ok := fds[port]
 	if !ok {
-		return -1, ErrBBRNoCachedFd
+		return -1, ErrNoCachedFd
 	}
 	delete(fds, port)
 	return fd, nil
@@ -146,7 +146,7 @@ func ExtractFd(addrport string) (int, error) {
 
 // GetBandwidthAndRTT obtains BBR info from |fd|. The returned values are the
 // max-bandwidth in bytes/s and the min-rtt in microseconds. The returned
-// error is ErrBBRNoSupport if BBR is not supported on this platform.
+// error is ErrNoSupport if BBR is not supported on this platform.
 func GetBandwidthAndRTT(fd int) (float64, float64, error) {
 	// Implementation note: for simplicity I have decided to use float64 here
 	// rather than uint64, mainly because the proper C type to use AFAICT (and
