@@ -108,31 +108,13 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		return
 	}
 	log.Debug("Start sending data to client")
-	ticker := time.NewTicker(MinMeasurementInterval)
-	defer ticker.Stop()
 	t0 := time.Now()
+	last := t0
 	count := int64(0)
 	bandwidth := float64(0)
-	for running := true; running; {
-		select {
-		// TODO(bassosimone): I am confused by some experiments that I am running
-		// where the RTT is > 0.25 s. In such cases, I do not see notifications
-		// sent from the server to the client at the beginning of the connection
-		// lifetime. Observe for example the following two seconds gap:
-		//
-		// +--------------+--------------------+----------+
-		// | elapsed (ms) | bandwidth (Gbit/s) | RTT (ms) |
-		// +--------------+--------------------+----------+
-		// |          250 |              0.019 |  499.994 |
-		// |         2250 |              0.035 |  499.994 |
-		// |         2750 |              0.059 |  499.989 |
-		// +--------------+--------------------+----------+
-		//
-		// I was actually (correctly?) expecting an event every 250 ms.
-		//
-		// What is going on? Can we observe the same issue on the server side
-		// or is this somehow a client side artifact?
-		case t := <-ticker.C:
+	for {
+		t := time.Now()
+		if t.Sub(last) >= MinMeasurementInterval {
 			// TODO(bassosimone): here we should also include tcp_info data
 			elapsed := t.Sub(t0)
 			measurement := Measurement{
@@ -156,7 +138,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 					stoppable := stableAccordingToBBR(bandwidth, bw, rtt, elapsed)
 					if stoppable && adaptive {
 						log.Info("It seems we can stop the download earlier")
-						running = false
+						break
 					}
 					bandwidth = bw
 				} else {
@@ -168,18 +150,17 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 				log.WithError(err).Warn("Cannot send measurement message")
 				return
 			}
-		default: // Not ticking, just send more data
-			if time.Now().Sub(t0) >= duration {
-				running = false
-				break
-			}
-			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
-			if err := conn.WritePreparedMessage(buffer); err != nil {
-				log.WithError(err).Warn("cannot send data message")
-				return
-			}
-			count += bufferSize
+			last = t
 		}
+		if time.Now().Sub(t0) >= duration {
+			break
+		}
+		conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
+		if err := conn.WritePreparedMessage(buffer); err != nil {
+			log.WithError(err).Warn("cannot send data message")
+			return
+		}
+		count += bufferSize
 	}
 	log.Debug("Closing the WebSocket connection")
 	conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(

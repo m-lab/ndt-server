@@ -133,4 +133,4 @@ type Measurement struct {
 // two consecutive measurements performed by either party. An implementation
 // MAY choose to close the connection if it is receiving too frequent
 // Measurement messages from the other endpoint.
-const MinMeasurementInterval = 250 * time.Millisecond
+const MinMeasurementInterval = time.Duration(250) * time.Millisecond
