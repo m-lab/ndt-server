@@ -22,7 +22,7 @@ type DownloadHandler struct {
 	Upgrader websocket.Upgrader
 }
 
-// stoppableAccordingToBBR returns true when we can stop the current download
+// stableAccordingToBBR returns true when we can stop the current download
 // test based on |prev|, the previous BBR bandwidth sample, and |cur| the
 // current BBR bandwidth sample. This algorithm runs every 0.25 seconds and
 // indicates that the download can stop if the bandwidth estimated using
@@ -35,7 +35,7 @@ type DownloadHandler struct {
 //
 // TODO(bassosimone): This algorithm runs every 0.25 seconds. What happens
 // if the RTT is bigger? Let's make sure that that is not a problem!
-func stoppableAccordingToBBR(prev float64, cur float64) bool {
+func stableAccordingToBBR(prev float64, cur float64) bool {
 	return cur >= prev && (cur - prev) < (0.25 * prev)
 }
 
@@ -149,7 +149,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 						RTT: rtt,
 					}
 					log.Infof("BW: %f bytes/s; RTT: %f usec", bw, rtt)
-					stoppable := stoppableAccordingToBBR(bandwidth, bw)
+					stoppable := stableAccordingToBBR(bandwidth, bw)
 					if stoppable && adaptive {
 						log.Info("It seems we can stop the download earlier")
 						running = false
