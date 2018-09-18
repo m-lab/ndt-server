@@ -168,7 +168,7 @@ func ExtractFd(addrport string) (int, error) {
 	return fd, nil
 }
 
-func GetBBRInfo(fd int) (float64, float64, error) {
+func GetBandwidthAndRTT(fd int) (float64, float64, error) {
 	// Implementation note: for simplicity I have decided to use float64 here
 	// rather than uint64, mainly because the proper C type to use AFAICT (and
 	// I may be wrong here) changes between 32 and 64 bit. That is, it is not

@@ -44,9 +44,9 @@ func ExtractFd(addr string) (int, error) {
 	return -1, ErrBBRNoSupport
 }
 
-// GetBBRInfo obtains BBR info from |fd|. The returned values are the
+// GetBandwidthAndRTT obtains BBR info from |fd|. The returned values are the
 // max-bandwidth in bytes/s and the min-rtt in microseconds. The returned
 // error is ErrBBRNoSupport if BBR is not supported on this platform.
-func GetBBRInfo(fd int) (float64, float64, error) {
+func GetBandwidthAndRTT(fd int) (float64, float64, error) {
 	return 0, 0, ErrBBRNoSupport
 }

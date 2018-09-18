@@ -142,7 +142,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 				// why this happens and whether it's specific of a specific Linux
 				// kernel or related to some other feature is probably needed before
 				// calling this code safe to be used in production.
-				bw, rtt, err := bbr.GetBBRInfo(fd)
+				bw, rtt, err := bbr.GetBandwidthAndRTT(fd)
 				if err == nil {
 					measurement.BBRInfo = &BBRInfo{
 						Bandwidth: bw,
