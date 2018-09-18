@@ -80,6 +80,11 @@ func getfd(tc *net.TCPConn) (int, error) {
 	return int(file.Fd()), nil
 }
 
+// Enable takes in input a TCP connection, and attempts to enable the BBR
+// congestion control algorithm for that connection. Returns nil in case
+// of success, the error that occurred otherwise. Beware that the error might
+// be ErrBBRNoSupport, in which case it's safe to continue, just knowing
+// that you don't have BBR support on this platform.
 func Enable(tc *net.TCPConn) error {
 	fd, err := getfd(tc)
 	if err != nil {
@@ -137,6 +142,12 @@ func getport(addrport string) (int, error) {
 	return int(rv), nil
 }
 
+// RegisterFd takes in input a TCP connection and maps its LocalAddr() to
+// the corresponding file descriptor. This is used such that, later, it is
+// possible to map back the corresponding connection (most likely a WebSockets
+// connection wrapping a tls.Conn connection) to the file descriptor without
+// using reflection, which might break with future versions of golang. If
+// we have no BBR support, we return ErrBBRNoSupport.
 func RegisterFd(tc *net.TCPConn) error {
 	fd, err := getfd(tc)
 	if err != nil {
@@ -153,6 +164,11 @@ func RegisterFd(tc *net.TCPConn) error {
 	return nil
 }
 
+// ExtractFd checks whether there is a file descriptor corresponding to the
+// provided address. If there is one, such file descriptor will be removed from
+// the internal maps and returned. Otherwise ErrBBRNoFd is returned and the
+// returned file descriptor will be set to -1 in this case. If there is no
+// support for BBR, instead, ErrBBRNoSupport is returned.
 func ExtractFd(addrport string) (int, error) {
 	port, err := getport(addrport)
 	if err != nil {
@@ -168,6 +184,9 @@ func ExtractFd(addrport string) (int, error) {
 	return fd, nil
 }
 
+// GetBandwidthAndRTT obtains BBR info from |fd|. The returned values are the
+// max-bandwidth in bytes/s and the min-rtt in microseconds. The returned
+// error is ErrBBRNoSupport if BBR is not supported on this platform.
 func GetBandwidthAndRTT(fd int) (float64, float64, error) {
 	// Implementation note: for simplicity I have decided to use float64 here
 	// rather than uint64, mainly because the proper C type to use AFAICT (and

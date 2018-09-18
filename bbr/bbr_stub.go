@@ -13,40 +13,24 @@ import (
 // ErrBBRNoSupport is returned when BBR support is not compiled in.
 var ErrBBRNoSupport = errors.New("TCP BBR not available on this platform")
 
-// Enable takes in input a TCP connection, and attempts to enable the BBR
-// congestion control algorithm for that connection. Returns nil in case
-// of success, the error that occurred otherwise. Beware that the error might
-// be ErrBBRNoSupport, in which case it's safe to continue, just knowing
-// that you don't have BBR support on this platform.
+// Implementation note: the following are just stubs; all API documentation
+// actually lives in `bbr/bbr_linux.go`.
+
 func Enable(*net.TCPConn) error {
 	log.Warn("TCP BBR not available on this platform")
 	return ErrBBRNoSupport
 }
 
-// RegisterFd takes in input a TCP connection and maps its LocalAddr() to
-// the corresponding file descriptor. This is used such that, later, it is
-// possible to map back the corresponding connection (most likely a WebSockets
-// connection wrapping a tls.Conn connection) to the file descriptor without
-// using reflection, which might break with future versions of golang. If
-// we have no BBR support, we return ErrBBRNoSupport.
 func RegisterFd(*net.TCPConn) error {
 	log.Warn("TCP BBR not available on this platform")
 	return ErrBBRNoSupport
 }
 
-// ExtractFd checks whether there is a file descriptor corresponding to the
-// provided address. If there is one, such file descriptor will be removed from
-// the internal maps and returned. Otherwise ErrBBRNoFd is returned and the
-// returned file descriptor will be set to -1 in this case. If there is no
-// support for BBR, instead, ErrBBRNoSupport is returned.
 func ExtractFd(addr string) (int, error) {
 	log.Warn("TCP BBR not available on this platform")
 	return -1, ErrBBRNoSupport
 }
 
-// GetBandwidthAndRTT obtains BBR info from |fd|. The returned values are the
-// max-bandwidth in bytes/s and the min-rtt in microseconds. The returned
-// error is ErrBBRNoSupport if BBR is not supported on this platform.
 func GetBandwidthAndRTT(fd int) (float64, float64, error) {
 	return 0, 0, ErrBBRNoSupport
 }
