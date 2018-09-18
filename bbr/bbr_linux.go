@@ -1,47 +1,11 @@
 package bbr
 
-/*
 // TODO(bassosimone): should I pass hardening flags here?
+//
 //CFLAGS: -Wall -Wextra -Werror -std=c11
-
-// Design choice: it is simpler (for me) to roll out a few lines of embedded C
-// than doing the CGO dance required to call the code from Go.
-
-#include <sys/socket.h>
-#include <linux/inet_diag.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-
-#include <errno.h>
-#include <stdint.h>
-#include <string.h>
-
-// get_bbr_info retrieves BBR info from |fd| and stores them in |bw| and
-// |rtt| respectively. On success, returns zero. On failure returns a nonzero
-// errno value indicating the error that occurred.
-int get_bbr_info(int fd, double *bw, double *rtt) {
-  union tcp_cc_info ti;
-  if (bw == NULL || rtt == NULL) {
-    return EINVAL;  // You passed me an invalid argument
-  }
-  memset(&ti, 0, sizeof(ti));
-  socklen_t len = sizeof(ti);
-  if (getsockopt(fd, IPPROTO_TCP, TCP_CC_INFO, &ti, &len) == -1) {
-    return errno;  // Whatever libc said went wrong
-  }
-  // Apparently, tcp_bbr_info is the only congestion control data structure
-  // to occupy five 32 bit words. Currently, in September 2018, the other two
-  // data structures (i.e. Vegas and DCTCP) both occupy four 32 bit words.
-  // See include/uapi/linux/inet_diag.h in torvalds/linux@bbb6189d.
-  if (len != sizeof(struct tcp_bbr_info)) {
-    return EINVAL;  // You passed me a socket that is not using TCP BBR
-  }
-  *bw = (double)((((uint64_t)ti.bbr.bbr_bw_hi) << 32) |
-                 ((uint64_t)ti.bbr.bbr_bw_lo));
-  *rtt = (double)ti.bbr.bbr_min_rtt;
-  return 0;
-}
-*/
+//
+//#include "bbr_linux.h"
+//
 import "C"
 
 import (
