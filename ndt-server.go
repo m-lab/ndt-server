@@ -129,7 +129,7 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 	if ln.EnableBBR {
 		err = bbr.Enable(tc)
 		if err == nil {
-			err = bbr.RegisterBBRFd(tc)
+			err = bbr.RegisterFd(tc)
 			// FALLTHROUGH
 		}
 		if err != nil {

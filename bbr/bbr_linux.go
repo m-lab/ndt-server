@@ -126,7 +126,7 @@ func Enable(tc *net.TCPConn) error {
 var mutex sync.Mutex
 var fds map[string]int = make(map[string]int)
 
-func RegisterBBRFd(tc *net.TCPConn) error {
+func RegisterFd(tc *net.TCPConn) error {
 	fd, err := getfd(tc)
 	if err != nil {
 		return err
@@ -138,7 +138,7 @@ func RegisterBBRFd(tc *net.TCPConn) error {
 	return nil
 }
 
-func ExtractBBRFd(addr string) (int, error) {
+func ExtractFd(addr string) (int, error) {
 	mutex.Lock()
 	defer mutex.Unlock()
 	fd, ok := fds[addr]
