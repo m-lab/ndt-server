@@ -13,7 +13,7 @@ import (
 // ErrBBRNoSupport is returned when BBR support is not compiled in.
 var ErrBBRNoSupport = errors.New("TCP BBR not available on this platform")
 
-// Enable taks in input a TCP connection and attempts to enable the BBR
+// Enable takes in input a TCP connection, and attempts to enable the BBR
 // congestion control algorithm for that connection. Returns nil in case
 // of success, the error that occurred otherwise. Beware that the error might
 // be ErrBBRNoSupport, in which case it's safe to continue, just knowing
