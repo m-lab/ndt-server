@@ -84,7 +84,7 @@ func Enable(tc *net.TCPConn) error {
 	if err != nil {
 		return err
 	}
-	err = syscall.SetsockoptString(int(fd), syscall.IPPROTO_TCP,
+	err = syscall.SetsockoptString(fd, syscall.IPPROTO_TCP,
 		syscall.TCP_CONGESTION, "bbr")
 	if err != nil {
 		log.WithError(err).Warn("SetsockoptString() failed")
