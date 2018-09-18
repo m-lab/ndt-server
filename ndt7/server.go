@@ -23,20 +23,27 @@ type DownloadHandler struct {
 }
 
 // stableAccordingToBBR returns true when we can stop the current download
-// test based on |prev|, the previous BBR bandwidth sample, and |cur| the
-// current BBR bandwidth sample. This algorithm runs every 0.25 seconds and
-// indicates that the download can stop if the bandwidth estimated using
-// BBR stops growing. We use the same percentage used by the BBR paper
-// to characterize the bandwidth growth, i.e. 25%. The BBR paper can be
-// read online at <https://queue.acm.org/detail.cfm?id=3022184>.
+// test based on |prev|, the previous BBR bandwidth sample, |cur| the
+// current BBR bandwidth sample, |rtt|, the BBR measured RTT (in
+// microsecond), and |elapsed|, the elapsed time since the beginning
+// of the test (expressed as a time.Duration).
+//
+// This algorithm runs every 0.25 seconds. Empirically, it is know that
+// BBR requires some RTTs to converge. We are using 10 RTTs as a reasonable
+// upper bound. Before 10 RTTs have elapsed, we do not check whether the
+// bandwidth has stopped growing. After 10 RTTs have elapsed, we call
+// the connection stable when the bandwidth measured by BBR does not
+// grow of more than 25% between two 0.25 second periods.
+//
+// We use the same percentage used by the BBR paper to characterize the
+// bandwidth growth, i.e. 25%. The BBR paper can be read online at ACM
+// Queue <https://queue.acm.org/detail.cfm?id=3022184>.
 //
 // WARNING: This algorithm is still experimental and we SHOULD NOT rely on
 // it until we have gathered a better understanding of how it performs.
-//
-// TODO(bassosimone): This algorithm runs every 0.25 seconds. What happens
-// if the RTT is bigger? Let's make sure that that is not a problem!
-func stableAccordingToBBR(prev float64, cur float64) bool {
-	return cur >= prev && (cur - prev) < (0.25 * prev)
+func stableAccordingToBBR(prev, cur, rtt float64, elapsed time.Duration) bool {
+	return elapsed >= (10.0 * time.Duration(rtt) * time.Microsecond) &&
+		cur >= prev && (cur - prev) < (0.25 * prev)
 }
 
 // Handle handles the download subtest.
@@ -131,8 +138,9 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		// or is this somehow a client side artifact?
 		case t := <-ticker.C:
 			// TODO(bassosimone): here we should also include tcp_info data
+			elapsed := t.Sub(t0)
 			measurement := Measurement{
-				Elapsed:  t.Sub(t0).Nanoseconds(),
+				Elapsed:  elapsed.Nanoseconds(),
 				NumBytes: count,
 			}
 			if fd != -1 {
@@ -149,7 +157,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 						RTT: rtt,
 					}
 					log.Infof("BW: %f bytes/s; RTT: %f usec", bw, rtt)
-					stoppable := stableAccordingToBBR(bandwidth, bw)
+					stoppable := stableAccordingToBBR(bandwidth, bw, rtt, elapsed)
 					if stoppable && adaptive {
 						log.Info("It seems we can stop the download earlier")
 						running = false
