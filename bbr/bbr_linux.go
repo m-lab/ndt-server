@@ -75,9 +75,8 @@ func getfd(tc *net.TCPConn) (int, error) {
 		log.WithError(err).Warn("Cannot obtain a File from a TCPConn")
 		return -1, err
 	}
-	fd := file.Fd()
 	// Note: casting to int is safe because a socket is int on Unix
-	return int(fd), nil
+	return int(file.Fd()), nil
 }
 
 func Enable(tc *net.TCPConn) error {
