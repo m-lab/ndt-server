@@ -120,6 +120,7 @@ func RegisterFd(tc *net.TCPConn) error {
 	}
 	mutex.Lock()
 	defer mutex.Unlock()
+	log.Infof("Adding to cache: %d => %d", port, fd)
 	fds[port] = fd
 	return nil
 }
@@ -140,6 +141,7 @@ func ExtractFd(addrport string) (int, error) {
 	if !ok {
 		return -1, ErrNoCachedFd
 	}
+	log.Infof("Removing from cache: %d => %d", port, fd)
 	delete(fds, port)
 	return fd, nil
 }
