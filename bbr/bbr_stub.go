@@ -22,10 +22,10 @@ func RegisterFd(*net.TCPConn) error {
 	return ErrNoSupport
 }
 
-func ExtractFd(addr string) (int, error) {
+func ExtractFd(net.Conn) (int, error) {
 	return -1, ErrNoSupport
 }
 
-func GetBandwidthAndRTT(fd int) (float64, float64, error) {
+func GetBandwidthAndRTT(int) (float64, float64, error) {
 	return 0, 0, ErrNoSupport
 }

@@ -90,7 +90,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	// TODO(bassosimone): currently we're leaking filedesc cache entries if we
 	// error out before this point. Because we have concluded that the cache
 	// cannot grow indefinitely, this is probably not a priority.
-	fd, err := bbr.ExtractFd(conn.LocalAddr().String())
+	fd, err := bbr.ExtractFd(conn.UnderlyingConn())
 	if err != nil {
 		log.WithError(err).Warnf("Cannot extract BBR fd for: %s",
 			conn.LocalAddr().String())

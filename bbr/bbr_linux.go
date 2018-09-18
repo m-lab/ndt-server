@@ -7,7 +7,6 @@ import "C"
 import (
 	"errors"
 	"net"
-	"strconv"
 	"sync"
 	"syscall"
 
@@ -86,63 +85,47 @@ func Enable(tc *net.TCPConn) error {
 //  considered reflection but concluded it could be too fragile.)
 
 var mutex sync.Mutex
-var fds map[int]int = make(map[int]int)
+var fds map[string]int = make(map[string]int)
 
-// getport takes in input a TCP local address, |addrport|, and returns the int
-// port corresponding to such address, or an error.
-func getport(addrport string) (int, error) {
-	_, port, err := net.SplitHostPort(addrport)
-	if err != nil {
-		return 0, err
-	}
-	rv, err := strconv.ParseUint(port, 10, 16)
-	if err != nil {
-		return 0, err
-	}
-	return int(rv), nil
+// makekey creates a key from a net.Conn
+func makekey(conn net.Conn) string {
+	return conn.LocalAddr().String() + " => " + conn.RemoteAddr().String()
 }
 
-// RegisterFd takes in input a TCP connection and maps its LocalAddr() to
-// the corresponding file descriptor. This is used such that, later, it is
-// possible to map back the corresponding connection (most likely a WebSockets
-// connection wrapping a tls.Conn connection) to the file descriptor without
-// using reflection, which might break with future versions of golang. If
-// we have no BBR support, we return ErrNoSupport.
+// RegisterFd takes in input a TCP connection and maps it to the corresponding
+// file descriptor. This is used such that, later, it is possible to map back
+// the corresponding connection (most likely a WebSockets connection wrapping a
+// tls.Conn connection) to the file descriptor without using reflection, which
+// might break with future versions of golang. If we have no BBR support, we
+// return ErrNoSupport.
 func RegisterFd(tc *net.TCPConn) error {
 	fd, err := getfd(tc)
 	if err != nil {
 		return err
 	}
-	addrport := tc.LocalAddr().String()
-	port, err := getport(addrport)
-	if err != nil {
-		return err
-	}
+	key := makekey(tc)
 	mutex.Lock()
 	defer mutex.Unlock()
-	log.Infof("Adding to cache: %d => %d", port, fd)
-	fds[port] = fd
+	log.Infof("Adding to cache: '%s' => %d", key, fd)
+	fds[key] = fd
 	return nil
 }
 
 // ExtractFd checks whether there is a file descriptor corresponding to the
-// provided address. If there is one, such file descriptor will be removed from
+// provided conn. If there is one, such file descriptor will be removed from
 // the internal maps and returned. Otherwise ErrNoCachedFd is returned and the
 // returned file descriptor will be set to -1 in this case. If there is no
 // support for BBR, instead, ErrNoSupport is returned.
-func ExtractFd(addrport string) (int, error) {
-	port, err := getport(addrport)
-	if err != nil {
-		return -1, err
-	}
+func ExtractFd(conn net.Conn) (int, error) {
+	key := makekey(conn)
 	mutex.Lock()
 	defer mutex.Unlock()
-	fd, ok := fds[port]
+	fd, ok := fds[key]
 	if !ok {
 		return -1, ErrNoCachedFd
 	}
-	log.Infof("Removing from cache: %d => %d", port, fd)
-	delete(fds, port)
+	log.Infof("Removing from cache: '%s' => %d", key, fd)
+	delete(fds, key)
 	return fd, nil
 }
 
