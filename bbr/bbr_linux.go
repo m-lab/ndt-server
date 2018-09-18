@@ -47,6 +47,7 @@ import "C"
 import (
 	"errors"
 	"net"
+	"strconv"
 	"sync"
 	"syscall"
 
@@ -120,24 +121,46 @@ func Enable(tc *net.TCPConn) error {
 //  considered reflection but concluded it could be too fragile.)
 
 var mutex sync.Mutex
-var fds map[string]int = make(map[string]int)
+var fds map[int]int = make(map[int]int)
+
+// getport takes in input a TCP local address, |addrport|, and returns the int
+// port corresponding to such address, or an error.
+func getport(addrport string) (int, error) {
+	_, port, err := net.SplitHostPort(addrport)
+	if err != nil {
+		return 0, err
+	}
+	rv, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		return 0, err
+	}
+	return int(rv), nil
+}
 
 func RegisterFd(tc *net.TCPConn) error {
 	fd, err := getfd(tc)
 	if err != nil {
 		return err
 	}
-	addr := tc.LocalAddr().String()
+	addrport := tc.LocalAddr().String()
+	port, err := getport(addrport)
+	if err != nil {
+		return err
+	}
 	mutex.Lock()
 	defer mutex.Unlock()
-	fds[addr] = fd
+	fds[port] = fd
 	return nil
 }
 
-func ExtractFd(addr string) (int, error) {
+func ExtractFd(addrport string) (int, error) {
+	port, err := getport(addrport)
+	if err != nil {
+		return err
+	}
 	mutex.Lock()
 	defer mutex.Unlock()
-	fd, ok := fds[addr]
+	fd, ok := fds[port]
 	if !ok {
 		return -1, ErrBBRNoCachedFd
 	}
