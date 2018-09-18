@@ -34,7 +34,7 @@ int get_bbr_info(int fd, double *bw, double *rtt) {
   // data structures (i.e. Vegas and DCTCP) both occupy four 32 bit words.
   // See include/uapi/linux/inet_diag.h in torvalds/linux@bbb6189d.
   if (len != sizeof(struct tcp_bbr_info)) {
-    return ENOENT;  // Cannot find an entry for BBR
+    return EINVAL;  // You passed me a socket that is not using TCP BBR
   }
   *bw = (double)((((uint64_t)ti.bbr.bbr_bw_hi) << 32) |
                  ((uint64_t)ti.bbr.bbr_bw_lo));
