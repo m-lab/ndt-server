@@ -83,7 +83,7 @@ func getfd(tc *net.TCPConn) (int, error) {
 	return int(fd), nil
 }
 
-func EnableBBR(tc *net.TCPConn) error {
+func Enable(tc *net.TCPConn) error {
 	fd, err := getfd(tc)
 	if err != nil {
 		return err

@@ -127,7 +127,7 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
 	if ln.EnableBBR {
-		err = bbr.EnableBBR(tc)
+		err = bbr.Enable(tc)
 		if err == nil {
 			err = bbr.RegisterBBRFd(tc)
 			// FALLTHROUGH
