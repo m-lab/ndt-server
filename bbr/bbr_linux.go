@@ -1,7 +1,7 @@
 package bbr
 
-//CFLAGS: -Wall -Wextra -Werror -std=c11
-//#include "bbr_linux.h"
+// #cgo CFLAGS: -Wall -Wextra -Werror -std=c11 -Wno-unused-parameter
+// #include "bbr_linux.h"
 import "C"
 
 import (
@@ -132,7 +132,7 @@ func RegisterFd(tc *net.TCPConn) error {
 func ExtractFd(addrport string) (int, error) {
 	port, err := getport(addrport)
 	if err != nil {
-		return err
+		return -1, err
 	}
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -140,7 +140,7 @@ func ExtractFd(addrport string) (int, error) {
 	if !ok {
 		return -1, ErrBBRNoCachedFd
 	}
-	delete(fds, addr)
+	delete(fds, port)
 	return fd, nil
 }
 

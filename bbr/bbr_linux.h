@@ -13,4 +13,4 @@ int get_bbr_info(int fd, double *bw, double *rtt);
 #ifdef __cplusplus
 }  // extern "C"
 #endif
-#endif M_LAB_NDT_CLOUD_BBR_BBR_LINUX_H
+#endif  /* M_LAB_NDT_CLOUD_BBR_BBR_LINUX_H */
