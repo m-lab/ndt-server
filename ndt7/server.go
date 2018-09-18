@@ -92,7 +92,8 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	// cannot grow indefinitely, this is probably not a priority.
 	fd, err := bbr.ExtractFd(conn.LocalAddr().String())
 	if err != nil {
-		log.WithError(err).Warnf("Cannot get fd for: %s", conn.LocalAddr().String())
+		log.WithError(err).Warnf("Cannot extract BBR fd for: %s",
+			conn.LocalAddr().String())
 		// Continue processing. The |fd| will be invalid in this case but the
 		// code below consider the case where |fd| is -1.
 	}
