@@ -103,6 +103,7 @@ type Options struct {
 	// if it's safe to do so according to BBR instrumentation, because we have
 	// correctly estimated the available bandwidth.
 	Adaptive bool
+
 	// Duration is the expected duration (in seconds) of the subtest.
 	Duration int
 }

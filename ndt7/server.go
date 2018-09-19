@@ -26,7 +26,8 @@ type DownloadHandler struct {
 // test based on |prev|, the previous BBR bandwidth sample, |cur| the
 // current BBR bandwidth sample, |rtt|, the BBR measured RTT (in
 // microsecond), and |elapsed|, the elapsed time since the beginning
-// of the test (expressed as a time.Duration).
+// of the test (expressed as a time.Duration). The bandwidth is measured
+// in bytes per second.
 //
 // This algorithm runs every 0.25 seconds. Empirically, it is know that
 // BBR requires some RTTs to converge. We are using 10 RTTs as a reasonable
@@ -42,8 +43,8 @@ type DownloadHandler struct {
 // WARNING: This algorithm is still experimental and we SHOULD NOT rely on
 // it until we have gathered a better understanding of how it performs.
 func stableAccordingToBBR(prev, cur, rtt float64, elapsed time.Duration) bool {
-	return elapsed >= (10.0*time.Duration(rtt)*time.Microsecond) &&
-		cur >= prev && (cur-prev) < (0.25*prev)
+	return (elapsed.Seconds()*1000*1000) >= (10.0*rtt) && cur >= prev &&
+		(cur-prev) < (0.25*prev)
 }
 
 // Handle handles the download subtest.
@@ -87,16 +88,16 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		log.WithError(err).Warn("upgrader.Upgrade() failed")
 		return
 	}
-	// TODO(bassosimone): currently we're leaking filedesc cache entries if we
-	// error out before this point. Because we have concluded that the cache
-	// cannot grow indefinitely, this is probably not a priority.
-	fd, err := bbr.ExtractFd(conn.UnderlyingConn())
-	if err != nil {
-		log.WithError(err).Warnf("Cannot extract BBR fd for: %s",
-			conn.LocalAddr().String())
-		// Continue processing. The |fd| will be invalid in this case but the
-		// code below consider the case where |fd| is -1.
+	fp := bbr.GetAndForgetFile(conn.UnderlyingConn())
+	if fp != nil {
+		defer fp.Close()
 	}
+	// TODO(bassosimone): an error before this point means that we the *os.File
+	// will stay in cache until the cache pruning mechanism is triggered. This
+	// should be a small amount of seconds. If Golang does not call shutdown(2)
+	// and close(2), we'll end up keeping sockets that caused an error in the
+	// code above (e.g. because the handshake was not okay) alive for the time
+	// in which the corresponding *os.File is kept in cache.
 	conn.SetReadLimit(MinMaxMessageSize)
 	defer conn.Close()
 	log.Debug("Generating random buffer")
@@ -122,14 +123,8 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 				Elapsed:  elapsed.Nanoseconds(),
 				NumBytes: count,
 			}
-			if fd != -1 {
-				// TODO(bassosimone): I am seeing cases in the logs where either at
-				// the beginning of the connection, or after some time, I cannot get
-				// anymore BBR info because of a EBADF error. Trying to understand
-				// why this happens and whether it's specific of a specific Linux
-				// kernel or related to some other feature is probably needed before
-				// calling this code safe to be used in production.
-				bw, rtt, err := bbr.GetBandwidthAndRTT(fd)
+			if fp != nil {
+				bw, rtt, err := bbr.GetBandwidthAndRTT(fp)
 				if err == nil {
 					measurement.BBRInfo = &BBRInfo{
 						Bandwidth: bw,

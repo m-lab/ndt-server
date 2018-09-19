@@ -110,8 +110,8 @@ func init() {
 // keepalive timeout for all connections, so that dead TCP connections
 // (e.g. laptop closed amid a download) eventually go away. If the
 // EnableBBR setting is true, we additionally: (1) enable BBR on the
-// socket; (2) record the file descriptor bound to a net.TCPConn such
-// that later we can use it to collect BBR info.
+// socket; (2) record the *os.File bound to a net.TCPConn such that
+// later we can collect BBR stats (see the bbr package for more info).
 //
 // Note: Adapted from net/http package.
 type tcpListenerEx struct {
@@ -127,15 +127,13 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
 	if ln.EnableBBR {
-		err = bbr.Enable(tc)
-		if err == nil {
-			err = bbr.RegisterFd(tc)
-			// FALLTHROUGH
-		}
-		if err != nil {
+		err = bbr.EnableAndRememberFile(tc)
+		if err != nil && err != bbr.ErrNoSupport {
+			// This is the case in which we compiled in BBR support but something
+			// was wrong when enabling BBR at runtime. TODO(bassosimone): when we'll
+			// have BBR support on the whole fleet, here we should probably return
+			// an error rather than continuing. For now we'll tolerate.
 			log.Printf("Cannot initialize BBR: %s", err.Error())
-			// Until we know for sure that we have support for BBR, it's wiser to
-			// just warn rather than erroring out here.
 		}
 	}
 	return tc, nil
