@@ -127,7 +127,7 @@ type Measurement struct {
 	NumBytes int64 `json:"num_bytes"`
 
 	// Data measured using TCP BBR instrumentation.
-	BBRInfo *BBRInfo `json:"bbr_info"`
+	BBRInfo *BBRInfo `json:"bbr_info,omitempty"`
 }
 
 // MinMeasurementInterval is the minimum value of the interval betwen
