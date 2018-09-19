@@ -109,14 +109,17 @@ func init() {
 // set specific options on such connections. We unconditionally set the
 // keepalive timeout for all connections, so that dead TCP connections
 // (e.g. laptop closed amid a download) eventually go away. If the
-// EnableBBR setting is true, we additionally: (1) enable BBR on the
-// socket; (2) record the *os.File bound to a net.TCPConn such that
-// later we can collect BBR stats (see the bbr package for more info).
+// TryToEnableBBR setting is true, we additionally try to (1) enable
+// BBR on the socket; (2) record the *os.File bound to a *net.TCPConn
+// such that later we can collect BBR stats (see the bbr package for
+// more info). As the name implies, TryToEnableBBR does its best to
+// enable BBR but not succeding is also acceptable especially on systems
+// where there is no support for BBR.
 //
 // Note: Adapted from net/http package.
 type tcpListenerEx struct {
 	*net.TCPListener
-	EnableBBR bool
+	TryToEnableBBR bool
 }
 
 func (ln tcpListenerEx) Accept() (net.Conn, error) {
@@ -126,7 +129,7 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 	}
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
-	if ln.EnableBBR {
+	if ln.TryToEnableBBR {
 		err = bbr.EnableAndRememberFile(tc)
 		if err != nil && err != bbr.ErrNoSupport {
 			// This is the case in which we compiled in BBR support but something
@@ -134,6 +137,8 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 			// have BBR support on the whole fleet, here we should probably return
 			// an error rather than continuing. For now we'll tolerate.
 			log.Printf("Cannot initialize BBR: %s", err.Error())
+		} else if err == bbr.ErrNoSupport {
+			log.Printf("Your system does not support BBR")
 		}
 	}
 	return tc, nil
@@ -451,7 +456,7 @@ func listenRandom() (net.Listener, int, error) {
 		return nil, 0, err
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	return tcpListenerEx{TCPListener: ln, EnableBBR: false}, port, nil
+	return tcpListenerEx{TCPListener: ln, TryToEnableBBR: false}, port, nil
 }
 
 func manageS2cTest(ws *websocket.Conn) (float64, error) {
@@ -681,6 +686,6 @@ func main() {
 		log.Fatal(err)
 	}
 	s := &http.Server{Handler: http.DefaultServeMux}
-	log.Fatal(s.ServeTLS(tcpListenerEx{TCPListener: ln, EnableBBR: true},
+	log.Fatal(s.ServeTLS(tcpListenerEx{TCPListener: ln, TryToEnableBBR: true},
 		*fCertFile, *fKeyFile))
 }
