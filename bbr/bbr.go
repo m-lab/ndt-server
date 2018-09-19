@@ -100,7 +100,7 @@ const maxInactive = time.Duration(3 * time.Second)
 func EnableAndRememberFile(tc *net.TCPConn) error {
 	// Implementation note: according to a 2013 message on golang-nuts [1], the
 	// code that follows is broken because calling File() makes a socket blocking
-	// so causing Go to use much more threads. However, an April, 19 2019 commit
+	// so causing Go to use much more threads. However, an April, 19 2018 commit
 	// on src/net/tcpsock.go apparently has removed such restriction and so now
 	// (i.e. since go1.11beta1) it's safe to use the code below [2, 3].
 	//
