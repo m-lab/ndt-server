@@ -3,6 +3,7 @@ package ndt7
 import (
 	"crypto/rand"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -49,59 +50,53 @@ func stableAccordingToBBR(prev, cur, rtt float64, elapsed time.Duration) bool {
 		(cur-prev) < (0.25*prev)
 }
 
-// Handle handles the download subtest.
-func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	log.Debug("Processing query string")
+// getDuration gets the duration from the |request|'s query string. If no
+// duration option is defined in the query string, the default is returned. In
+// case of error processing the query string, an error is returned.
+func getDuration(request *http.Request) (time.Duration, error) {
 	duration := defaultDuration
 	s := request.URL.Query().Get("duration")
 	if s != "" {
 		value, err := strconv.Atoi(s)
 		if err != nil || value < 0 || value > maxDuration {
-			log.Warn("The duration option has an invalid value")
-			writer.Header().Set("Connection", "Close")
-			writer.WriteHeader(http.StatusBadRequest)
-			return
+			return 0, err
 		}
 		duration = time.Second * time.Duration(value)
 	}
+	return duration, nil
+}
+
+// getAdaptive gets the adaptive option from the |request|'s query string. If
+// no option is defined in the query string, then default value is returned. In
+// case of error processing the query string, an error is returned.
+func getAdaptive(request *http.Request) (bool, error) {
 	adaptive := false
-	s = request.URL.Query().Get("adaptive")
+	s := request.URL.Query().Get("adaptive")
 	if s != "" {
 		value, err := strconv.ParseBool(s)
 		if err != nil {
-			log.Warn("The adaptive option has an invalid value")
-			writer.Header().Set("Connection", "Close")
-			writer.WriteHeader(http.StatusBadRequest)
-			return
+			return false, err
 		}
 		adaptive = value
 	}
-	log.Debug("Upgrading to WebSockets")
-	if request.Header.Get("Sec-WebSocket-Protocol") != SecWebSocketProtocol {
-		log.Warn("Missing Sec-WebSocket-Protocol in request")
-		writer.Header().Set("Connection", "Close")
-		writer.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	headers := http.Header{}
-	headers.Add("Sec-WebSocket-Protocol", SecWebSocketProtocol)
-	conn, err := dl.Upgrader.Upgrade(writer, request, headers)
-	if err != nil {
-		log.WithError(err).Warn("upgrader.Upgrade() failed")
-		return
-	}
-	fp := bbr.GetAndForgetFile(conn.UnderlyingConn())
-	if fp != nil {
-		defer fp.Close()
-	}
-	// TODO(bassosimone): an error before this point means that we the *os.File
-	// will stay in cache until the cache pruning mechanism is triggered. This
-	// should be a small amount of seconds. If Golang does not call shutdown(2)
-	// and close(2), we'll end up keeping sockets that caused an error in the
-	// code above (e.g. because the handshake was not okay) alive for the time
-	// in which the corresponding *os.File is kept in cache.
-	conn.SetReadLimit(MinMaxMessageSize)
-	defer conn.Close()
+	return adaptive, nil
+}
+
+// warnAndClose emits a warning |message| and then closes the HTTP connection
+// using the |writer| http.ResponseWriter.
+func warnAndClose(writer http.ResponseWriter, message string) {
+	log.Warn(message)
+	writer.Header().Set("Connection", "Close")
+	writer.WriteHeader(http.StatusBadRequest)
+}
+
+// downloadLoop loops until the download is complete. |conn| is the WebSocket
+// connection. |fp| is a os.File bound to the same descriptor of |conn| that
+// allows us to extract BBR stats on Linux systems. |adaptive| tells us whether
+// we may interrupt early the download if BBR stats indicate that BBR has a
+// stable max-bandwidth estimate. |duration| is the expected duration of the
+// test, which may be shorter if |adaptive| is true.
+func downloadLoop(conn *websocket.Conn, fp *os.File, adaptive bool, duration time.Duration) {
 	log.Debug("Generating random buffer")
 	const bufferSize = 1 << 13
 	data := make([]byte, bufferSize)
@@ -160,6 +155,47 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		}
 		count += bufferSize
 	}
+	log.Debug("Download test complete")
+}
+
+// Handle handles the download subtest.
+func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	log.Debug("Processing query string")
+	duration, err := getDuration(request)
+	if err != nil {
+		warnAndClose(writer, "The duration option has an invalid value")
+		return
+	}
+	adaptive, err := getAdaptive(request)
+	if err != nil {
+		warnAndClose(writer, "The adaptive option has an invalid value")
+		return
+	}
+	log.Debug("Upgrading to WebSockets")
+	if request.Header.Get("Sec-WebSocket-Protocol") != SecWebSocketProtocol {
+		warnAndClose(writer, "Missing Sec-WebSocket-Protocol in request")
+		return
+	}
+	headers := http.Header{}
+	headers.Add("Sec-WebSocket-Protocol", SecWebSocketProtocol)
+	conn, err := dl.Upgrader.Upgrade(writer, request, headers)
+	if err != nil {
+		warnAndClose(writer, "Cannnot UPGRADE to WebSocket")
+		return
+	}
+	fp := bbr.GetAndForgetFile(conn.UnderlyingConn())
+	if fp != nil {
+		defer fp.Close()  // We own `fp` and we must close it when done
+	}
+	// TODO(bassosimone): an error before this point means that the *os.File
+	// will stay in cache until the cache pruning mechanism is triggered. This
+	// should be a small amount of seconds. If Golang does not call shutdown(2)
+	// and close(2), we'll end up keeping sockets that caused an error in the
+	// code above (e.g. because the handshake was not okay) alive for the time
+	// in which the corresponding *os.File is kept in cache.
+	conn.SetReadLimit(MinMaxMessageSize)
+	defer conn.Close()
+	downloadLoop(conn, fp, adaptive, duration)
 	log.Debug("Closing the WebSocket connection")
 	conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
 		websocket.CloseNormalClosure, ""), time.Now().Add(defaultTimeout))
