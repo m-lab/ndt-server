@@ -42,6 +42,8 @@ type DownloadHandler struct {
 //
 // WARNING: This algorithm is still experimental and we SHOULD NOT rely on
 // it until we have gathered a better understanding of how it performs.
+//
+// TODO(bassosimone): more research is needed!
 func stableAccordingToBBR(prev, cur, rtt float64, elapsed time.Duration) bool {
 	return (elapsed.Seconds()*1000*1000) >= (10.0*rtt) && cur >= prev &&
 		(cur-prev) < (0.25*prev)
