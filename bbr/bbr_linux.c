@@ -8,10 +8,14 @@
 #include <string.h>
 
 int get_bbr_info(int fd, double *bw, double *rtt) {
-  union tcp_cc_info ti;
   if (bw == NULL || rtt == NULL) {
     return EINVAL;  /* You passed me an invalid argument */
   }
+  /* With old kernels, like the one that we have by default on Travis, there
+     is no support for BBR, which breaks the integration tests. For now we
+     just work around it. TODO(bassosimone): Use docker on travis? */
+#ifdef TCP_CC_INFO
+  union tcp_cc_info ti;
   memset(&ti, 0, sizeof(ti));
   socklen_t tilen = sizeof(ti);
   if (getsockopt(fd, IPPROTO_TCP, TCP_CC_INFO, &ti, &tilen) == -1) {
@@ -28,4 +32,7 @@ int get_bbr_info(int fd, double *bw, double *rtt) {
                  ((uint64_t)ti.bbr.bbr_bw_lo));
   *rtt = (double)ti.bbr.bbr_min_rtt;
   return 0;
+#else
+  return ENOSYS;  /* This kernel does not support getting TCP BBR info */
+#endif
 }
