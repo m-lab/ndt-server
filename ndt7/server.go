@@ -61,7 +61,7 @@ func getDuration(request *http.Request) (time.Duration, error) {
 		if err != nil || value < 0 || value > maxDuration {
 			return 0, err
 		}
-		duration = time.Second * value
+		duration = time.Second * time.Duration(value)
 	}
 	return duration, nil
 }
