@@ -90,10 +90,10 @@ var mutex sync.Mutex
 var lastCheck time.Time
 
 // checkInterval is the interval between each check for stale entries.
-const checkInterval = time.Duration(500 * time.Millisecond)
+const checkInterval = 500 * time.Millisecond
 
 // maxInactive is the amount of time after which an entry is stale.
-const maxInactive = time.Duration(3 * time.Second)
+const maxInactive = 3 * time.Second
 
 // EnableAndRememberFile enables BBR on |tc| and remembers the associated
 // *os.File for later, when we'll need it to access BBR stats.
