@@ -30,8 +30,8 @@ type DownloadHandler struct {
 // of the test (expressed as a time.Duration). The bandwidth is measured
 // in bytes per second.
 //
-// This algorithm runs every 0.25 seconds. Empirically, it is know that
-// BBR requires some RTTs to converge. We are using 10 RTTs as a reasonable
+// This algorithm runs every 0.25 seconds. Empirically, we know that
+// BBR requires multiple RTTs to converge. Here we use 10 RTTs as a reasonable
 // upper bound. Before 10 RTTs have elapsed, we do not check whether the
 // bandwidth has stopped growing. After 10 RTTs have elapsed, we call
 // the connection stable when the bandwidth measured by BBR does not
