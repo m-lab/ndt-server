@@ -120,13 +120,15 @@ type BBRInfo struct {
 // The Measurement struct contains measurement results. This structure is
 // meant to be serialised as JSON as sent on a textual message.
 type Measurement struct {
-	// Number of nanoseconds elapsed since the beginning of the subtest.
+	// Elapsed is the number of nanoseconds elapsed since the beginning
+	// of the subtest.
 	Elapsed int64 `json:"elapsed"`
 
-	// Number of bytes transferred since the beginning of the subtest.
+	// NumBytes is the number of bytes transferred since the beginning
+	// of the subtest.
 	NumBytes int64 `json:"num_bytes"`
 
-	// Data measured using TCP BBR instrumentation.
+	// BBRInfo is the data measured using TCP BBR instrumentation.
 	BBRInfo *BBRInfo `json:"bbr_info,omitempty"`
 }
 
