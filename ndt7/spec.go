@@ -99,18 +99,37 @@ const MinMaxMessageSize = 1 << 17
 // upgrade using the query string. If options are not provided, sensible
 // defaults SHOULD be selected by the server.
 type Options struct {
+	// Adaptive indicates whether we are allowed to stop the download early
+	// if it's safe to do so according to BBR instrumentation, because we have
+	// correctly estimated the available bandwidth.
+	Adaptive bool
+
 	// Duration is the expected duration (in seconds) of the subtest.
 	Duration int
+}
+
+// The BBRInfo struct contains information measured using BBR.
+type BBRInfo struct {
+	// Bandwidth is the bandwidth measured by BBR in bytes/s.
+	Bandwidth float64 `json:"bandwidth"`
+
+	// RTT is the RTT measured by BBR in microseconds.
+	RTT float64 `json:"rtt"`
 }
 
 // The Measurement struct contains measurement results. This structure is
 // meant to be serialised as JSON as sent on a textual message.
 type Measurement struct {
-	// Number of nanoseconds elapsed since the beginning of the subtest.
+	// Elapsed is the number of nanoseconds elapsed since the beginning
+	// of the subtest.
 	Elapsed int64 `json:"elapsed"`
 
-	// Number of bytes transferred since the beginning of the subtest.
+	// NumBytes is the number of bytes transferred since the beginning
+	// of the subtest.
 	NumBytes int64 `json:"num_bytes"`
+
+	// BBRInfo is the data measured using TCP BBR instrumentation.
+	BBRInfo *BBRInfo `json:"bbr_info,omitempty"`
 }
 
 // MinMeasurementInterval is the minimum value of the interval betwen
