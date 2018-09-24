@@ -50,7 +50,7 @@ const (
 
 // Flags that can be passed in on the command line
 var (
-	fNdt7Port    = flag.Int("ndt7-port", 443, "The port to use for the NDT7 test")
+	fNdt7Port    = flag.Int("ndt7-port", 443, "The port to use for the ndt7 test")
 	fNdtPort     = flag.String("port", "3010", "The port to use for the main NDT test")
 	fCertFile    = flag.String("cert", "", "The file with server certificates in PEM format.")
 	fKeyFile     = flag.String("key", "", "The file with server key in PEM format.")
@@ -680,7 +680,7 @@ func main() {
 	}()
 	log.Println("About to listen on " + *fNdtPort + ". Go to http://127.0.0.1:" + *fNdtPort + "/")
 
-	// This is the NDT7 listener on a standard port and with TCP BBR enabled.
+	// This is the ndt7 listener on a standard port and with TCP BBR enabled.
 	ln, err := net.ListenTCP("tcp", &net.TCPAddr{Port: *fNdt7Port})
 	if err != nil {
 		log.Fatal(err)

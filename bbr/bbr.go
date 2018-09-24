@@ -13,7 +13,7 @@
 //
 // a) the returned *os.File is bound to another file descriptor that is
 //    a dup() of the one inside the *net.Conn, so, we should keep that
-//    *os.File alive during the whole NDT7 measurement;
+//    *os.File alive during the whole ndt7 measurement;
 //
 // b) in Go < 1.11, using this technique makes the file descriptor use
 //    blocking I/O, which spawns more threads (see below).

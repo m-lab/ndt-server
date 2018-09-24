@@ -22,7 +22,7 @@ hence two URLs are defined:
 - `/ndt/v7/upload`, which selects the upload subtest.
 
 The upgrade message MUST also contain the WebSocket subprotocol that
-identifies NDT7, which is `net.measurementlab.ndt.v7`. The URL in the
+identifies ndt7, which is `net.measurementlab.ndt.v7`. The URL in the
 upgrade request MAY contain optional parameters for configuring the
 network test (see below). An upgrade request could look like this:
 
@@ -54,7 +54,7 @@ Connection: Upgrade\r\n
 ```
 
 Once the WebSocket channel is established, the client and the server
-exchange NDT7 messages using the WebSocket framing. An implementation MAY
+exchange ndt7 messages using the WebSocket framing. An implementation MAY
 choose to limit the maximum WebSocket message size, but such limit MUST
 NOT be smaller than 1 << 17 bytes.
 

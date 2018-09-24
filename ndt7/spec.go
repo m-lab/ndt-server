@@ -12,7 +12,7 @@ const DownloadURLPath = "/ndt/v7/download"
 // UploadURLPath selects the upload subtest.
 const UploadURLPath = "/ndt/v7/upload"
 
-// SecWebSocketProtocol is the WebSocket subprotocol used by NDT7.
+// SecWebSocketProtocol is the WebSocket subprotocol used by ndt7.
 const SecWebSocketProtocol = "net.measurementlab.ndt.v7"
 
 // MinMaxMessageSize is the minimum value of the maximum message size
