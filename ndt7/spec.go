@@ -1,6 +1,7 @@
 // Package ndt7 contains a non-backwards compatible redesign of the NDT
 // network performance measurement protocol. The complete specification of
-// the protocol is at https://github.com/m-lab/ndt-cloud.
+// the protocol is available at
+// https://github.com/m-lab/ndt-cloud/blob/master/spec/ndt7.md.
 package ndt7
 
 import "time"
