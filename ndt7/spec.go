@@ -95,19 +95,6 @@ const SecWebSocketProtocol = "net.measurementlab.ndt.v7"
 // threshold MUST always be accepted by an implementation.
 const MinMaxMessageSize = 1 << 17
 
-// Options are the options that can be configuered as part of the WebSocket
-// upgrade using the query string. If options are not provided, sensible
-// defaults SHOULD be selected by the server.
-type Options struct {
-	// Adaptive indicates whether we are allowed to stop the download early
-	// if it's safe to do so according to BBR instrumentation, because we have
-	// correctly estimated the available bandwidth.
-	Adaptive bool
-
-	// Duration is the expected duration (in seconds) of the subtest.
-	Duration int
-}
-
 // The BBRInfo struct contains information measured using BBR.
 type BBRInfo struct {
 	// Bandwidth is the bandwidth measured by BBR in bytes/s.
