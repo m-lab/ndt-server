@@ -1,4 +1,6 @@
 language: go
+go:
+- "1.11"
 
 before_script:
 - go get golang.org/x/tools/cmd/cover
