@@ -1,6 +1,7 @@
 package bbr
 
 // #cgo CFLAGS: -Wall -Wextra -Werror -std=c11 -Wno-unused-parameter
+// #cgo LDFLAGS: -static
 // #include "bbr_linux.h"
 import "C"
 
