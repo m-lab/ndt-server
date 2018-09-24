@@ -90,7 +90,7 @@ request for `/ndt/v7/download`:
   algorithm to terminate the download early when BBR parameters indicate
   that the connection is stable;
 
-- `duration=<int>`, expected number of duration in seconds. The server
+- `duration=<int>`, expected duration in seconds. The server
   MUST NOT reject a download request containing a positive duration smaller or
   equal than ten seconds.
 
