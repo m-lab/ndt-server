@@ -164,7 +164,7 @@ func GetAndForgetFile(conn net.Conn) *os.File {
 }
 
 // GetBandwidthAndRTT obtains BBR info from |fp|. The returned values are
-// the max-bandwidth in bytes/s and the min-rtt in microseconds.
+// the max-bandwidth in bits per second and the min-rtt in milliseconds.
 func GetBandwidthAndRTT(fp *os.File) (float64, float64, error) {
 	// Implementation note: for simplicity I have decided to use float64 here
 	// rather than uint64, mainly because the proper C type to use AFAICT (and

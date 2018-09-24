@@ -26,9 +26,9 @@ type DownloadHandler struct {
 // stableAccordingToBBR returns true when we can stop the current download
 // test based on |prev|, the previous BBR bandwidth sample, |cur| the
 // current BBR bandwidth sample, |rtt|, the BBR measured RTT (in
-// microsecond), and |elapsed|, the elapsed time since the beginning
+// millisecond), and |elapsed|, the elapsed time since the beginning
 // of the test (expressed as a time.Duration). The bandwidth is measured
-// in bytes per second.
+// in bits per second.
 //
 // This algorithm runs every 0.25 seconds. Empirically, we know that
 // BBR requires multiple RTTs to converge. Here we use 10 RTTs as a reasonable
@@ -46,7 +46,7 @@ type DownloadHandler struct {
 //
 // TODO(bassosimone): more research is needed!
 func stableAccordingToBBR(prev, cur, rtt float64, elapsed time.Duration) bool {
-	return (elapsed.Seconds()*1000*1000) >= (10.0*rtt) && cur >= prev &&
+	return (elapsed.Seconds()*1000.0) >= (10.0*rtt) && cur >= prev &&
 		(cur-prev) < (0.25*prev)
 }
 

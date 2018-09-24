@@ -31,6 +31,11 @@ int get_bbr_info(int fd, double *bw, double *rtt) {
   *bw = (double)((((uint64_t)ti.bbr.bbr_bw_hi) << 32) |
                  ((uint64_t)ti.bbr.bbr_bw_lo));
   *rtt = (double)ti.bbr.bbr_min_rtt;
+  /* Convert the values from the kernel provided units to the units that
+     we're going to use in NDTv7. The units we use are the most common ones
+     in which people typically expects these variables. */
+  *bw *= 8.0;      /* From bytes per second to bits per second */
+  *rtt /= 1000.0;  /* From microseconds to milliseconds */
   return 0;
 #else
   return ENOSYS;  /* This kernel does not support getting TCP BBR info */
