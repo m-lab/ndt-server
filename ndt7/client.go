@@ -33,7 +33,7 @@ func (cl Client) Download() error {
 	conn.SetReadLimit(MinMaxMessageSize)
 	defer conn.Close()
 	t0 := time.Now()
-	num := int64(0)
+	num := float64(0.0)
 	ticker := time.NewTicker(MinMeasurementInterval)
 	log.Info("Starting download")
 	for {
@@ -59,7 +59,7 @@ func (cl Client) Download() error {
 			}
 			break
 		}
-		num += int64(len(mdata))
+		num += float64(len(mdata))
 		if mtype == websocket.TextMessage {
 			// Unmarshal to verify that this message is correct JSON but do not
 			// otherwise process the message's content.

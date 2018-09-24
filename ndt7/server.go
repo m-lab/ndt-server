@@ -109,8 +109,8 @@ func downloadLoop(conn *websocket.Conn, fp *os.File, adaptive bool, duration tim
 	log.Debug("Start sending data to client")
 	t0 := time.Now()
 	last := t0
-	count := int64(0)
-	bandwidth := float64(0)
+	count := float64(0.0)
+	bandwidth := float64(0.0)
 	for {
 		t := time.Now()
 		if t.Sub(last) >= MinMeasurementInterval {
