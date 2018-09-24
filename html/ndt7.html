@@ -11,7 +11,7 @@
   <script type='text/javascript'>
     function Run() {
       let clnt = libndt7.newClient({
-        secure: (window.location.protocol === 'https:'),
+        insecure: (window.location.protocol !== 'https:'),
         hostname: window.location.host,
         download: {
           duration: 4,
