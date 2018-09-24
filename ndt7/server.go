@@ -117,7 +117,7 @@ func downloadLoop(conn *websocket.Conn, fp *os.File, adaptive bool, duration tim
 			// TODO(bassosimone): here we should also include tcp_info data
 			elapsed := t.Sub(t0)
 			measurement := Measurement{
-				Elapsed:  elapsed.Nanoseconds(),
+				Elapsed:  elapsed.Seconds(),
 				NumBytes: count,
 			}
 			if fp != nil {

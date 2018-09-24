@@ -40,7 +40,7 @@ func (cl Client) Download() error {
 		select {
 		case t1 := <-ticker.C:
 			mm := Measurement{
-				Elapsed: t1.Sub(t0).Nanoseconds(),
+				Elapsed: t1.Sub(t0).Seconds(),
 				NumBytes: num,
 			}
 			data, err := json.Marshal(mm)
