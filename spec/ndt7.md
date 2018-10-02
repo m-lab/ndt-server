@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.1.0 of the ndt7 specification.
+This is version v0.2.0 of the ndt7 specification.
 
 ## Protocol description
 
@@ -23,11 +23,12 @@ hence two URLs are defined:
 
 The upgrade message MUST also contain the WebSocket subprotocol that
 identifies ndt7, which is `net.measurementlab.ndt.v7`. The URL in the
-upgrade request MAY contain optional parameters for configuring the
-network test (see below). An upgrade request could look like this:
+upgrade request MAY contain optional parameters, which will be saved
+as metadata describing the client (see below).  An upgrade request
+could look like this:
 
 ```
-GET /ndt/v7/download?duration=7.0 HTTP/1.1\r\n
+GET /ndt/v7/download HTTP/1.1\r\n
 Host: localhost\r\n
 Connection: Upgrade\r\n
 Sec-WebSocket-Key: DOdm+5/Cm3WwvhfcAlhJoQ==\r\n
@@ -37,12 +38,13 @@ Upgrade: websocket\r\n
 \r\n
 ```
 
-Upon receiving the upgrade request, the server should check the
-parameters and either (1) respond with a 400 failure status code
-if the parameters are not okay or (2) upgrade the connection to
-WebSocket if parameters are acceptable. The upgrade response MUST
-contain the selected subprotocol in compliance with RFC6455. A
-possible upgrade response could look like this:
+Upon receiving the upgrade request, the server MUST inspect the
+request (including the optional query string) and either upgrade
+the connection to WebSocket or return a 400 failure if the
+request does not look correct (e.g. if the WebSocket subprotocol
+is missing). The upgrade response MUST contain the selected
+subprotocol in compliance with RFC6455. A possible upgrade response
+could look like this:
 
 ```
 HTTP/1.1 101 Switching Protocols\r\n
@@ -70,10 +72,10 @@ containing measurement results (see below). This kind of messages
 MAY be sent by both the client and the server throughout the subtest,
 regardless of the test type, because both parties run network
 measurements they MAY want to share. Note: the bytes exhanged as
-part of the textual messages could themselves be useful to measure
-the network performance. An implementation MAY close the connection
-if it is receiving Textual WebSocket messages more frequently than
-one every 250 millisecond.
+part of the textual messages SHOULD themselves be useful to measure
+the network performance. An implementation MAY decide to close the
+connection if it is receiving Textual WebSocket messages more frequently
+than one every 250 millisecond.
 
 When the configured duration time has expired, the parties SHOULD close
 the WebSocket channel by sending a Close WebSocket frame. The client
@@ -81,22 +83,21 @@ SHOULD not close the TCP connection immediately, so that the server can
 close it first. This allows to reuse ports more efficiently on the
 server because we avoid `TIME_WAIT`.
 
-## Download query string parameters
+## Availability of TCP BBR
 
-The following query string parameters MAY be included in the UPGRADE
-request for `/ndt/v7/download`:
+If TCP BBR is available, a compliant server MAY choose to enable it
+for the client connection and terminate the download test early when
+it believes that BBR parameters become stable.
 
-- `adaptive=<bool>`, a boolean indicating whether to use an adaptive
-  algorithm to terminate the download early when BBR parameters indicate
-  that the connection is stable;
+Client can detect whether BBR is enabled by checking whether the measurement
+returned by the server contains a `bbr_info` field (see below).
 
-- `duration=<int>`, expected duration in seconds. The server
-  MUST NOT reject a download request containing a positive duration smaller or
-  equal than ten seconds.
+## Query string parameters
 
-As mentioned above, a server SHOULD process the parameters and return a
-HTTP error if the parameters have invalid or unacceptable values (e.g. if
-the `duration` parameter is negative or too large).
+The client SHOULD send metadata using the query string. The server
+SHOULD process the query string, returning a 400 error if it is not
+parseable. Additionally, the server SHOULD store the metadata sent
+by the client using the query string.
 
 ## Measurements message
 

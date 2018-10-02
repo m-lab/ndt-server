@@ -28,7 +28,7 @@ const libndt7 = (function () {
 
   return {
     // version is the client library version.
-    version: 0.2,
+    version: 0.3,
 
     // events exports the events table.
     events: events,
@@ -44,26 +44,6 @@ const libndt7 = (function () {
         }
       }
 
-      // makequery creates the query string from |settings|.
-      const makequery = function (settings) {
-        let query = ''
-        if (settings.download) {
-          if (settings.download.adaptive || settings.download.duration) {
-            query += '?'
-          }
-          if (settings.download.adaptive) {
-            query += 'adaptive=true'
-          }
-          if (settings.download.duration) {
-            if (query) {
-              query += '&'
-            }
-            query += 'duration=' + settings.download.duration
-          }
-        }
-        return query
-      }
-
       // makeurl creates the URL from |settings|.
       const makeurl = function (settings) {
         let url = ''
@@ -72,7 +52,7 @@ const libndt7 = (function () {
         if (settings.port) {
           url += ':' + settings.port
         }
-        return url + '/ndt/v7/download' + makequery(settings)
+        return url + '/ndt/v7/download'
       }
 
       // setupconn creates the WebSocket connection and initializes all
