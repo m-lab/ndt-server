@@ -11,7 +11,7 @@ This is version v0.2.0 of the ndt7 specification.
 
 ## Protocol description
 
-The client connects to the server using TLS and requests to upgrade the
+The client connects to the server using HTTPS and requests to upgrade the
 connection to WebSockets. The same connection will be used to exchange
 control and measurement messages. The upgrade request URL will indicate
 the type of subtest that the client wants to perform. Two subtests and
