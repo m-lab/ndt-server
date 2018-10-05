@@ -1,4 +1,4 @@
-# ndt7 specification
+# ndt7 protocol specification
 
 This specification describes version 7 of the Network Diagnostic
 Tool (NDT) protocol (ndt7). Ndt7 is a non-backwards compatible
@@ -95,9 +95,13 @@ returned by the server contains a `bbr_info` field (see below).
 ## Query string parameters
 
 The client SHOULD send metadata using the query string. The server
-SHOULD process the query string, returning a 400 error if it is not
-parseable. Additionally, the server SHOULD store the metadata sent
-by the client using the query string.
+SHOULD process the query string, returning 400 if the query string is
+not parseable or not acceptable (see below). The server SHOULD store
+the metadata sent by the client using the query string.
+
+The following restrictions apply to the query string. It MUST NOT be
+longer than 4096 bytes. Both the name and the value of the query string
+parameters MUST match the `[0-9A-Za-z._]+` regular expression.
 
 ## Measurements message
 
