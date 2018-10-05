@@ -72,7 +72,7 @@ func Test_NDTe2e(t *testing.T) {
 				"sleep 25",
 		},
 		{
-			name: "Test the NDT7 protocol",
+			name: "Test the ndt7 protocol",
 			cmd: "ndt-cloud-client -skip-tls-verify -port " + u.Port(),
 		},
 	}

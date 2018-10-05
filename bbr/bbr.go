@@ -13,7 +13,7 @@
 //
 // a) the returned *os.File is bound to another file descriptor that is
 //    a dup() of the one inside the *net.Conn, so, we should keep that
-//    *os.File alive during the whole NDT7 measurement;
+//    *os.File alive during the whole ndt7 measurement;
 //
 // b) in Go < 1.11, using this technique makes the file descriptor use
 //    blocking I/O, which spawns more threads (see below).
@@ -164,7 +164,7 @@ func GetAndForgetFile(conn net.Conn) *os.File {
 }
 
 // GetBandwidthAndRTT obtains BBR info from |fp|. The returned values are
-// the max-bandwidth in bytes/s and the min-rtt in microseconds.
+// the max-bandwidth in bits per second and the min-rtt in milliseconds.
 func GetBandwidthAndRTT(fp *os.File) (float64, float64, error) {
 	// Implementation note: for simplicity I have decided to use float64 here
 	// rather than uint64, mainly because the proper C type to use AFAICT (and

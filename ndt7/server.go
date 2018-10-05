@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/apex/log"
@@ -15,9 +14,6 @@ import (
 // defaultDuration is the default duration of a subtest in nanoseconds.
 const defaultDuration = 10 * time.Second
 
-// maxDuration is the maximum duration of a subtest in seconds
-const maxDuration = 30
-
 // DownloadHandler handles a download subtest from the server side.
 type DownloadHandler struct {
 	Upgrader websocket.Upgrader
@@ -26,9 +22,9 @@ type DownloadHandler struct {
 // stableAccordingToBBR returns true when we can stop the current download
 // test based on |prev|, the previous BBR bandwidth sample, |cur| the
 // current BBR bandwidth sample, |rtt|, the BBR measured RTT (in
-// microsecond), and |elapsed|, the elapsed time since the beginning
+// millisecond), and |elapsed|, the elapsed time since the beginning
 // of the test (expressed as a time.Duration). The bandwidth is measured
-// in bytes per second.
+// in bits per second.
 //
 // This algorithm runs every 0.25 seconds. Empirically, we know that
 // BBR requires multiple RTTs to converge. Here we use 10 RTTs as a reasonable
@@ -46,40 +42,8 @@ type DownloadHandler struct {
 //
 // TODO(bassosimone): more research is needed!
 func stableAccordingToBBR(prev, cur, rtt float64, elapsed time.Duration) bool {
-	return (elapsed.Seconds()*1000*1000) >= (10.0*rtt) && cur >= prev &&
+	return (elapsed.Seconds()*1000.0) >= (10.0*rtt) && cur >= prev &&
 		(cur-prev) < (0.25*prev)
-}
-
-// getDuration gets the duration from the |request|'s query string. If no
-// duration option is defined in the query string, the default is returned. In
-// case of error processing the query string, an error is returned.
-func getDuration(request *http.Request) (time.Duration, error) {
-	duration := defaultDuration
-	s := request.URL.Query().Get("duration")
-	if s != "" {
-		value, err := strconv.Atoi(s)
-		if err != nil || value < 0 || value > maxDuration {
-			return 0, err
-		}
-		duration = time.Second * time.Duration(value)
-	}
-	return duration, nil
-}
-
-// getAdaptive gets the adaptive option from the |request|'s query string. If
-// no option is defined in the query string, then default value is returned. In
-// case of error processing the query string, an error is returned.
-func getAdaptive(request *http.Request) (bool, error) {
-	adaptive := false
-	s := request.URL.Query().Get("adaptive")
-	if s != "" {
-		value, err := strconv.ParseBool(s)
-		if err != nil {
-			return false, err
-		}
-		adaptive = value
-	}
-	return adaptive, nil
 }
 
 // warnAndClose emits a warning |message| and then closes the HTTP connection
@@ -92,11 +56,8 @@ func warnAndClose(writer http.ResponseWriter, message string) {
 
 // downloadLoop loops until the download is complete. |conn| is the WebSocket
 // connection. |fp| is a os.File bound to the same descriptor of |conn| that
-// allows us to extract BBR stats on Linux systems. |adaptive| tells us whether
-// we may interrupt early the download if BBR stats indicate that BBR has a
-// stable max-bandwidth estimate. |duration| is the expected duration of the
-// test, which may be shorter if |adaptive| is true.
-func downloadLoop(conn *websocket.Conn, fp *os.File, adaptive bool, duration time.Duration) {
+// allows us to extract BBR stats on Linux systems.
+func downloadLoop(conn *websocket.Conn, fp *os.File) {
 	log.Debug("Generating random buffer")
 	const bufferSize = 1 << 13
 	data := make([]byte, bufferSize)
@@ -109,15 +70,15 @@ func downloadLoop(conn *websocket.Conn, fp *os.File, adaptive bool, duration tim
 	log.Debug("Start sending data to client")
 	t0 := time.Now()
 	last := t0
-	count := int64(0)
-	bandwidth := float64(0)
+	count := float64(0.0)
+	bandwidth := float64(0.0)
 	for {
 		t := time.Now()
 		if t.Sub(last) >= MinMeasurementInterval {
 			// TODO(bassosimone): here we should also include tcp_info data
 			elapsed := t.Sub(t0)
 			measurement := Measurement{
-				Elapsed:  elapsed.Nanoseconds(),
+				Elapsed:  elapsed.Seconds(),
 				NumBytes: count,
 			}
 			if fp != nil {
@@ -129,7 +90,7 @@ func downloadLoop(conn *websocket.Conn, fp *os.File, adaptive bool, duration tim
 					}
 					log.Infof("BW: %f bytes/s; RTT: %f usec", bw, rtt)
 					stoppable := stableAccordingToBBR(bandwidth, bw, rtt, elapsed)
-					if stoppable && adaptive {
+					if stoppable {
 						log.Info("It seems we can stop the download earlier")
 						break
 					}
@@ -145,7 +106,7 @@ func downloadLoop(conn *websocket.Conn, fp *os.File, adaptive bool, duration tim
 			}
 			last = t
 		}
-		if time.Now().Sub(t0) >= duration {
+		if time.Now().Sub(t0) >= defaultDuration {
 			break
 		}
 		conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
@@ -161,16 +122,7 @@ func downloadLoop(conn *websocket.Conn, fp *os.File, adaptive bool, duration tim
 // Handle handles the download subtest.
 func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	log.Debug("Processing query string")
-	duration, err := getDuration(request)
-	if err != nil {
-		warnAndClose(writer, "The duration option has an invalid value")
-		return
-	}
-	adaptive, err := getAdaptive(request)
-	if err != nil {
-		warnAndClose(writer, "The adaptive option has an invalid value")
-		return
-	}
+	// TODO(bassosimone): gather query string, parse it, and save metadata
 	log.Debug("Upgrading to WebSockets")
 	if request.Header.Get("Sec-WebSocket-Protocol") != SecWebSocketProtocol {
 		warnAndClose(writer, "Missing Sec-WebSocket-Protocol in request")
@@ -195,7 +147,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	// in which the corresponding *os.File is kept in cache.
 	conn.SetReadLimit(MinMaxMessageSize)
 	defer conn.Close()
-	downloadLoop(conn, fp, adaptive, duration)
+	downloadLoop(conn, fp)
 	log.Debug("Closing the WebSocket connection")
 	conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
 		websocket.CloseNormalClosure, ""), time.Now().Add(defaultTimeout))

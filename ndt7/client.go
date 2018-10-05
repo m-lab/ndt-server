@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Client is a simplified NDT7 client.
+// Client is a simplified ndt7 client.
 type Client struct {
 	Dialer websocket.Dialer
 	URL    url.URL
@@ -19,7 +19,7 @@ type Client struct {
 // defaultTimeout is the default value of the I/O timeout.
 const defaultTimeout = 1 * time.Second
 
-// Download runs a NDT7 download test.
+// Download runs a ndt7 download test.
 func (cl Client) Download() error {
 	cl.URL.Path = DownloadURLPath
 	log.Infof("Creating a WebSocket connection to: %s", cl.URL.String())
@@ -33,14 +33,14 @@ func (cl Client) Download() error {
 	conn.SetReadLimit(MinMaxMessageSize)
 	defer conn.Close()
 	t0 := time.Now()
-	num := int64(0)
+	num := float64(0.0)
 	ticker := time.NewTicker(MinMeasurementInterval)
 	log.Info("Starting download")
 	for {
 		select {
 		case t1 := <-ticker.C:
 			mm := Measurement{
-				Elapsed: t1.Sub(t0).Nanoseconds(),
+				Elapsed: t1.Sub(t0).Seconds(),
 				NumBytes: num,
 			}
 			data, err := json.Marshal(mm)
@@ -59,7 +59,7 @@ func (cl Client) Download() error {
 			}
 			break
 		}
-		num += int64(len(mdata))
+		num += float64(len(mdata))
 		if mtype == websocket.TextMessage {
 			// Unmarshal to verify that this message is correct JSON but do not
 			// otherwise process the message's content.

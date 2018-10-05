@@ -1,4 +1,6 @@
 language: go
+go:
+- "1.11"
 
 before_script:
 - go get golang.org/x/tools/cmd/cover
@@ -6,6 +8,6 @@ before_script:
 - npm install --verbose ws minimist
 
 script:
-- go get -v ./cmd/ndt-cloud-client
-- go test -v -coverprofile=ndt.cov github.com/m-lab/ndt-cloud
+- go get -v -tags netgo ./cmd/ndt-cloud-client
+- go test -v -coverprofile=ndt.cov -tags netgo ./...
 - $GOPATH/bin/goveralls -coverprofile=ndt.cov -service=travis-ci
