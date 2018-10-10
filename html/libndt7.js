@@ -26,9 +26,11 @@ const libndt7 = (function () {
     downloadClient: 'ndt7.download.client'
   }
 
+  const version = 0.4
+
   return {
     // version is the client library version.
-    version: 0.3,
+    version: version,
 
     // events exports the events table.
     events: events,
@@ -52,7 +54,26 @@ const libndt7 = (function () {
         if (settings.port) {
           url += ':' + settings.port
         }
-        return url + '/ndt/v7/download'
+        url += '/ndt/v7/download?'
+        for (let key in settings.meta) {
+          if (settings.meta.hasOwnProperty(key)) {
+            const re = /[0-9A-Za-z._]+/
+            if (!key.match(re)) {
+              throw 'Key does not match the expected regular expression: ' + key
+            }
+            let value = settings.meta[key]
+            if (typeof value === 'number' || typeof value === 'boolean') {
+              value += ''  // force conversion to string
+            }
+            if (typeof value !== 'string' || !value.match(re)) {
+              throw 'Value is not a string or does not match the expected ' +
+                    'regular expression: ' + value
+            }
+            url += key + '=' + value + '&'
+          }
+        }
+        url += 'library.name=libndt7.js&library.version=' + version
+        return url
       }
 
       // setupconn creates the WebSocket connection and initializes all
