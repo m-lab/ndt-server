@@ -1,3 +1,6 @@
+/* jshint esversion: 6, asi: true */
+/* exported libndt7 */
+
 // libndt7 is a NDTv7 client library in JavaScript.
 const libndt7 = (function () {
   'use strict';
