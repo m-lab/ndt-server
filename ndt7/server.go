@@ -104,7 +104,9 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 			last = t
 			if stoppable {
 				log.Info("It seems we can stop the download earlier")
-				break
+				// Disable breaking out of the loop for now because we've determined
+				// that the best course of action is actually to run for 10 seconds to
+				// gather enough data to refine the "stop early" algorithm.
 			}
 		}
 		if time.Now().Sub(t0) >= defaultDuration {
