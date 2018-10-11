@@ -7,12 +7,31 @@
 </head>
 <body>
   <button onclick='Run()'>Run</button>
-  <div id='measurement'></div>
+  <table>
+    <thead><tr>
+      <th>Elapsed (s)</th><th>Transferred (MiB)</th><th>Bandwidth (Mbit/s)</th>
+        <th>RTT (ms)</th>
+    </tr><thead>
+    <tbody id='measurement'></tbody>
+  </table>
+  <table id='measurement'></table>
   <script type='text/javascript'>
     /* jshint esversion: 6, asi: true */
     /* exported Run */
     /* globals libndt7 */
+
+    function WithMeasurementDo(callable) {
+      const elem = document.getElementById('measurement')
+      if (elem) {
+        callable(elem)
+      }
+    }
+
     function Run() {
+      WithMeasurementDo(function (elem) {
+        elem.innerHTML = ''
+      })
+
       let worker = new Worker('ndt7-worker.js')
       worker.postMessage({
         key: 'download',
@@ -32,16 +51,27 @@
         } else if (msg.key === libndt7.events.downloadClient) {
           console.log('Measurement from us: ' + JSON.stringify(msg.value))
         } else if (msg.key === libndt7.events.downloadServer) {
-          console.log('Measurement from server: ' + JSON.stringify(msg.value))
-          const elem = document.getElementById('measurement')
-          if (elem) {
-            elem.innerHTML += '<p>' + JSON.stringify(msg.value) + '</p>'
-          }
+          const d = msg.value
+          console.log('Measurement from server: ' + JSON.stringify(d))
+          WithMeasurementDo(function (elem) {
+            let row = elem.insertRow()
+            row.insertCell().innerHTML = d.elapsed.toFixed(3)
+            row.insertCell().innerHTML = (d.num_bytes / 1024 / 1024).toFixed(3)
+            if (d.bbr_info) {
+              let mbits = d.bbr_info.bandwidth / 1000 / 1000
+              row.insertCell().innerHTML = mbits.toFixed(3)
+              row.insertCell().innerHTML = d.bbr_info.RTT
+            } else {
+              row.insertCell().innerHTML = 'N/A'
+              row.insertCell().innerHTML = 'N/A'
+            }
+          })
         } else {
           console.log('Received unexpected message: ' + msg.key)
         }
       }
     }
+
   </script>
 </body>
 </html>
