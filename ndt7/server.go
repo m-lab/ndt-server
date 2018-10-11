@@ -81,6 +81,7 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 				Elapsed:  elapsed.Seconds(),
 				NumBytes: count,
 			}
+			stoppable := false
 			if fp != nil {
 				bw, rtt, err := bbr.GetBandwidthAndRTT(fp)
 				if err == nil {
@@ -88,12 +89,8 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 						Bandwidth: bw,
 						RTT:       rtt,
 					}
-					log.Infof("BW: %f bytes/s; RTT: %f usec", bw, rtt)
-					stoppable := stableAccordingToBBR(bandwidth, bw, rtt, elapsed)
-					if stoppable {
-						log.Info("It seems we can stop the download earlier")
-						break
-					}
+					log.Infof("BW: %f bit/s; RTT: %f ms", bw, rtt)
+					stoppable = stableAccordingToBBR(bandwidth, bw, rtt, elapsed)
 					bandwidth = bw
 				} else {
 					log.WithError(err).Warn("Cannot get BBR info")
@@ -105,6 +102,10 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 				return
 			}
 			last = t
+			if stoppable {
+				log.Info("It seems we can stop the download earlier")
+				break
+			}
 		}
 		if time.Now().Sub(t0) >= defaultDuration {
 			break
