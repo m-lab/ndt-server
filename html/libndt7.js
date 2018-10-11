@@ -107,7 +107,7 @@ const libndt7 = (function () {
           if (event.data instanceof Blob) {
             count += event.data.size
           } else {
-            emit(events.downloadServer, event.data)
+            emit(events.downloadServer, JSON.parse(event.data))
             count += event.data.length
           }
           let t1 = new Date().getTime()
