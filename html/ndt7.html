@@ -60,7 +60,7 @@
             if (d.bbr_info) {
               let mbits = d.bbr_info.bandwidth / 1000 / 1000
               row.insertCell().innerHTML = mbits.toFixed(3)
-              row.insertCell().innerHTML = d.bbr_info.RTT
+              row.insertCell().innerHTML = d.bbr_info.rtt
             } else {
               row.insertCell().innerHTML = 'N/A'
               row.insertCell().innerHTML = 'N/A'
