@@ -34,5 +34,9 @@ onmessage = function (ev) {
       key: libndt7.events.error,
       value: 'Subtest not implemented: ' + msg.key,
     })
+    postMessage({
+      key: libndt7.events.close,
+      value: null
+    })
   }
 }
