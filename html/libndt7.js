@@ -12,7 +12,8 @@ const libndt7 = (function () {
     open: 'ndt7.open',
 
     // close is the event emitted when the socket is closed. The
-    // object bound to this event is always null.
+    // object bound to this event is always null. The code SHOULD
+    // always emit this event at the end of the test.
     close: 'ndt7.close',
 
     // error is the event emitted when the socket is closed. The
