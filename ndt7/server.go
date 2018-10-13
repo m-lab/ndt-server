@@ -10,6 +10,7 @@ import (
 	"github.com/apex/log"
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-cloud/bbr"
+	"github.com/m-lab/ndt-cloud/fdcache"
 )
 
 // defaultTimeout is the default value of the I/O timeout.
@@ -150,7 +151,12 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		warnAndClose(writer, "Cannnot UPGRADE to WebSocket")
 		return
 	}
-	fp := bbr.GetAndForgetFile(conn.UnderlyingConn())
+	fp := fdcache.GetAndForgetFile(conn.UnderlyingConn())
+	// Implementation note: in theory fp SHOULD always be non-nil because
+	// now we always register the fp bound to a net.TCPConn. However, in
+	// some weird cases it MAY happen that the cache pruning mechanism will
+	// remove the fp BEFORE we can steal it. For this reason, I've decided
+	// to program defensively rather than calling panic() here.
 	if fp != nil {
 		defer fp.Close()  // We own `fp` and we must close it when done
 	}
