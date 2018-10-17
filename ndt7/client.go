@@ -16,9 +16,6 @@ type Client struct {
 	URL    url.URL
 }
 
-// defaultTimeout is the default value of the I/O timeout.
-const defaultTimeout = 7 * time.Second
-
 // Download runs a ndt7 download test.
 func (cl Client) Download() error {
 	cl.URL.Path = DownloadURLPath

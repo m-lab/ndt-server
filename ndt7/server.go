@@ -11,6 +11,9 @@ import (
 	"github.com/m-lab/ndt-cloud/bbr"
 )
 
+// defaultTimeout is the default value of the I/O timeout.
+const defaultTimeout = 7 * time.Second
+
 // defaultDuration is the default duration of a subtest in nanoseconds.
 const defaultDuration = 10 * time.Second
 
