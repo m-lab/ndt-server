@@ -4,7 +4,6 @@
 #include <netinet/tcp.h>
 
 #include <errno.h>
-#include <stdint.h>
 #include <string.h>
 
 int get_bbr_info(int fd, double *bw, double *rtt) {
