@@ -40,6 +40,11 @@ type Measurement struct {
 
 	// BBRInfo is the data measured using TCP BBR instrumentation.
 	BBRInfo *BBRInfo `json:"bbr_info,omitempty"`
+
+	// Padding contains an optional random [A-Za-z]+ string that MAY be
+	// added by a server to send larger measurement message, so that such
+	// messages could be used directly to generate network load.
+	Padding string `json:"padding,omitempty"`
 }
 
 // MinMeasurementInterval is the minimum value of the interval betwen
