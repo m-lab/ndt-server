@@ -4,8 +4,6 @@
 // https://github.com/m-lab/ndt-cloud/blob/master/spec/ndt7.md.
 package ndt7
 
-import "time"
-
 // DownloadURLPath selects the download subtest.
 const DownloadURLPath = "/ndt/v7/download"
 
@@ -46,9 +44,3 @@ type Measurement struct {
 	// messages could be used directly to generate network load.
 	Padding string `json:"padding,omitempty"`
 }
-
-// MinMeasurementInterval is the minimum value of the interval betwen
-// two consecutive measurements performed by either party. An implementation
-// MAY choose to close the connection if it is receiving too frequent
-// Measurement messages from the other endpoint.
-const MinMeasurementInterval = 250 * time.Millisecond
