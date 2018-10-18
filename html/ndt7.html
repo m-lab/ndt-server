@@ -8,8 +8,8 @@
 <body>
   <table>
     <thead><tr>
-      <th>Elapsed (s)</th><th>Transferred (MiB)</th><th>Bandwidth (Mbit/s)</th>
-        <th>RTT (ms)</th>
+      <th>Elapsed (s)</th><th>Transferred (MiB)</th>
+        <th>Max Bandwidth (Mbit/s)</th><th>Min RTT (ms)</th>
     </tr><thead>
     <tbody id='measurement'></tbody>
   </table>
@@ -58,9 +58,9 @@
             row.insertCell().innerHTML = d.elapsed.toFixed(3)
             row.insertCell().innerHTML = (d.num_bytes / 1024 / 1024).toFixed(3)
             if (d.bbr_info) {
-              let mbits = d.bbr_info.bandwidth / 1000 / 1000
+              let mbits = d.bbr_info.max_bandwidth / 1000 / 1000
               row.insertCell().innerHTML = mbits.toFixed(3)
-              row.insertCell().innerHTML = d.bbr_info.rtt
+              row.insertCell().innerHTML = d.bbr_info.min_rtt
             } else {
               row.insertCell().innerHTML = 'N/A'
               row.insertCell().innerHTML = 'N/A'

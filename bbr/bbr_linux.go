@@ -16,7 +16,7 @@ func enableBBR(fp *os.File) error {
 		syscall.TCP_CONGESTION, "bbr")
 }
 
-func getBandwidthAndRTT(fp *os.File) (float64, float64, error) {
+func getMaxBandwidthAndMinRTT(fp *os.File) (float64, float64, error) {
 	bw := C.double(0)
 	rtt := C.double(0)
 	// Note: Fd() returns uintptr but on Unix we can safely use int for sockets.

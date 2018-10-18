@@ -24,21 +24,21 @@ type DownloadHandler struct {
 }
 
 // stableAccordingToBBR returns true when we can stop the current download
-// test based on |prev|, the previous BBR bandwidth sample, |cur| the
-// current BBR bandwidth sample, |rtt|, the BBR measured RTT (in
+// test based on |prev|, the previous BBR max-bandwidth sample, |cur| the
+// current BBR max-bandwidth sample, |rtt|, the BBR measured min-RTT (in
 // millisecond), and |elapsed|, the elapsed time since the beginning
-// of the test (expressed as a time.Duration). The bandwidth is measured
+// of the test (expressed as a time.Duration). The max-bandwidth is measured
 // in bits per second.
 //
 // This algorithm runs every 0.25 seconds. Empirically, we know that
 // BBR requires multiple RTTs to converge. Here we use 10 RTTs as a reasonable
 // upper bound. Before 10 RTTs have elapsed, we do not check whether the
-// bandwidth has stopped growing. After 10 RTTs have elapsed, we call
-// the connection stable when the bandwidth measured by BBR does not
+// max-bandwidth has stopped growing. After 10 RTTs have elapsed, we call
+// the connection stable when the max-bandwidth measured by BBR does not
 // grow of more than 25% between two 0.25 second periods.
 //
 // We use the same percentage used by the BBR paper to characterize the
-// bandwidth growth, i.e. 25%. The BBR paper can be read online at ACM
+// max-bandwidth growth, i.e. 25%. The BBR paper can be read online at ACM
 // Queue <https://queue.acm.org/detail.cfm?id=3022184>.
 //
 // WARNING: This algorithm is still experimental and we SHOULD NOT rely on
@@ -84,7 +84,7 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 	log.Debug("Start sending data to client")
 	t0 := time.Now()
 	count := float64(0.0)
-	bandwidth := float64(0.0)
+	maxBandwidth := float64(0.0)
 	for {
 		t := time.Now()
 		// TODO(bassosimone): here we should also include tcp_info data
@@ -96,16 +96,16 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 		}
 		stoppable := false
 		if fp != nil {
-			bw, rtt, err := bbr.GetBandwidthAndRTT(fp)
+			bw, rtt, err := bbr.GetMaxBandwidthAndMinRTT(fp)
 			if err == nil {
 				measurement.BBRInfo = &BBRInfo{
-					Bandwidth: bw,
-					RTT:       rtt,
+					MaxBandwidth: bw,
+					MinRTT:       rtt,
 				}
 				log.Infof("Elapsed: %f s; BW: %f bit/s; RTT: %f ms",
 						elapsed.Seconds(), bw, rtt)
-				stoppable = stableAccordingToBBR(bandwidth, bw, rtt, elapsed)
-				bandwidth = bw
+				stoppable = stableAccordingToBBR(maxBandwidth, bw, rtt, elapsed)
+				maxBandwidth = bw
 			} else {
 				log.WithError(err).Warn("Cannot get BBR info")
 			}

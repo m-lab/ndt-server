@@ -119,8 +119,8 @@ structure:
 ```json
 {
   "bbr_info": {
-    "bandwidth": 12345.4,
-    "rtt": 123.4
+    "max_bandwidth": 12345.4,
+    "min_rtt": 123.4
   },
   "elapsed": 1.2345,
   "num_bytes": 17.0,
@@ -133,10 +133,10 @@ Where:
 - `bbr_info` is an _optional_ JSON object only included in the measurement
   when it is possible to access TCP BBR stats:
 
-    - `bbr_info.bandwidth` (a `float64`) is the max-bandwidth measured by BBR,
-       in bits per second;
+    - `bbr_info.max_bandwidth` (a `float64`) is the max-bandwidth measured by
+       BBR, in bits per second;
 
-    - `bbr_info.rtt` (a `float64`) is the min-rtt measured by BBR,
+    - `bbr_info.min_rtt` (a `float64`) is the min-rtt measured by BBR,
       in millisecond;
 
 - `elapsed` (a `float64`) is the number of seconds elapsed since the beginning

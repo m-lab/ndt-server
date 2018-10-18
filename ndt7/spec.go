@@ -22,11 +22,11 @@ const MinMaxMessageSize = 1 << 17
 
 // The BBRInfo struct contains information measured using BBR.
 type BBRInfo struct {
-	// Bandwidth is the bandwidth measured by BBR in bits per second.
-	Bandwidth float64 `json:"bandwidth"`
+	// MaxBandwidth is the max bandwidth measured by BBR in bits per second.
+	MaxBandwidth float64 `json:"max_bandwidth"`
 
-	// RTT is the RTT measured by BBR in milliseconds.
-	RTT float64 `json:"rtt"`
+	// MinRTT is the min RTT measured by BBR in milliseconds.
+	MinRTT float64 `json:"min_rtt"`
 }
 
 // The Measurement struct contains measurement results. This structure is

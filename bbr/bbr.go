@@ -38,7 +38,7 @@
 //
 // 5. we defer *os.File.Close() until the end of the WebSocket serving loop and
 //    periodically we use such file to obtain the file descriptor and read the
-//    BBR variables using bbr.GetBandwidthAndRTT().
+//    BBR variables using bbr.GetMaxBandwidthAndMinRTT().
 //
 // Because a connection might be closed between steps 2. and 3. (i.e. after
 // the connection is accepted and before the HTTP layer finishes reading the
@@ -163,13 +163,13 @@ func GetAndForgetFile(conn net.Conn) *os.File {
 	return entry.Fp // Pass ownership to caller
 }
 
-// GetBandwidthAndRTT obtains BBR info from |fp|. The returned values are
+// GetMaxBandwidthAndMinRTT obtains BBR info from |fp|. The returned values are
 // the max-bandwidth in bits per second and the min-rtt in milliseconds.
-func GetBandwidthAndRTT(fp *os.File) (float64, float64, error) {
+func GetMaxBandwidthAndMinRTT(fp *os.File) (float64, float64, error) {
 	// Implementation note: for simplicity I have decided to use float64 here
 	// rather than uint64, mainly because the proper C type to use AFAICT (and
 	// I may be wrong here) changes between 32 and 64 bit. That is, it is not
 	// clear to me how to use a 64 bit integer (which I what I would have used
 	// by default) on a 32 bit system. So let's use float64.
-	return getBandwidthAndRTT(fp)
+	return getMaxBandwidthAndMinRTT(fp)
 }
