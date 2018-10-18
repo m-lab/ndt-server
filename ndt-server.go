@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-cloud/bbr"
 	"github.com/m-lab/ndt-cloud/fdcache"
@@ -697,8 +696,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := &http.Server{Handler: handlers.LoggingHandler(
-			os.Stderr, http.DefaultServeMux)}
+	s := &http.Server{Handler: ndt7.MakeAccessLogHandler(http.DefaultServeMux)}
 	log.Fatal(s.ServeTLS(tcpListenerEx{TCPListener: ln, TryToEnableBBR: true},
 		*fCertFile, *fKeyFile))
 }

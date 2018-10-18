@@ -7,7 +7,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-cloud/bbr"
 	"github.com/m-lab/ndt-cloud/fdcache"
@@ -55,7 +54,7 @@ func stableAccordingToBBR(prev, cur, rtt float64, elapsed time.Duration) bool {
 // warnAndClose emits a warning |message| and then closes the HTTP connection
 // using the |writer| http.ResponseWriter.
 func warnAndClose(writer http.ResponseWriter, message string) {
-	log.Warn(message)
+	ErrorLogger.Warn(message)
 	writer.Header().Set("Connection", "Close")
 	writer.WriteHeader(http.StatusBadRequest)
 }
@@ -80,10 +79,10 @@ func makePadding(size int) string {
 // connection. |fp| is a os.File bound to the same descriptor of |conn| that
 // allows us to extract BBR stats on Linux systems.
 func downloadLoop(conn *websocket.Conn, fp *os.File) {
-	log.Debug("Generating random buffer")
+	ErrorLogger.Debug("Generating random buffer")
 	const bufferSize = 1 << 13
 	padding := makePadding(bufferSize)
-	log.Debug("Start sending data to client")
+	ErrorLogger.Debug("Start sending data to client")
 	t0 := time.Now()
 	count := float64(0.0)
 	maxBandwidth := float64(0.0)
@@ -106,34 +105,34 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 					MaxBandwidth: bw,
 					MinRTT:       rtt,
 				}
-				log.Infof("Elapsed: %f s; BW: %f bit/s; RTT: %f ms",
+				ErrorLogger.Infof("Elapsed: %f s; BW: %f bit/s; RTT: %f ms",
 						elapsed.Seconds(), bw, rtt)
 				stoppable = stableAccordingToBBR(maxBandwidth, bw, rtt, elapsed)
 				maxBandwidth = bw
 			} else if bbrWarnEmitted == false {
-				log.WithError(err).Warn("Cannot get BBR metrics")
+				ErrorLogger.WithError(err).Warn("Cannot get BBR metrics")
 				bbrWarnEmitted = true
 			}
 			metrics, err := tcpinfox.GetTCPInfo(fp)
 			if err == nil {
 				measurement.TCPInfo = &metrics
 			} else if tcpInfoWarnEmitted == false {
-				log.WithError(err).Warn("Cannot get TCP_INFO metrics")
+				ErrorLogger.WithError(err).Warn("Cannot get TCP_INFO metrics")
 				tcpInfoWarnEmitted = true
 			}
 		}
 		conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
 		data, err := json.Marshal(measurement)
 		if err != nil {
-			log.WithError(err).Warn("Cannot serialise measurement message")
+			ErrorLogger.WithError(err).Warn("Cannot serialise measurement message")
 			return
 		}
 		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			log.WithError(err).Warn("Cannot send serialised measurement message")
+			ErrorLogger.WithError(err).Warn("Cannot send serialised measurement message")
 			return
 		}
 		if stoppable {
-			log.Info("It seems we can stop the download earlier")
+			ErrorLogger.Info("It seems we can stop the download earlier")
 			// Disable breaking out of the loop for now because we've determined
 			// that the best course of action is actually to run for 10 seconds to
 			// gather enough data to refine the "stop early" algorithm.
@@ -143,14 +142,14 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 		}
 		count += float64(len(data))
 	}
-	log.Debug("Download test complete")
+	ErrorLogger.Debug("Download test complete")
 }
 
 // Handle handles the download subtest.
 func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	log.Debug("Processing query string")
+	ErrorLogger.Debug("Processing query string")
 	// TODO(bassosimone): gather query string, parse it, and save metadata
-	log.Debug("Upgrading to WebSockets")
+	ErrorLogger.Debug("Upgrading to WebSockets")
 	if request.Header.Get("Sec-WebSocket-Protocol") != SecWebSocketProtocol {
 		warnAndClose(writer, "Missing Sec-WebSocket-Protocol in request")
 		return
@@ -180,7 +179,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	conn.SetReadLimit(MinMaxMessageSize)
 	defer conn.Close()
 	downloadLoop(conn, fp)
-	log.Debug("Closing the WebSocket connection")
+	ErrorLogger.Debug("Closing the WebSocket connection")
 	conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
 		websocket.CloseNormalClosure, ""), time.Now().Add(defaultTimeout))
 }
