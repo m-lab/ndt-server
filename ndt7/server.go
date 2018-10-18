@@ -77,8 +77,9 @@ func makePadding(size int) string {
 
 // downloadLoop loops until the download is complete. |conn| is the WebSocket
 // connection. |fp| is a os.File bound to the same descriptor of |conn| that
-// allows us to extract BBR stats on Linux systems.
-func downloadLoop(conn *websocket.Conn, fp *os.File) {
+// allows us to extract BBR stats on Linux systems. |resultfp| is the file in which
+// the measurements will be written.
+func downloadLoop(conn *websocket.Conn, fp *os.File, resultfp *resultsfile) {
 	ErrorLogger.Debug("Generating random buffer")
 	const bufferSize = 1 << 13
 	padding := makePadding(bufferSize)
@@ -95,7 +96,6 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 		measurement := Measurement{
 			Elapsed:  elapsed.Seconds(),
 			NumBytes: count,
-			Padding: padding,
 		}
 		stoppable := false
 		if fp != nil {
@@ -121,7 +121,12 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 				tcpInfoWarnEmitted = true
 			}
 		}
+		if err := resultfp.WriteMeasurement(measurement, "server"); err != nil {
+			ErrorLogger.WithError(err).Warn("Cannot save measurement on disk")
+			return
+		}
 		conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
+		measurement.Padding = padding // after we've serialised on disk
 		data, err := json.Marshal(measurement)
 		if err != nil {
 			ErrorLogger.WithError(err).Warn("Cannot serialise measurement message")
@@ -147,8 +152,6 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 
 // Handle handles the download subtest.
 func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	ErrorLogger.Debug("Processing query string")
-	// TODO(bassosimone): gather query string, parse it, and save metadata
 	ErrorLogger.Debug("Upgrading to WebSockets")
 	if request.Header.Get("Sec-WebSocket-Protocol") != SecWebSocketProtocol {
 		warnAndClose(writer, "Missing Sec-WebSocket-Protocol in request")
@@ -159,6 +162,24 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	conn, err := dl.Upgrader.Upgrade(writer, request, headers)
 	if err != nil {
 		warnAndClose(writer, "Cannnot UPGRADE to WebSocket")
+		return
+	}
+	ErrorLogger.Debug("Processing query string")
+	meta := make(metadata)
+	err = initMetadata(&meta, conn.LocalAddr().String(),
+		conn.RemoteAddr().String(), request.URL.Query(), "download")
+	if err != nil {
+		ErrorLogger.WithError(err).Warn("Cannot process query string")
+		return
+	}
+	resultfp, err := newResultsfile()
+	if err != nil {
+		ErrorLogger.WithError(err).Warn("Cannot open results file")
+		return
+	}
+	defer resultfp.Close()
+	if err := resultfp.WriteMetadata(meta); err != nil {
+		ErrorLogger.WithError(err).Warn("Cannot write metadata to results file")
 		return
 	}
 	fp := fdcache.GetAndForgetFile(conn.UnderlyingConn())
@@ -178,7 +199,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	// in which the corresponding *os.File is kept in cache.
 	conn.SetReadLimit(MinMaxMessageSize)
 	defer conn.Close()
-	downloadLoop(conn, fp)
+	downloadLoop(conn, fp, resultfp)
 	ErrorLogger.Debug("Closing the WebSocket connection")
 	conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
 		websocket.CloseNormalClosure, ""), time.Now().Add(defaultTimeout))

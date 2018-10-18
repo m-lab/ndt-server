@@ -110,6 +110,13 @@ The following restrictions apply to the query string. It MUST NOT be
 longer than 4096 bytes. Of course, both the name and the value of the
 URL query string MUST be valid URL-encoded UTF-8 strings.
 
+Clients MUST NOT send duplicate keys. Servers MUST abort the test if there
+are duplicate keys in the query string.
+
+The `"^server_"` prefix is reserved for the server. Clients MUST not send any
+metadata starting with such prefix. Servers MUST ignore all the entries that
+start with such prefix.
+
 ## Measurements message
 
 As mentioned above, the server and the client exchange JSON measurements
