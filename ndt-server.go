@@ -146,7 +146,6 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 			return nil, err
 		}
 		if err == bbr.ErrNoSupport {
-			log.Printf("Your system does not support BBR")
 			// Keep going. There are also old Linux servers without BBR and servers
 			// where the operating system is different from Linux.
 		}

@@ -9,7 +9,7 @@ import (
 )
 
 // ErrNoSupport indicates that this system does not support BBR.
-var ErrNoSupport = errors.New("No support for BBR")
+var ErrNoSupport = errors.New("TCP_CC_INFO not supported")
 
 // Enable enables BBR on |fp|.
 func Enable(fp *os.File) error {

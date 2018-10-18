@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-cloud/bbr"
 	"github.com/m-lab/ndt-cloud/fdcache"
+	"github.com/m-lab/ndt-cloud/tcpinfox"
 )
 
 // defaultTimeout is the default value of the I/O timeout.
@@ -86,6 +87,8 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 	t0 := time.Now()
 	count := float64(0.0)
 	maxBandwidth := float64(0.0)
+	tcpInfoWarnEmitted := false
+	bbrWarnEmitted := false
 	for {
 		t := time.Now()
 		// TODO(bassosimone): here we should also include tcp_info data
@@ -107,8 +110,16 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 						elapsed.Seconds(), bw, rtt)
 				stoppable = stableAccordingToBBR(maxBandwidth, bw, rtt, elapsed)
 				maxBandwidth = bw
-			} else {
-				log.WithError(err).Warn("Cannot get BBR info")
+			} else if bbrWarnEmitted == false {
+				log.WithError(err).Warn("Cannot get BBR metrics")
+				bbrWarnEmitted = true
+			}
+			metrics, err := tcpinfox.GetTCPInfo(fp)
+			if err == nil {
+				measurement.TCPInfo = &metrics
+			} else if tcpInfoWarnEmitted == false {
+				log.WithError(err).Warn("Cannot get TCP_INFO metrics")
+				tcpInfoWarnEmitted = true
 			}
 		}
 		conn.SetWriteDeadline(time.Now().Add(defaultTimeout))

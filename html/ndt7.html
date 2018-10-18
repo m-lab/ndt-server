@@ -10,6 +10,7 @@
     <thead><tr>
       <th>Elapsed (s)</th><th>Transferred (MiB)</th>
         <th>MaxBandwidth (Mbit/s)</th><th>MinRTT (ms)</th>
+        <th>SmoothedRTT (ms)</th><th>RTTVar (ms)</th>
     </tr><thead>
     <tbody id='measurement'></tbody>
   </table>
@@ -61,6 +62,13 @@
               let mbits = d.bbr_info.max_bandwidth / 1000 / 1000
               row.insertCell().innerHTML = mbits.toFixed(3)
               row.insertCell().innerHTML = d.bbr_info.min_rtt
+            } else {
+              row.insertCell().innerHTML = 'N/A'
+              row.insertCell().innerHTML = 'N/A'
+            }
+            if (d.tcp_info) {
+              row.insertCell().innerHTML = d.tcp_info.smoothed_rtt
+              row.insertCell().innerHTML = d.tcp_info.rtt_var
             } else {
               row.insertCell().innerHTML = 'N/A'
               row.insertCell().innerHTML = 'N/A'
