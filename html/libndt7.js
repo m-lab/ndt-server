@@ -52,13 +52,10 @@ const libndt7 = (function () {
 
       // makeurl creates the URL from |settings|.
       const makeurl = function (settings) {
-        let url = ''
-        url += (settings.insecure) ? 'ws://' : 'wss://'
-        url += settings.hostname
-        if (settings.port) {
-          url += ':' + settings.port
-        }
-        url += '/ndt/v7/download?'
+        let url = new URL(settings.href)
+        url.protocol = (url.protocol === 'https:') ? 'wss:' : 'ws:'
+        url.pathname = '/ndt/v7/download'
+        let params = new URLSearchParams()
         for (let key in settings.meta) {
           if (settings.meta.hasOwnProperty(key)) {
             const re = /[0-9A-Za-z._]+/
@@ -73,11 +70,13 @@ const libndt7 = (function () {
               throw 'Value is not a string or does not match the expected ' +
                     'regular expression: ' + value
             }
-            url += key + '=' + value + '&'
+            params.append(key, value)
           }
         }
-        url += 'library.name=libndt7.js&library.version=' + version
-        return url
+        params.append('library.name', 'libndt7')
+        params.append('library.version', version)
+        url.search = params.toString()
+        return url.toString()
       }
 
       // setupconn creates the WebSocket connection and initializes all

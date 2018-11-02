@@ -35,8 +35,7 @@
       worker.postMessage({
         key: 'download',
         value: {
-          insecure: (window.location.protocol !== 'https:'),
-          hostname: window.location.host,
+          href: window.location.href
         },
       })
       worker.onmessage = function (ev) {
@@ -51,7 +50,8 @@
           console.log('Measurement from us: ' + JSON.stringify(msg.value))
         } else if (msg.key === libndt7.events.downloadServer) {
           const d = msg.value
-          console.log('Measurement from server: ' + JSON.stringify(d))
+          // Enable only for debugging. Will overload the browser.
+          //console.log('Measurement from server: ' + JSON.stringify(d))
           WithMeasurementDo(function (elem) {
             elem.innerHTML = ''
             let row = elem.insertRow()
