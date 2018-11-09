@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.3.0 of the ndt7 specification.
+This is version v0.4.0 of the ndt7 specification.
 
 ## Protocol description
 
@@ -107,8 +107,8 @@ not parseable or not acceptable (see below). The server SHOULD store
 the metadata sent by the client using the query string.
 
 The following restrictions apply to the query string. It MUST NOT be
-longer than 4096 bytes. Both the name and the value of the query string
-parameters MUST match the `[0-9A-Za-z._]+` regular expression.
+longer than 4096 bytes. Of course, both the name and the value of the
+URL query string MUST be valid URL-encoded UTF-8 strings.
 
 ## Measurements message
 

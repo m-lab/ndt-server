@@ -30,7 +30,7 @@ const libndt7 = (function () {
     downloadClient: 'ndt7.download.client'
   }
 
-  const version = 0.4
+  const version = 0.5
 
   return {
     // version is the client library version.
@@ -56,25 +56,14 @@ const libndt7 = (function () {
         url.protocol = (url.protocol === 'https:') ? 'wss:' : 'ws:'
         url.pathname = '/ndt/v7/download'
         let params = new URLSearchParams()
+        settings.meta = (settings.meta !== undefined) ? settings : {}
+        settings.meta['library.name'] = 'libndt7.js'
+        settings.meta['library.version'] = version
         for (let key in settings.meta) {
           if (settings.meta.hasOwnProperty(key)) {
-            const re = /[0-9A-Za-z._]+/
-            if (!key.match(re)) {
-              throw 'Key does not match the expected regular expression: ' + key
-            }
-            let value = settings.meta[key]
-            if (typeof value === 'number' || typeof value === 'boolean') {
-              value += ''  // force conversion to string
-            }
-            if (typeof value !== 'string' || !value.match(re)) {
-              throw 'Value is not a string or does not match the expected ' +
-                    'regular expression: ' + value
-            }
-            params.append(key, value)
+            params.append(key, settings.meta[key])
           }
         }
-        params.append('library.name', 'libndt7')
-        params.append('library.version', version)
         url.search = params.toString()
         return url.toString()
       }
