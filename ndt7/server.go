@@ -1,7 +1,8 @@
 package ndt7
 
 import (
-	"crypto/rand"
+	"encoding/json"
+	"math/rand"
 	"net/http"
 	"os"
 	"time"
@@ -10,6 +11,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-cloud/bbr"
 )
+
+// defaultTimeout is the default value of the I/O timeout.
+const defaultTimeout = 7 * time.Second
 
 // defaultDuration is the default duration of a subtest in nanoseconds.
 const defaultDuration = 10 * time.Second
@@ -20,21 +24,21 @@ type DownloadHandler struct {
 }
 
 // stableAccordingToBBR returns true when we can stop the current download
-// test based on |prev|, the previous BBR bandwidth sample, |cur| the
-// current BBR bandwidth sample, |rtt|, the BBR measured RTT (in
+// test based on |prev|, the previous BBR max-bandwidth sample, |cur| the
+// current BBR max-bandwidth sample, |rtt|, the BBR measured min-RTT (in
 // millisecond), and |elapsed|, the elapsed time since the beginning
-// of the test (expressed as a time.Duration). The bandwidth is measured
+// of the test (expressed as a time.Duration). The max-bandwidth is measured
 // in bits per second.
 //
 // This algorithm runs every 0.25 seconds. Empirically, we know that
 // BBR requires multiple RTTs to converge. Here we use 10 RTTs as a reasonable
 // upper bound. Before 10 RTTs have elapsed, we do not check whether the
-// bandwidth has stopped growing. After 10 RTTs have elapsed, we call
-// the connection stable when the bandwidth measured by BBR does not
+// max-bandwidth has stopped growing. After 10 RTTs have elapsed, we call
+// the connection stable when the max-bandwidth measured by BBR does not
 // grow of more than 25% between two 0.25 second periods.
 //
 // We use the same percentage used by the BBR paper to characterize the
-// bandwidth growth, i.e. 25%. The BBR paper can be read online at ACM
+// max-bandwidth growth, i.e. 25%. The BBR paper can be read online at ACM
 // Queue <https://queue.acm.org/detail.cfm?id=3022184>.
 //
 // WARNING: This algorithm is still experimental and we SHOULD NOT rely on
@@ -54,67 +58,78 @@ func warnAndClose(writer http.ResponseWriter, message string) {
 	writer.WriteHeader(http.StatusBadRequest)
 }
 
+// makePadding generates a |size|-bytes long string containing random
+// characters extracted from the [A-Za-z] set.
+func makePadding(size int) string {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	data := make([]byte, size)
+	// This is not the fastest algorithm to generate a random string, yet it
+	// is most likely good enough for our purposes. See [1] for a comprehensive
+	// discussion regarding how to generate a random string in Golang.
+	//
+	// .. [1] https://stackoverflow.com/a/31832326/4354461
+	for i := range data {
+		data[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(data)
+}
+
 // downloadLoop loops until the download is complete. |conn| is the WebSocket
 // connection. |fp| is a os.File bound to the same descriptor of |conn| that
 // allows us to extract BBR stats on Linux systems.
 func downloadLoop(conn *websocket.Conn, fp *os.File) {
 	log.Debug("Generating random buffer")
 	const bufferSize = 1 << 13
-	data := make([]byte, bufferSize)
-	rand.Read(data)
-	buffer, err := websocket.NewPreparedMessage(websocket.BinaryMessage, data)
-	if err != nil {
-		log.WithError(err).Warn("websocket.NewPreparedMessage() failed")
-		return
-	}
+	padding := makePadding(bufferSize)
 	log.Debug("Start sending data to client")
 	t0 := time.Now()
-	last := t0
 	count := float64(0.0)
-	bandwidth := float64(0.0)
+	maxBandwidth := float64(0.0)
 	for {
 		t := time.Now()
-		if t.Sub(last) >= MinMeasurementInterval {
-			// TODO(bassosimone): here we should also include tcp_info data
-			elapsed := t.Sub(t0)
-			measurement := Measurement{
-				Elapsed:  elapsed.Seconds(),
-				NumBytes: count,
-			}
-			if fp != nil {
-				bw, rtt, err := bbr.GetBandwidthAndRTT(fp)
-				if err == nil {
-					measurement.BBRInfo = &BBRInfo{
-						Bandwidth: bw,
-						RTT:       rtt,
-					}
-					log.Infof("BW: %f bytes/s; RTT: %f usec", bw, rtt)
-					stoppable := stableAccordingToBBR(bandwidth, bw, rtt, elapsed)
-					if stoppable {
-						log.Info("It seems we can stop the download earlier")
-						break
-					}
-					bandwidth = bw
-				} else {
-					log.WithError(err).Warn("Cannot get BBR info")
+		// TODO(bassosimone): here we should also include tcp_info data
+		elapsed := t.Sub(t0)
+		measurement := Measurement{
+			Elapsed:  elapsed.Seconds(),
+			NumBytes: count,
+			Padding: padding,
+		}
+		stoppable := false
+		if fp != nil {
+			bw, rtt, err := bbr.GetMaxBandwidthAndMinRTT(fp)
+			if err == nil {
+				measurement.BBRInfo = &BBRInfo{
+					MaxBandwidth: bw,
+					MinRTT:       rtt,
 				}
+				log.Infof("Elapsed: %f s; BW: %f bit/s; RTT: %f ms",
+						elapsed.Seconds(), bw, rtt)
+				stoppable = stableAccordingToBBR(maxBandwidth, bw, rtt, elapsed)
+				maxBandwidth = bw
+			} else {
+				log.WithError(err).Warn("Cannot get BBR info")
 			}
-			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
-			if err := conn.WriteJSON(&measurement); err != nil {
-				log.WithError(err).Warn("Cannot send measurement message")
-				return
-			}
-			last = t
+		}
+		conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
+		data, err := json.Marshal(measurement)
+		if err != nil {
+			log.WithError(err).Warn("Cannot serialise measurement message")
+			return
+		}
+		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			log.WithError(err).Warn("Cannot send serialised measurement message")
+			return
+		}
+		if stoppable {
+			log.Info("It seems we can stop the download earlier")
+			// Disable breaking out of the loop for now because we've determined
+			// that the best course of action is actually to run for 10 seconds to
+			// gather enough data to refine the "stop early" algorithm.
 		}
 		if time.Now().Sub(t0) >= defaultDuration {
 			break
 		}
-		conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
-		if err := conn.WritePreparedMessage(buffer); err != nil {
-			log.WithError(err).Warn("cannot send data message")
-			return
-		}
-		count += bufferSize
+		count += float64(len(data))
 	}
 	log.Debug("Download test complete")
 }

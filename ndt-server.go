@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-cloud/ndt7"
 	"github.com/m-lab/ndt-cloud/bbr"
@@ -132,13 +133,13 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 	if ln.TryToEnableBBR {
 		err = bbr.EnableAndRememberFile(tc)
 		if err != nil && err != bbr.ErrNoSupport {
-			// This is the case in which we compiled in BBR support but something
-			// was wrong when enabling BBR at runtime. TODO(bassosimone): when we'll
-			// have BBR support on the whole fleet, here we should probably return
-			// an error rather than continuing. For now we'll tolerate.
 			log.Printf("Cannot initialize BBR: %s", err.Error())
-		} else if err == bbr.ErrNoSupport {
+			return nil, err
+		}
+		if err == bbr.ErrNoSupport {
 			log.Printf("Your system does not support BBR")
+			// Keep going. There are also old Linux servers without BBR and servers
+			// where the operating system is different from Linux.
 		}
 	}
 	return tc, nil
@@ -685,7 +686,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := &http.Server{Handler: http.DefaultServeMux}
+	s := &http.Server{Handler: handlers.LoggingHandler(
+			os.Stderr, http.DefaultServeMux)}
 	log.Fatal(s.ServeTLS(tcpListenerEx{TCPListener: ln, TryToEnableBBR: true},
 		*fCertFile, *fKeyFile))
 }

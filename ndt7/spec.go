@@ -4,8 +4,6 @@
 // https://github.com/m-lab/ndt-cloud/blob/master/spec/ndt7.md.
 package ndt7
 
-import "time"
-
 // DownloadURLPath selects the download subtest.
 const DownloadURLPath = "/ndt/v7/download"
 
@@ -22,11 +20,11 @@ const MinMaxMessageSize = 1 << 17
 
 // The BBRInfo struct contains information measured using BBR.
 type BBRInfo struct {
-	// Bandwidth is the bandwidth measured by BBR in bits per second.
-	Bandwidth float64 `json:"bandwidth"`
+	// MaxBandwidth is the max bandwidth measured by BBR in bits per second.
+	MaxBandwidth float64 `json:"max_bandwidth"`
 
-	// RTT is the RTT measured by BBR in milliseconds.
-	RTT float64 `json:"rtt"`
+	// MinRTT is the min RTT measured by BBR in milliseconds.
+	MinRTT float64 `json:"min_rtt"`
 }
 
 // The Measurement struct contains measurement results. This structure is
@@ -40,10 +38,9 @@ type Measurement struct {
 
 	// BBRInfo is the data measured using TCP BBR instrumentation.
 	BBRInfo *BBRInfo `json:"bbr_info,omitempty"`
-}
 
-// MinMeasurementInterval is the minimum value of the interval betwen
-// two consecutive measurements performed by either party. An implementation
-// MAY choose to close the connection if it is receiving too frequent
-// Measurement messages from the other endpoint.
-const MinMeasurementInterval = 250 * time.Millisecond
+	// Padding contains an optional random [A-Za-z]+ string that MAY be
+	// added by a server to send larger measurement message, so that such
+	// messages could be used directly to generate network load.
+	Padding string `json:"padding,omitempty"`
+}

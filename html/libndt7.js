@@ -1,3 +1,6 @@
+/* jshint esversion: 6, asi: true */
+/* exported libndt7 */
+
 // libndt7 is a NDTv7 client library in JavaScript.
 const libndt7 = (function () {
   'use strict';
@@ -9,7 +12,8 @@ const libndt7 = (function () {
     open: 'ndt7.open',
 
     // close is the event emitted when the socket is closed. The
-    // object bound to this event is always null.
+    // object bound to this event is always null. The code SHOULD
+    // always emit this event at the end of the test.
     close: 'ndt7.close',
 
     // error is the event emitted when the socket is closed. The
@@ -26,9 +30,11 @@ const libndt7 = (function () {
     downloadClient: 'ndt7.download.client'
   }
 
+  const version = 0.5
+
   return {
     // version is the client library version.
-    version: 0.3,
+    version: version,
 
     // events exports the events table.
     events: events,
@@ -46,13 +52,20 @@ const libndt7 = (function () {
 
       // makeurl creates the URL from |settings|.
       const makeurl = function (settings) {
-        let url = ''
-        url += (settings.insecure) ? 'ws://' : 'wss://'
-        url += settings.hostname
-        if (settings.port) {
-          url += ':' + settings.port
+        let url = new URL(settings.href)
+        url.protocol = (url.protocol === 'https:') ? 'wss:' : 'ws:'
+        url.pathname = '/ndt/v7/download'
+        let params = new URLSearchParams()
+        settings.meta = (settings.meta !== undefined) ? settings : {}
+        settings.meta['library.name'] = 'libndt7.js'
+        settings.meta['library.version'] = version
+        for (let key in settings.meta) {
+          if (settings.meta.hasOwnProperty(key)) {
+            params.append(key, settings.meta[key])
+          }
         }
-        return url + '/ndt/v7/download'
+        url.search = params.toString()
+        return url.toString()
       }
 
       // setupconn creates the WebSocket connection and initializes all
@@ -83,7 +96,7 @@ const libndt7 = (function () {
           if (event.data instanceof Blob) {
             count += event.data.size
           } else {
-            emit(events.downloadServer, event.data)
+            emit(events.downloadServer, JSON.parse(event.data))
             count += event.data.length
           }
           let t1 = new Date().getTime()

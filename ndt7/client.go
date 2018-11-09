@@ -10,14 +10,17 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// minMeasurementInterval is the minimum value of the interval betwen
+// two consecutive measurements performed by either party. An implementation
+// MAY choose to close the connection if it is receiving too frequent
+// Measurement messages from the other endpoint.
+const minMeasurementInterval = 250 * time.Millisecond
+
 // Client is a simplified ndt7 client.
 type Client struct {
 	Dialer websocket.Dialer
 	URL    url.URL
 }
-
-// defaultTimeout is the default value of the I/O timeout.
-const defaultTimeout = 1 * time.Second
 
 // Download runs a ndt7 download test.
 func (cl Client) Download() error {
@@ -34,7 +37,7 @@ func (cl Client) Download() error {
 	defer conn.Close()
 	t0 := time.Now()
 	num := float64(0.0)
-	ticker := time.NewTicker(MinMeasurementInterval)
+	ticker := time.NewTicker(minMeasurementInterval)
 	log.Info("Starting download")
 	for {
 		select {

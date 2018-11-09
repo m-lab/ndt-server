@@ -6,39 +6,73 @@
   <title>ndt7 Browser Client</title>
 </head>
 <body>
-  <button onclick='Run()'>Run</button>
-  <div id='measurement'></div>
+  <table>
+    <thead><tr>
+      <th>Elapsed (s)</th><th>Transferred (MiB)</th>
+        <th>MaxBandwidth (Mbit/s)</th><th>MinRTT (ms)</th>
+    </tr><thead>
+    <tbody id='measurement'></tbody>
+  </table>
+  <table></table>
   <script type='text/javascript'>
-    function Run() {
-      let clnt = libndt7.newClient({
-        insecure: (window.location.protocol !== 'https:'),
-        hostname: window.location.host,
-        download: {
-          duration: 4,
-          adaptive: true
-        }
-      })
-      clnt.on(libndt7.events.open, function (value) {
-        console.log('Open: ' + JSON.stringify(value))
-      })
-      clnt.on(libndt7.events.close, function (value) {
-        console.log('Close: ' + JSON.stringify(value))
-      })
-      clnt.on(libndt7.events.error, function (value) {
-        console.log('Error: ' + JSON.stringify(value))
-      })
-      clnt.on(libndt7.events.downloadClient, function (value) {
-        console.log('Measurement from us: ' + JSON.stringify(value))
-      })
-      clnt.on(libndt7.events.downloadServer, function (value) {
-        console.log('Measurement from server: ' + JSON.stringify(value))
-        const elem = document.getElementById('measurement')
-        if (elem) {
-          elem.innerHTML += '<p>' + JSON.stringify(value) + '</p>'
-        }
-      })
-      clnt.startDownload()
+    /* jshint esversion: 6, asi: true */
+    /* exported Run */
+    /* globals libndt7 */
+
+    function WithMeasurementDo(callable) {
+      const elem = document.getElementById('measurement')
+      if (elem) {
+        callable(elem)
+      }
     }
+
+    function Run() {
+      WithMeasurementDo(function (elem) {
+        elem.innerHTML = ''
+      })
+
+      let worker = new Worker('ndt7-worker.js')
+      worker.postMessage({
+        key: 'download',
+        value: {
+          href: window.location.href
+        },
+      })
+      worker.onmessage = function (ev) {
+        const msg = ev.data
+        if (msg.key === libndt7.events.open) {
+          console.log('Open: ' + JSON.stringify(msg.value))
+        } else if (msg.key === libndt7.events.close) {
+          console.log('Close: ' + JSON.stringify(msg.value))
+        } else if (msg.key === libndt7.events.error) {
+          console.log('Error: ' + JSON.stringify(msg.value))
+        } else if (msg.key === libndt7.events.downloadClient) {
+          console.log('Measurement from us: ' + JSON.stringify(msg.value))
+        } else if (msg.key === libndt7.events.downloadServer) {
+          const d = msg.value
+          // Enable only for debugging. Will overload the browser.
+          //console.log('Measurement from server: ' + JSON.stringify(d))
+          WithMeasurementDo(function (elem) {
+            elem.innerHTML = ''
+            let row = elem.insertRow()
+            row.insertCell().innerHTML = d.elapsed.toFixed(3)
+            row.insertCell().innerHTML = (d.num_bytes / 1024 / 1024).toFixed(3)
+            if (d.bbr_info) {
+              let mbits = d.bbr_info.max_bandwidth / 1000 / 1000
+              row.insertCell().innerHTML = mbits.toFixed(3)
+              row.insertCell().innerHTML = d.bbr_info.min_rtt
+            } else {
+              row.insertCell().innerHTML = 'N/A'
+              row.insertCell().innerHTML = 'N/A'
+            }
+          })
+        } else {
+          console.log('Received unexpected message: ' + msg.key)
+        }
+      }
+    }
+
+    Run()  // When you load the page
   </script>
 </body>
 </html>
