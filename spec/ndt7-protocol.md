@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.4.1 of the ndt7 specification.
+This is version v0.5.0 of the ndt7 specification.
 
 ## Protocol description
 
@@ -110,8 +110,7 @@ The following restrictions apply to the query string. It MUST NOT be
 longer than 4096 bytes. Of course, both the name and the value of the
 URL query string MUST be valid URL-encoded UTF-8 strings.
 
-Clients MUST NOT send duplicate keys. Servers MUST abort the test if there
-are duplicate keys in the query string.
+Clients MUST NOT send duplicate keys; servers SHOULD ignore them.
 
 The `"^server_"` prefix is reserved for the server. Clients MUST not send any
 metadata starting with such prefix. Servers MUST ignore all the entries that

@@ -166,12 +166,8 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	}
 	ErrorLogger.Debug("Processing query string")
 	meta := make(metadata)
-	err = initMetadata(&meta, conn.LocalAddr().String(),
+	initMetadata(&meta, conn.LocalAddr().String(),
 		conn.RemoteAddr().String(), request.URL.Query(), "download")
-	if err != nil {
-		ErrorLogger.WithError(err).Warn("Cannot process query string")
-		return
-	}
 	resultfp, err := newResultsfile()
 	if err != nil {
 		ErrorLogger.WithError(err).Warn("Cannot open results file")
