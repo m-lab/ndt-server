@@ -15,16 +15,15 @@ var errInvalidMetadata = errors.New("invalid query string")
 // metadata contains ndt7 metadata.
 type metadata map[string]string
 
+// serverKeyRe is a regexp that matches any server related key.
+var serverKeyRe = regexp.MustCompile("^server_")
+
 // initMetadata initializes |*meta| from |localEpnt|, |remoteEpnt|, the |values|
 // provided using the query string, and the |subtest| name. Returns an error
 // on failure.
 func initMetadata(m *metadata, localEpnt, remoteEpnt string, values url.Values, subtest string) error {
 	for k, v := range values {
-		matches, err := regexp.MatchString("^server_", k)
-		if err != nil {
-			return err
-		}
-		if matches {
+		if matches := serverKeyRe.MatchString(k); matches {
 			continue  // We MUST skip variables reserved to the server
 		}
 		if len(v) != 1 {
