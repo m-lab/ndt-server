@@ -113,7 +113,8 @@ func TCPConnToFile(tc *net.TCPConn) (*os.File, error) {
 	return tc.File()
 }
 
-// OwnFile transfers ownership of |fp| to the fdcache module.
+// OwnFile transfers ownership of |fp| to the fdcache module. Passing a nil
+// |fp| to this function is a programming error that will cause a panic.
 func OwnFile(conn net.Conn, fp *os.File) {
 	if fp == nil {
 		panic("You passed me a nil *os.File")
