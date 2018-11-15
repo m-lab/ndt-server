@@ -7,9 +7,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-cloud/bbr"
+	"github.com/m-lab/ndt-cloud/fdcache"
+	"github.com/m-lab/ndt-cloud/tcpinfox"
 )
 
 // defaultTimeout is the default value of the I/O timeout.
@@ -53,7 +54,7 @@ func stableAccordingToBBR(prev, cur, rtt float64, elapsed time.Duration) bool {
 // warnAndClose emits a warning |message| and then closes the HTTP connection
 // using the |writer| http.ResponseWriter.
 func warnAndClose(writer http.ResponseWriter, message string) {
-	log.Warn(message)
+	ErrorLogger.Warn(message)
 	writer.Header().Set("Connection", "Close")
 	writer.WriteHeader(http.StatusBadRequest)
 }
@@ -76,15 +77,18 @@ func makePadding(size int) string {
 
 // downloadLoop loops until the download is complete. |conn| is the WebSocket
 // connection. |fp| is a os.File bound to the same descriptor of |conn| that
-// allows us to extract BBR stats on Linux systems.
-func downloadLoop(conn *websocket.Conn, fp *os.File) {
-	log.Debug("Generating random buffer")
+// allows us to extract BBR stats on Linux systems. |resultfp| is the file in which
+// the measurements will be written.
+func downloadLoop(conn *websocket.Conn, fp *os.File, resultfp *resultsfile) {
+	ErrorLogger.Debug("Generating random buffer")
 	const bufferSize = 1 << 13
 	padding := makePadding(bufferSize)
-	log.Debug("Start sending data to client")
+	ErrorLogger.Debug("Start sending data to client")
 	t0 := time.Now()
 	count := float64(0.0)
 	maxBandwidth := float64(0.0)
+	tcpInfoWarnEmitted := false
+	bbrWarnEmitted := false
 	for {
 		t := time.Now()
 		// TODO(bassosimone): here we should also include tcp_info data
@@ -92,7 +96,6 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 		measurement := Measurement{
 			Elapsed:  elapsed.Seconds(),
 			NumBytes: count,
-			Padding: padding,
 		}
 		stoppable := false
 		if fp != nil {
@@ -102,26 +105,39 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 					MaxBandwidth: bw,
 					MinRTT:       rtt,
 				}
-				log.Infof("Elapsed: %f s; BW: %f bit/s; RTT: %f ms",
+				ErrorLogger.Infof("Elapsed: %f s; BW: %f bit/s; RTT: %f ms",
 						elapsed.Seconds(), bw, rtt)
 				stoppable = stableAccordingToBBR(maxBandwidth, bw, rtt, elapsed)
 				maxBandwidth = bw
-			} else {
-				log.WithError(err).Warn("Cannot get BBR info")
+			} else if bbrWarnEmitted == false {
+				ErrorLogger.WithError(err).Warn("Cannot get BBR metrics")
+				bbrWarnEmitted = true
+			}
+			metrics, err := tcpinfox.GetTCPInfo(fp)
+			if err == nil {
+				measurement.TCPInfo = &metrics
+			} else if tcpInfoWarnEmitted == false {
+				ErrorLogger.WithError(err).Warn("Cannot get TCP_INFO metrics")
+				tcpInfoWarnEmitted = true
 			}
 		}
+		if err := resultfp.WriteMeasurement(measurement, "server"); err != nil {
+			ErrorLogger.WithError(err).Warn("Cannot save measurement on disk")
+			return
+		}
 		conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
+		measurement.Padding = padding // after we've serialised on disk
 		data, err := json.Marshal(measurement)
 		if err != nil {
-			log.WithError(err).Warn("Cannot serialise measurement message")
+			ErrorLogger.WithError(err).Warn("Cannot serialise measurement message")
 			return
 		}
 		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			log.WithError(err).Warn("Cannot send serialised measurement message")
+			ErrorLogger.WithError(err).Warn("Cannot send serialised measurement message")
 			return
 		}
 		if stoppable {
-			log.Info("It seems we can stop the download earlier")
+			ErrorLogger.Info("It seems we can stop the download earlier")
 			// Disable breaking out of the loop for now because we've determined
 			// that the best course of action is actually to run for 10 seconds to
 			// gather enough data to refine the "stop early" algorithm.
@@ -131,14 +147,12 @@ func downloadLoop(conn *websocket.Conn, fp *os.File) {
 		}
 		count += float64(len(data))
 	}
-	log.Debug("Download test complete")
+	ErrorLogger.Debug("Download test complete")
 }
 
 // Handle handles the download subtest.
 func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	log.Debug("Processing query string")
-	// TODO(bassosimone): gather query string, parse it, and save metadata
-	log.Debug("Upgrading to WebSockets")
+	ErrorLogger.Debug("Upgrading to WebSockets")
 	if request.Header.Get("Sec-WebSocket-Protocol") != SecWebSocketProtocol {
 		warnAndClose(writer, "Missing Sec-WebSocket-Protocol in request")
 		return
@@ -150,7 +164,26 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		warnAndClose(writer, "Cannnot UPGRADE to WebSocket")
 		return
 	}
-	fp := bbr.GetAndForgetFile(conn.UnderlyingConn())
+	ErrorLogger.Debug("Processing query string")
+	meta := make(metadata)
+	initMetadata(&meta, conn.LocalAddr().String(),
+		conn.RemoteAddr().String(), request.URL.Query(), "download")
+	resultfp, err := newResultsfile()
+	if err != nil {
+		ErrorLogger.WithError(err).Warn("Cannot open results file")
+		return
+	}
+	defer resultfp.Close()
+	if err := resultfp.WriteMetadata(meta); err != nil {
+		ErrorLogger.WithError(err).Warn("Cannot write metadata to results file")
+		return
+	}
+	fp := fdcache.GetAndForgetFile(conn.UnderlyingConn())
+	// Implementation note: in theory fp SHOULD always be non-nil because
+	// now we always register the fp bound to a net.TCPConn. However, in
+	// some weird cases it MAY happen that the cache pruning mechanism will
+	// remove the fp BEFORE we can steal it. For this reason, I've decided
+	// to program defensively rather than calling panic() here.
 	if fp != nil {
 		defer fp.Close()  // We own `fp` and we must close it when done
 	}
@@ -162,8 +195,8 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	// in which the corresponding *os.File is kept in cache.
 	conn.SetReadLimit(MinMaxMessageSize)
 	defer conn.Close()
-	downloadLoop(conn, fp)
-	log.Debug("Closing the WebSocket connection")
+	downloadLoop(conn, fp, resultfp)
+	ErrorLogger.Debug("Closing the WebSocket connection")
 	conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
 		websocket.CloseNormalClosure, ""), time.Now().Add(defaultTimeout))
 }

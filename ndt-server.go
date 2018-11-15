@@ -16,10 +16,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-cloud/ndt7"
 	"github.com/m-lab/ndt-cloud/bbr"
+	"github.com/m-lab/ndt-cloud/fdcache"
+	"github.com/m-lab/ndt-cloud/ndt7"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -130,18 +130,28 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 	}
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
+	fp, err := fdcache.TCPConnToFile(tc)
+	if err != nil {
+		tc.Close()
+		return nil, err
+	}
 	if ln.TryToEnableBBR {
-		err = bbr.EnableAndRememberFile(tc)
+		err = bbr.Enable(fp)
 		if err != nil && err != bbr.ErrNoSupport {
 			log.Printf("Cannot initialize BBR: %s", err.Error())
+			// We need to close both because fp is a dup() of the original tc.
+			fp.Close()
+			tc.Close()
 			return nil, err
 		}
 		if err == bbr.ErrNoSupport {
-			log.Printf("Your system does not support BBR")
 			// Keep going. There are also old Linux servers without BBR and servers
 			// where the operating system is different from Linux.
 		}
 	}
+	// Transfer ownership of |fp| to fdcache so that later we can retrieve
+	// it from the generic net.Conn object bound to a websocket.Conn.
+	fdcache.OwnFile(tc, fp)
 	return tc, nil
 }
 
@@ -686,8 +696,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := &http.Server{Handler: handlers.LoggingHandler(
-			os.Stderr, http.DefaultServeMux)}
+	s := &http.Server{Handler: ndt7.MakeAccessLogHandler(http.DefaultServeMux)}
 	log.Fatal(s.ServeTLS(tcpListenerEx{TCPListener: ln, TryToEnableBBR: true},
 		*fCertFile, *fKeyFile))
 }

@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.4.0 of the ndt7 specification.
+This is version v0.5.0 of the ndt7 specification.
 
 ## Protocol description
 
@@ -110,6 +110,12 @@ The following restrictions apply to the query string. It MUST NOT be
 longer than 4096 bytes. Of course, both the name and the value of the
 URL query string MUST be valid URL-encoded UTF-8 strings.
 
+Clients MUST NOT send duplicate keys; servers SHOULD ignore them.
+
+The `"^server_"` prefix is reserved for the server. Clients MUST not send any
+metadata starting with such prefix. Servers MUST ignore all the entries that
+start with such prefix.
+
 ## Measurements message
 
 As mentioned above, the server and the client exchange JSON measurements
@@ -124,14 +130,18 @@ structure:
   },
   "elapsed": 1.2345,
   "num_bytes": 17.0,
-  "padding": "ABFHFghghghhghgFLLF..."
+  "padding": "ABFHFghghghhghgFLLF...",
+  "tcp_info": {
+    "rtt_var": 123.4,
+    "smoothed_rtt": 567.8
+  }
 }
 ```
 
 Where:
 
 - `bbr_info` is an _optional_ JSON object only included in the measurement
-  when it is possible to access TCP BBR stats:
+  when it is possible to access `TCP_CC_INFO` stats for BBR:
 
     - `bbr_info.max_bandwidth` (a `float64`) is the max-bandwidth measured by
        BBR, in bits per second;
@@ -148,6 +158,13 @@ Where:
 - `padding` is an _optional_ string containing random uppercase and/or
   lowercase letters that the sending party MAY choose to add to measurement
   messages to generate network load, as explained above.
+
+- `tcp_info` is an _optional_ JSON object only included in the measurement
+  when it is possible to access `TCP_INFO` stats:
+
+    - `tcp_info.rtt_var` (a `float64`) is RTT variance in milliseconds;
+
+    - `tcp_info.smoothed_Rtt` (a `float64`) is the smoothed RTT in milliseconds.
 
 The reason why we always use `float64` (i.e. `double`) for numeric variables is
 that this allows also 32 bit systems to handle such variables easily.

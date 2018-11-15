@@ -4,6 +4,10 @@
 // https://github.com/m-lab/ndt-cloud/blob/master/spec/ndt7.md.
 package ndt7
 
+import (
+	"github.com/m-lab/ndt-cloud/tcpinfox"
+)
+
 // DownloadURLPath selects the download subtest.
 const DownloadURLPath = "/ndt/v7/download"
 
@@ -38,6 +42,9 @@ type Measurement struct {
 
 	// BBRInfo is the data measured using TCP BBR instrumentation.
 	BBRInfo *BBRInfo `json:"bbr_info,omitempty"`
+
+	// TCPInfo contains metrics measured using TCP_INFO instrumentation.
+	TCPInfo *tcpinfox.TCPInfo `json:"tcp_info,omitempty"`
 
 	// Padding contains an optional random [A-Za-z]+ string that MAY be
 	// added by a server to send larger measurement message, so that such
