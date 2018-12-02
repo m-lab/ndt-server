@@ -6,6 +6,8 @@ package ndt7
 
 import (
 	"github.com/m-lab/ndt-cloud/tcpinfox"
+
+	"time"
 )
 
 // DownloadURLPath selects the download subtest.
@@ -22,6 +24,9 @@ const SecWebSocketProtocol = "net.measurementlab.ndt.v7"
 // threshold MUST always be accepted by an implementation.
 const MinMaxMessageSize = 1 << 17
 
+// MinMeasurementInterval is the minimum interval between measurements.
+const MinMeasurementInterval = 250 * time.Millisecond
+
 // The BBRInfo struct contains information measured using BBR.
 type BBRInfo struct {
 	// MaxBandwidth is the max bandwidth measured by BBR in bits per second.
@@ -31,23 +36,24 @@ type BBRInfo struct {
 	MinRTT float64 `json:"min_rtt"`
 }
 
+// The AppInfo struct contains application level measurements.
+type AppInfo struct {
+	// NumBytes is the number of bytes transferred so far.
+	NumBytes float64 `json:"num_bytes"`
+}
+
 // The Measurement struct contains measurement results. This structure is
 // meant to be serialised as JSON as sent on a textual message.
 type Measurement struct {
 	// Elapsed is the number of seconds elapsed since the beginning.
 	Elapsed float64 `json:"elapsed"`
 
-	// NumBytes is the number of bytes transferred since the beginning.
-	NumBytes float64 `json:"num_bytes"`
+	// AppInfo contains application level measurements.
+	AppInfo *AppInfo `json:"app_info,omitempty"`
 
 	// BBRInfo is the data measured using TCP BBR instrumentation.
 	BBRInfo *BBRInfo `json:"bbr_info,omitempty"`
 
 	// TCPInfo contains metrics measured using TCP_INFO instrumentation.
 	TCPInfo *tcpinfox.TCPInfo `json:"tcp_info,omitempty"`
-
-	// Padding contains an optional random [A-Za-z]+ string that MAY be
-	// added by a server to send larger measurement message, so that such
-	// messages could be used directly to generate network load.
-	Padding string `json:"padding,omitempty"`
 }

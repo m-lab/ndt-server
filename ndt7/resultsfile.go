@@ -59,9 +59,6 @@ type savedMeasurement struct {
 
 // WriteMeasurement writes |measurement| on the measurements file.
 func (fp *resultsfile) WriteMeasurement(measurement Measurement, origin string) error {
-	if measurement.Padding != "" {
-		panic("You passed me a measurement with padding")
-	}
 	return fp.writeInterface(savedMeasurement{
 		Origin: origin,
 		Measurement: measurement,

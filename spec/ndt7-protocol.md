@@ -120,12 +120,14 @@ structure:
 
 ```json
 {
+  "app_info": {
+    "num_bytes": 17.0,
+  },
   "bbr_info": {
     "max_bandwidth": 12345.4,
     "min_rtt": 123.4
   },
   "elapsed": 1.2345,
-  "num_bytes": 17.0,
   "tcp_info": {
     "rtt_var": 123.4,
     "smoothed_rtt": 567.8
@@ -134,6 +136,15 @@ structure:
 ```
 
 Where:
+
+
+- `app_info` is an _optional_ JSON object only included in the measurement
+  when an application-level measurement is available:
+
+    - `num_bytes` (a `float64`) is the number of bytes sent (or received) since
+      the beginning of the specific subtest. Note that this counter tracks the
+      amount of data sent at application level. It does not account for the
+      protocol overheaded of WebSockets, TCP, UDP, IP, and link layer;
 
 - `bbr_info` is an _optional_ JSON object only included in the measurement
   when it is possible to access `TCP_CC_INFO` stats for BBR:
@@ -145,10 +156,8 @@ Where:
       in millisecond;
 
 - `elapsed` (a `float64`) is the number of seconds elapsed since the beginning
-  of the specific subtest;
-
-- `num_bytes` (a `float64`) is the number of bytes sent (or received) since the
-  beginning of the specific subtest;
+  of the specific subtest and marks the moment in which the measurement has
+  been performed by the client or by the server;
 
 - `tcp_info` is an _optional_ JSON object only included in the measurement
   when it is possible to access `TCP_INFO` stats:

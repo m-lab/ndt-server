@@ -8,8 +8,7 @@
 <body>
   <table>
     <thead><tr>
-      <th>Elapsed (s)</th><th>Transferred (MiB)</th>
-        <th>MaxBandwidth (Mbit/s)</th><th>MinRTT (ms)</th>
+      <th>Elapsed (s)</th><th>MaxBandwidth (Mbit/s)</th><th>MinRTT (ms)</th>
         <th>SmoothedRTT (ms)</th><th>RTTVar (ms)</th>
     </tr><thead>
     <tbody id='measurement'></tbody>
@@ -56,7 +55,6 @@
           WithMeasurementDo(function (elem) {
             let row = elem.insertRow()
             row.insertCell().innerHTML = d.elapsed.toFixed(3)
-            row.insertCell().innerHTML = (d.num_bytes / 1024 / 1024).toFixed(3)
             if (d.bbr_info) {
               let mbits = d.bbr_info.max_bandwidth / 1000 / 1000
               row.insertCell().innerHTML = mbits.toFixed(3)
