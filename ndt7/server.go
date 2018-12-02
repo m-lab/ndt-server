@@ -163,6 +163,13 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		warnAndClose(writer, "Cannnot UPGRADE to WebSocket")
 		return
 	}
+	// TODO(bassosimone): an error before this point means that the *os.File
+	// will stay in cache until the cache pruning mechanism is triggered. This
+	// should be a small amount of seconds. If Golang does not call shutdown(2)
+	// and close(2), we'll end up keeping sockets that caused an error in the
+	// code above (e.g. because the handshake was not okay) alive for the time
+	// in which the corresponding *os.File is kept in cache.
+	defer conn.Close()
 	ErrorLogger.Debug("Processing query string")
 	meta := make(metadata)
 	initMetadata(&meta, conn.LocalAddr().String(),
@@ -191,14 +198,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 			// FALLTHROUGH
 		}
 	}
-	// TODO(bassosimone): an error before this point means that the *os.File
-	// will stay in cache until the cache pruning mechanism is triggered. This
-	// should be a small amount of seconds. If Golang does not call shutdown(2)
-	// and close(2), we'll end up keeping sockets that caused an error in the
-	// code above (e.g. because the handshake was not okay) alive for the time
-	// in which the corresponding *os.File is kept in cache.
 	conn.SetReadLimit(MinMaxMessageSize)
-	defer conn.Close()
 	downloadLoop(conn, fp, resultfp)
 	ErrorLogger.Debug("Closing the WebSocket connection")
 	conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
