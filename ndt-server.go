@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-cloud/bbr"
 	"github.com/m-lab/ndt-cloud/fdcache"
 	"github.com/m-lab/ndt-cloud/ndt7"
 	"github.com/prometheus/client_golang/prometheus"
@@ -109,18 +108,11 @@ func init() {
 // tcpListenerEx is the place where we accept new TCP connections and
 // set specific options on such connections. We unconditionally set the
 // keepalive timeout for all connections, so that dead TCP connections
-// (e.g. laptop closed amid a download) eventually go away. If the
-// TryToEnableBBR setting is true, we additionally try to (1) enable
-// BBR on the socket; (2) record the *os.File bound to a *net.TCPConn
-// such that later we can collect BBR stats (see the bbr package for
-// more info). As the name implies, TryToEnableBBR does its best to
-// enable BBR but not succeding is also acceptable especially on systems
-// where there is no support for BBR.
+// (e.g. laptop closed amid a download) eventually go away.
 //
 // Note: Adapted from net/http package.
 type tcpListenerEx struct {
 	*net.TCPListener
-	TryToEnableBBR bool
 }
 
 func (ln tcpListenerEx) Accept() (net.Conn, error) {
@@ -135,22 +127,12 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 		tc.Close()
 		return nil, err
 	}
-	if ln.TryToEnableBBR {
-		err = bbr.Enable(fp)
-		if err != nil && err != bbr.ErrNoSupport {
-			log.Printf("Cannot initialize BBR: %s", err.Error())
-			// We need to close both because fp is a dup() of the original tc.
-			fp.Close()
-			tc.Close()
-			return nil, err
-		}
-		if err == bbr.ErrNoSupport {
-			// Keep going. There are also old Linux servers without BBR and servers
-			// where the operating system is different from Linux.
-		}
-	}
 	// Transfer ownership of |fp| to fdcache so that later we can retrieve
-	// it from the generic net.Conn object bound to a websocket.Conn.
+	// it from the generic net.Conn object bound to a websocket.Conn. We will
+	// enable BBR at a later time and only if we really need it.
+	//
+	// Note: enabling BBR before performing the WebSocket handshake leaded
+	// to the connection being stuck. See m-lab/ndt-cloud#37.
 	fdcache.OwnFile(tc, fp)
 	return tc, nil
 }
@@ -467,7 +449,7 @@ func listenRandom() (net.Listener, int, error) {
 		return nil, 0, err
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	return tcpListenerEx{TCPListener: ln, TryToEnableBBR: false}, port, nil
+	return tcpListenerEx{TCPListener: ln}, port, nil
 }
 
 func manageS2cTest(ws *websocket.Conn) (float64, error) {
@@ -697,6 +679,6 @@ func main() {
 		log.Fatal(err)
 	}
 	s := &http.Server{Handler: ndt7.MakeAccessLogHandler(http.DefaultServeMux)}
-	log.Fatal(s.ServeTLS(tcpListenerEx{TCPListener: ln, TryToEnableBBR: true},
+	log.Fatal(s.ServeTLS(tcpListenerEx{TCPListener: ln},
 		*fCertFile, *fKeyFile))
 }

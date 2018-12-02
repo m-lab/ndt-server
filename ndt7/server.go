@@ -77,8 +77,8 @@ func makePadding(size int) string {
 
 // downloadLoop loops until the download is complete. |conn| is the WebSocket
 // connection. |fp| is a os.File bound to the same descriptor of |conn| that
-// allows us to extract BBR stats on Linux systems. |resultfp| is the file in which
-// the measurements will be written.
+// allows us to extract BBR stats on Linux systems. |resultfp| is the file in
+// which the measurements will be written.
 func downloadLoop(conn *websocket.Conn, fp *os.File, resultfp *resultsfile) {
 	ErrorLogger.Debug("Generating random buffer")
 	const bufferSize = 1 << 13
@@ -186,6 +186,11 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	// to program defensively rather than calling panic() here.
 	if fp != nil {
 		defer fp.Close()  // We own `fp` and we must close it when done
+		err = bbr.Enable(fp)
+		if err != nil {
+			ErrorLogger.WithError(err).Warn("Cannot enable BBR")
+			// FALLTHROUGH
+		}
 	}
 	// TODO(bassosimone): an error before this point means that the *os.File
 	// will stay in cache until the cache pruning mechanism is triggered. This
