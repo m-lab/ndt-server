@@ -54,7 +54,6 @@
           // Enable only for debugging. Will overload the browser.
           //console.log('Measurement from server: ' + JSON.stringify(d))
           WithMeasurementDo(function (elem) {
-            elem.innerHTML = ''
             let row = elem.insertRow()
             row.insertCell().innerHTML = d.elapsed.toFixed(3)
             row.insertCell().innerHTML = (d.num_bytes / 1024 / 1024).toFixed(3)
