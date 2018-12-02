@@ -89,7 +89,7 @@ func downloadLoop(conn *websocket.Conn, fp *os.File, resultfp *resultsfile) {
 	maxBandwidth := float64(0.0)
 	tcpInfoWarnEmitted := false
 	bbrWarnEmitted := false
-	for {
+	for time.Now().Sub(t0) < defaultDuration {
 		t := time.Now()
 		elapsed := t.Sub(t0)
 		measurement := Measurement{
@@ -140,9 +140,6 @@ func downloadLoop(conn *websocket.Conn, fp *os.File, resultfp *resultsfile) {
 			// Disable breaking out of the loop for now because we've determined
 			// that the best course of action is actually to run for 10 seconds to
 			// gather enough data to refine the "stop early" algorithm.
-		}
-		if time.Now().Sub(t0) >= defaultDuration {
-			break
 		}
 		count += float64(len(data))
 	}
