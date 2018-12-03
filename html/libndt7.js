@@ -30,7 +30,7 @@ const libndt7 = (function () {
     downloadClient: 'ndt7.download.client'
   }
 
-  const version = 0.5
+  const version = 0.6
 
   return {
     // version is the client library version.
