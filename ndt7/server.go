@@ -79,15 +79,8 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 }
 
-// MeasurementLoopResult is the result of a measurement performed by the
-// measurement loop. It possibly contains TCPInfo and BBRInfo data.
-type MeasurementLoopResult struct {
-	// Measurement is the measurement that has been performed.
-	Measurement Measurement
-}
-
 // startMeasuring runs the measurement loop. This runs in a separate goroutine
-// and emits MeasurementLoopResults on the returned channel. The goroutine will
+// and emits Measurement events on the returned channel. The goroutine will
 // exit when (1) a fatal error occurs or (2) the maximum elapsed time for the
 // download test expires. Because the goroutine has access to BBR stats (if BBR
 // is available), then that's the right place to stop the test early. The rest
@@ -97,8 +90,8 @@ type MeasurementLoopResult struct {
 // log any error and closing the channel provides already enoug bits of info
 // to synchronize this part of the downloader with the rest. The context param
 // will be used by the outer loop to tell us when we need to stop early.
-func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.Conn) chan MeasurementLoopResult {
-	dst := make(chan MeasurementLoopResult)
+func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.Conn) chan Measurement {
+	dst := make(chan Measurement)
 	go func() {
 		defer close(dst) // make sure we close the channel when we leave
 		ErrorLogger.Debug("Processing query string")
@@ -173,7 +166,7 @@ func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.
 					ErrorLogger.WithError(err).Warn("Cannot save measurement on disk")
 					goto out
 				}
-				dst <- MeasurementLoopResult{measurement}
+				dst <- measurement
 				// TODO(bassosimone): when we've collected more data, this is the right
 				// place to decide whether to close the channel based on BBR data.
 			}
@@ -224,7 +217,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 				goto out // the goroutine told us it's time to stop running
 			}
 			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
-			if err := conn.WriteJSON(m.Measurement); err != nil {
+			if err := conn.WriteJSON(m); err != nil {
 				ErrorLogger.WithError(err).Warn("Cannot send measurement message")
 				goto out
 			}
