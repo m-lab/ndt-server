@@ -132,7 +132,8 @@ func (ln tcpListenerEx) Accept() (net.Conn, error) {
 	// enable BBR at a later time and only if we really need it.
 	//
 	// Note: enabling BBR before performing the WebSocket handshake leaded
-	// to the connection being stuck. See m-lab/ndt-cloud#37.
+	// to the connection being stuck. See
+	// https://github.com/m-lab/ndt-cloud/issues/37.
 	fdcache.OwnFile(tc, fp)
 	return tc, nil
 }
