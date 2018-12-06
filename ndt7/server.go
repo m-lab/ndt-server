@@ -2,8 +2,10 @@ package ndt7
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -22,38 +24,6 @@ const defaultDuration = 10 * time.Second
 type DownloadHandler struct {
 	Upgrader websocket.Upgrader
 }
-
-// stableAccordingToBBR returns true when we can stop the current download
-// test based on |prev|, the previous BBR max-bandwidth sample, |cur| the
-// current BBR max-bandwidth sample, |rtt|, the BBR measured min-RTT (in
-// millisecond), and |elapsed|, the elapsed time since the beginning
-// of the test (expressed as a time.Duration). The max-bandwidth is measured
-// in bits per second.
-//
-// This algorithm runs every 0.25 seconds. Empirically, we know that
-// BBR requires multiple RTTs to converge. Here we use 10 RTTs as a reasonable
-// upper bound. Before 10 RTTs have elapsed, we do not check whether the
-// max-bandwidth has stopped growing. After 10 RTTs have elapsed, we call
-// the connection stable when the max-bandwidth measured by BBR does not
-// grow of more than 25% between two 0.25 second periods.
-//
-// We use the same percentage used by the BBR paper to characterize the
-// max-bandwidth growth, i.e. 25%. The BBR paper can be read online at ACM
-// Queue <https://queue.acm.org/detail.cfm?id=3022184>.
-//
-// WARNING: This algorithm is still experimental and we SHOULD NOT rely on
-// it until we have gathered a better understanding of how it performs.
-//
-// TODO(bassosimone): more research is needed! Therefore this function is
-// currently not used. We're now collecting data useful to understand what
-// is the best algorithm to stop. The existing code will stay here, in
-// commented out form, to document what was our initial idea.
-/*
-func stableAccordingToBBR(prev, cur, rtt float64, elapsed time.Duration) bool {
-	return (elapsed.Seconds()*1000.0) >= (10.0*rtt) && cur >= prev &&
-		(cur-prev) < (0.25*prev)
-}
-*/
 
 // warnAndClose emits a warning |message| and then closes the HTTP connection
 // using the |writer| http.ResponseWriter.
@@ -79,6 +49,73 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 }
 
+// openResultsFileAndWriteMetadata opens the results file and writes into it
+// the results metadata based on the query string. Returns the results file
+// on success. Returns an error in case of failure. The request arg is
+// used to gather the query string. The conn arg is used to retrieve
+// the local and remote endpoint addresses.
+func openResultsFileAndWriteMetadata(request *http.Request, conn *websocket.Conn) (*resultsfile, error) {
+	ErrorLogger.Debug("Processing query string")
+	meta := make(metadata)
+	initMetadata(&meta, conn.LocalAddr().String(),
+		conn.RemoteAddr().String(), request.URL.Query(), "download")
+	resultfp, err := newResultsfile()
+	if err != nil {
+		ErrorLogger.WithError(err).Warn("Cannot open results file")
+		return nil, err
+	}
+	ErrorLogger.Debug("Writing metadata on results file")
+	if err := resultfp.WriteMetadata(meta); err != nil {
+		ErrorLogger.WithError(err).Warn("Cannot write metadata to results file")
+		resultfp.Close()
+		return nil, err
+	}
+	return resultfp, nil
+}
+
+// getConnFileAndPossiblyEnableBBR returns the connection to be used to
+// gather low level stats and possibly enables BBR. It returns a file to
+// use to gather BBR/TCP_INFO stats on success, an error on failure.
+func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
+	fp := fdcache.GetAndForgetFile(conn.UnderlyingConn())
+	// Implementation note: in theory fp SHOULD always be non-nil because
+	// now we always register the fp bound to a net.TCPConn. However, in
+	// some weird cases it MAY happen that the cache pruning mechanism will
+	// remove the fp BEFORE we can steal it. In case we cannot get a file
+	// we just abort the test, as this should not happen (TM).
+	if fp == nil {
+		return nil, errors.New("cannot get file bound to websocket conn")
+	}
+	err := bbr.Enable(fp)
+	if err != nil {
+		ErrorLogger.WithError(err).Warn("Cannot enable BBR")
+		// FALLTHROUGH
+	}
+	return fp, nil
+}
+
+// gatherAndSaveTCPInfoAndBBRInfo gathers TCP info and BBR measurements from
+// |fp| and stores them into the |measurement| object as well as into the
+// |resultfp| file. Returns an error on failure and nil in case of success.
+func gatherAndSaveTCPInfoAndBBRInfo(measurement *Measurement, sockfp *os.File, resultfp *resultsfile) error {
+	bw, rtt, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
+	if err == nil {
+		measurement.BBRInfo = &BBRInfo{
+			MaxBandwidth: bw,
+			MinRTT:       rtt,
+		}
+	}
+	metrics, err := tcpinfox.GetTCPInfo(sockfp)
+	if err == nil {
+		measurement.TCPInfo = &metrics
+	}
+	if err := resultfp.WriteMeasurement(*measurement, "server"); err != nil {
+		ErrorLogger.WithError(err).Warn("Cannot save measurement on disk")
+		return err
+	}
+	return nil
+}
+
 // startMeasuring runs the measurement loop. This runs in a separate goroutine
 // and emits Measurement events on the returned channel. The goroutine will
 // exit when (1) a fatal error occurs or (2) the maximum elapsed time for the
@@ -87,46 +124,25 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 // of the download code is supposed to stop downloading when this goroutine will
 // signal that we're done by closing the channel. The goroutine will not tell
 // the test of the downloader whether an error occurred because closing it will
-// log any error and closing the channel provides already enoug bits of info
+// log any error and closing the channel provides already enough bits of info
 // to synchronize this part of the downloader with the rest. The context param
 // will be used by the outer loop to tell us when we need to stop early.
 func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.Conn) chan Measurement {
 	dst := make(chan Measurement)
 	go func() {
-		defer close(dst) // make sure we close the channel when we leave
-		ErrorLogger.Debug("Processing query string")
-		meta := make(metadata)
-		initMetadata(&meta, conn.LocalAddr().String(),
-			conn.RemoteAddr().String(), request.URL.Query(), "download")
-		resultfp, err := newResultsfile()
+		defer close(dst)
+		resultfp, err := openResultsFileAndWriteMetadata(request, conn)
 		if err != nil {
-			ErrorLogger.WithError(err).Warn("Cannot open results file")
-			return
+			return // error already printed
 		}
-		ErrorLogger.Debug("Writing metadata on results file")
 		defer resultfp.Close()
-		if err := resultfp.WriteMetadata(meta); err != nil {
-			ErrorLogger.WithError(err).Warn("Cannot write metadata to results file")
-			return
+		sockfp, err := getConnFileAndPossiblyEnableBBR(conn)
+		if err != nil {
+			return // error already printed
 		}
-		fp := fdcache.GetAndForgetFile(conn.UnderlyingConn())
-		// Implementation note: in theory fp SHOULD always be non-nil because
-		// now we always register the fp bound to a net.TCPConn. However, in
-		// some weird cases it MAY happen that the cache pruning mechanism will
-		// remove the fp BEFORE we can steal it. For this reason, I've decided
-		// to program defensively rather than calling panic() here.
-		if fp != nil {
-			defer fp.Close() // We own `fp` and we must close it when done
-			err = bbr.Enable(fp)
-			if err != nil {
-				ErrorLogger.WithError(err).Warn("Cannot enable BBR")
-				// FALLTHROUGH
-			}
-		}
+		defer sockfp.Close()
 		t0 := time.Now()
 		ticker := time.NewTicker(MinMeasurementInterval)
-		bbrWarnEmitted := false
-		tcpInfoWarnEmitted := false
 		ErrorLogger.Debug("Starting measurement loop")
 		for {
 			select {
@@ -141,34 +157,11 @@ func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.
 				measurement := Measurement{
 					Elapsed: elapsed.Seconds(),
 				}
-				if fp != nil {
-					bw, rtt, err := bbr.GetMaxBandwidthAndMinRTT(fp)
-					if err == nil {
-						measurement.BBRInfo = &BBRInfo{
-							MaxBandwidth: bw,
-							MinRTT:       rtt,
-						}
-						ErrorLogger.Infof("Elapsed: %f s; BW: %f bit/s; RTT: %f ms",
-							elapsed.Seconds(), bw, rtt)
-					} else if bbrWarnEmitted == false {
-						ErrorLogger.WithError(err).Warn("Cannot get BBR metrics")
-						bbrWarnEmitted = true
-					}
-					metrics, err := tcpinfox.GetTCPInfo(fp)
-					if err == nil {
-						measurement.TCPInfo = &metrics
-					} else if tcpInfoWarnEmitted == false {
-						ErrorLogger.WithError(err).Warn("Cannot get TCP_INFO metrics")
-						tcpInfoWarnEmitted = true
-					}
-				}
-				if err := resultfp.WriteMeasurement(measurement, "server"); err != nil {
-					ErrorLogger.WithError(err).Warn("Cannot save measurement on disk")
-					goto out
+				err = gatherAndSaveTCPInfoAndBBRInfo(&measurement, sockfp, resultfp)
+				if err != nil {
+					goto out // error already printed
 				}
 				dst <- measurement
-				// TODO(bassosimone): when we've collected more data, this is the right
-				// place to decide whether to close the channel based on BBR data.
 			}
 		}
 	out:
