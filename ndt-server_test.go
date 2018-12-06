@@ -7,21 +7,22 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/m-lab/ndt-cloud/ndt"
 	"github.com/m-lab/ndt-cloud/ndt7"
 
 	pipe "gopkg.in/m-lab/pipe.v3"
 )
 
 func Test_NDTe2e(t *testing.T) {
-	*fCertFile = "cert.pem"
-	*fKeyFile = "key.pem"
+	certFile := "cert.pem"
+	keyFile := "key.pem"
 
 	// Create key & self-signed certificate.
 	err := pipe.Run(
 		pipe.Script("Create private key and self-signed certificate",
-			pipe.Exec("openssl", "genrsa", "-out", "key.pem"),
-			pipe.Exec("openssl", "req", "-new", "-x509", "-key", "key.pem", "-out",
-				"cert.pem", "-days", "2", "-subj",
+			pipe.Exec("openssl", "genrsa", "-out", keyFile),
+			pipe.Exec("openssl", "req", "-new", "-x509", "-key", keyFile, "-out",
+				certFile, "-days", "2", "-subj",
 				"/C=XX/ST=State/L=Locality/O=Org/OU=Unit/CN=Name/emailAddress=test@email.address"),
 		),
 	)
@@ -32,7 +33,12 @@ func Test_NDTe2e(t *testing.T) {
 	// Start a test server using the NdtServer as the entry point.
 	mux := http.NewServeMux()
 	mux.Handle(ndt7.DownloadURLPath, ndt7.DownloadHandler{})
-	mux.Handle("/ndt_protocol", http.HandlerFunc(NdtServer))
+
+	mux.Handle("/ndt_protocol",
+		&ndt.Server{
+			KeyFile:  keyFile,
+			CertFile: certFile,
+		})
 	ts := httptest.NewTLSServer(mux)
 	defer ts.Close()
 	u, err := url.Parse(ts.URL)
@@ -73,7 +79,7 @@ func Test_NDTe2e(t *testing.T) {
 		},
 		{
 			name: "Test the ndt7 protocol",
-			cmd: "ndt-cloud-client -skip-tls-verify -port " + u.Port(),
+			cmd:  "ndt-cloud-client -skip-tls-verify -port " + u.Port(),
 		},
 	}
 
