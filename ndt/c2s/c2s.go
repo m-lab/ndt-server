@@ -1,4 +1,4 @@
-package ndt
+package c2s
 
 import (
 	"context"
@@ -9,14 +9,20 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-cloud/ndt/metrics"
 	"github.com/m-lab/ndt-cloud/ndt/protocol"
+	"github.com/m-lab/ndt-cloud/ndt/testresponder"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// C2STestServer performs the NDT c2s test.
-func (tr *TestResponder) C2STestServer(w http.ResponseWriter, r *http.Request) {
-	upgrader := makeNdtUpgrader([]string{"c2s"})
+type Responder struct {
+	testresponder.TestResponder
+}
+
+// TestServer performs the NDT c2s test.
+func (tr *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
+	upgrader := testresponder.MakeNdtUpgrader([]string{"c2s"})
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		// Upgrade should have already returned an HTTP error code.
@@ -24,18 +30,18 @@ func (tr *TestResponder) C2STestServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer ws.Close()
-	tr.response <- cReadyC2S
+	tr.Response <- testresponder.Ready
 	bytesPerSecond := tr.recvC2SUntil(ws)
-	tr.response <- bytesPerSecond
+	tr.Response <- bytesPerSecond
 
 	// Drain client for a few more seconds, and discard results.
-	deadline, _ := tr.ctx.Deadline()
-	tr.cancel()
-	tr.ctx, tr.cancel = context.WithDeadline(context.Background(), deadline)
+	deadline, _ := tr.Ctx.Deadline()
+	tr.Cancel()
+	tr.Ctx, tr.Cancel = context.WithDeadline(context.Background(), deadline)
 	_ = tr.recvC2SUntil(ws)
 }
 
-func (tr *TestResponder) recvC2SUntil(ws *websocket.Conn) float64 {
+func (tr *Responder) recvC2SUntil(ws *websocket.Conn) float64 {
 	done := make(chan float64)
 
 	go func() {
@@ -45,7 +51,7 @@ func (tr *TestResponder) recvC2SUntil(ws *websocket.Conn) float64 {
 		for time.Now().Before(endTime) {
 			_, buffer, err := ws.ReadMessage()
 			if err != nil {
-				tr.cancel()
+				tr.Cancel()
 				return
 			}
 			totalBytes += float64(len(buffer))
@@ -56,8 +62,8 @@ func (tr *TestResponder) recvC2SUntil(ws *websocket.Conn) float64 {
 
 	log.Println("C2S: Waiting for test to complete or timeout")
 	select {
-	case <-tr.ctx.Done():
-		log.Println("C2S: Context Done!", tr.ctx.Err())
+	case <-tr.Ctx.Done():
+		log.Println("C2S: Context Done!", tr.Ctx.Err())
 		ws.Close()
 		// Return zero on error.
 		return 0
@@ -66,20 +72,20 @@ func (tr *TestResponder) recvC2SUntil(ws *websocket.Conn) float64 {
 	}
 }
 
-func (s *Server) manageC2sTest(ws *websocket.Conn) (float64, error) {
+func ManageTest(ws *websocket.Conn, certFile, keyFile string) (float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	// Create a testResponder instance.
-	testResponder := &TestResponder{}
+	testResponder := &Responder{}
 
 	// Create a TLS server for running the C2S test.
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc("/ndt_protocol",
 		promhttp.InstrumentHandlerCounter(
-			testCount.MustCurryWith(prometheus.Labels{"direction": "c2s"}),
-			http.HandlerFunc(testResponder.C2STestServer)))
-	err := testResponder.StartTLSAsync(serveMux, "C2S", s.CertFile, s.KeyFile)
+			metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": "c2s"}),
+			http.HandlerFunc(testResponder.TestServer)))
+	err := testResponder.StartTLSAsync(serveMux, "C2S", certFile, keyFile)
 	if err != nil {
 		return 0, err
 	}
@@ -89,15 +95,15 @@ func (s *Server) manageC2sTest(ws *websocket.Conn) (float64, error) {
 	go func() {
 		// Wait for test to run. ///////////////////////////////////////////
 		// Send the server port to the client.
-		protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(testResponder.Port()), ws)
-		c2sReady := <-testResponder.response
-		if c2sReady != cReadyC2S {
+		protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(testResponder.Port), ws)
+		c2sReady := <-testResponder.Response
+		if c2sReady != testresponder.Ready {
 			log.Println("ERROR C2S: Bad value received on the c2s channel", c2sReady)
 			cancel()
 			return
 		}
 		protocol.SendJSONMessage(protocol.TestStart, "", ws)
-		c2sBytesPerSecond := <-testResponder.response
+		c2sBytesPerSecond := <-testResponder.Response
 		c2sKbps := 8 * c2sBytesPerSecond / 1000.0
 
 		protocol.SendJSONMessage(protocol.TestMsg, fmt.Sprintf("%.4f", c2sKbps), ws)
