@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/m-lab/ndt-cloud/ndt"
+	"github.com/m-lab/ndt-cloud/ndt/tcplistener"
 	"github.com/m-lab/ndt-cloud/ndt7"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -119,6 +120,6 @@ func main() {
 		log.Fatal(err)
 	}
 	s := &http.Server{Handler: ndt7.MakeAccessLogHandler(http.DefaultServeMux)}
-	log.Fatal(s.ServeTLS(ndt.RawListener{TCPListener: ln, TryToEnableBBR: true},
+	log.Fatal(s.ServeTLS(tcplistener.RawListener{TCPListener: ln, TryToEnableBBR: true},
 		*fCertFile, *fKeyFile))
 }

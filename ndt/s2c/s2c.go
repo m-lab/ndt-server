@@ -1,4 +1,4 @@
-package ndt
+package s2c
 
 import (
 	"context"
@@ -9,26 +9,32 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-cloud/ndt/metrics"
 	"github.com/m-lab/ndt-cloud/ndt/protocol"
+	"github.com/m-lab/ndt-cloud/ndt/testresponder"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// S2CResult is the result object returned to S2C clients as JSON.
-type S2CResult struct {
+type Responder struct {
+	testresponder.TestResponder
+}
+
+// Result is the result object returned to S2C clients as JSON.
+type Result struct {
 	ThroughputValue  float64
 	UnsentDataAmount int64
 	TotalSentByte    int64
 }
 
-func (n *S2CResult) String() string {
+func (n *Result) String() string {
 	b, _ := json.Marshal(n)
 	return string(b)
 }
 
-// S2CTestServer performs the NDT s2c test.
-func (tr *TestResponder) S2CTestServer(w http.ResponseWriter, r *http.Request) {
-	upgrader := makeNdtUpgrader([]string{"s2c"})
+// TestServer performs the NDT s2c test.
+func (s2c *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
+	upgrader := testresponder.MakeNdtUpgrader([]string{"s2c"})
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		// Upgrade should have already returned an HTTP error code.
@@ -47,11 +53,11 @@ func (tr *TestResponder) S2CTestServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Signal control channel that we are about to start the test.
-	tr.response <- cReadyS2C
-	tr.response <- tr.sendS2CUntil(ws, messageToSend, len(dataToSend))
+	s2c.Response <- testresponder.Ready
+	s2c.Response <- s2c.sendUntil(ws, messageToSend, len(dataToSend))
 }
 
-func (tr *TestResponder) sendS2CUntil(ws *websocket.Conn, msg *websocket.PreparedMessage, dataLen int) float64 {
+func (s2c *Responder) sendUntil(ws *websocket.Conn, msg *websocket.PreparedMessage, dataLen int) float64 {
 	// Create ticker to enforce timeout on
 	done := make(chan float64)
 
@@ -63,7 +69,7 @@ func (tr *TestResponder) sendS2CUntil(ws *websocket.Conn, msg *websocket.Prepare
 			err := ws.WritePreparedMessage(msg)
 			if err != nil {
 				log.Println("ERROR S2C: sending message", err)
-				tr.cancel()
+				s2c.Cancel()
 				return
 			}
 			totalBytes += float64(dataLen)
@@ -73,8 +79,8 @@ func (tr *TestResponder) sendS2CUntil(ws *websocket.Conn, msg *websocket.Prepare
 
 	log.Println("S2C: Waiting for test to complete or timeout")
 	select {
-	case <-tr.ctx.Done():
-		log.Println("S2C: Context Done!", tr.ctx.Err())
+	case <-s2c.Ctx.Done():
+		log.Println("S2C: Context Done!", s2c.Ctx.Err())
 		ws.Close()
 		// Return zero on error.
 		return 0
@@ -83,20 +89,20 @@ func (tr *TestResponder) sendS2CUntil(ws *websocket.Conn, msg *websocket.Prepare
 	}
 }
 
-func (s *Server) manageS2cTest(ws *websocket.Conn) (float64, error) {
+func ManageTest(ws *websocket.Conn, certFile, keyFile string) (float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	// Create a testResponder instance.
-	testResponder := &TestResponder{}
+	testResponder := &Responder{}
 
 	// Create a TLS server for running the S2C test.
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc("/ndt_protocol",
 		promhttp.InstrumentHandlerCounter(
-			testCount.MustCurryWith(prometheus.Labels{"direction": "s2c"}),
-			http.HandlerFunc(testResponder.S2CTestServer)))
-	err := testResponder.StartTLSAsync(serveMux, "S2C", s.CertFile, s.KeyFile)
+			metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": "s2c"}),
+			http.HandlerFunc(testResponder.TestServer)))
+	err := testResponder.StartTLSAsync(serveMux, "S2C", certFile, keyFile)
 	if err != nil {
 		return 0, err
 	}
@@ -106,19 +112,19 @@ func (s *Server) manageS2cTest(ws *websocket.Conn) (float64, error) {
 	go func() {
 		// Wait for test to run. ///////////////////////////////////////////
 		// Send the server port to the client.
-		protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(testResponder.Port()), ws)
-		s2cReady := <-testResponder.response
-		if s2cReady != cReadyS2C {
+		protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(testResponder.Port), ws)
+		s2cReady := <-testResponder.Response
+		if s2cReady != testresponder.Ready {
 			log.Println("ERROR S2C: Bad value received on the s2c channel", s2cReady)
 			cancel()
 			return
 		}
 		protocol.SendJSONMessage(protocol.TestStart, "", ws)
-		s2cBytesPerSecond := <-testResponder.response
+		s2cBytesPerSecond := <-testResponder.Response
 		s2cKbps := 8 * s2cBytesPerSecond / 1000.0
 
 		// Send additional download results to the client.
-		resultMsg := &S2CResult{
+		resultMsg := &Result{
 			ThroughputValue:  s2cKbps,
 			UnsentDataAmount: 0,
 			TotalSentByte:    int64(10 * s2cBytesPerSecond), // TODO: use actual bytes sent.
