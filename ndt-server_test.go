@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/m-lab/ndt-cloud/ndt"
+	"github.com/m-lab/ndt-cloud/legacy"
 	"github.com/m-lab/ndt-cloud/ndt7"
 
 	pipe "gopkg.in/m-lab/pipe.v3"
@@ -35,7 +35,7 @@ func Test_NDTe2e(t *testing.T) {
 	mux.Handle(ndt7.DownloadURLPath, ndt7.DownloadHandler{})
 
 	mux.Handle("/ndt_protocol",
-		&ndt.Server{
+		&legacy.Server{
 			KeyFile:  keyFile,
 			CertFile: certFile,
 		})

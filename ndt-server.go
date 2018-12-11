@@ -11,8 +11,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/m-lab/ndt-cloud/ndt"
-	"github.com/m-lab/ndt-cloud/ndt/tcplistener"
+	"github.com/m-lab/ndt-cloud/legacy"
+	"github.com/m-lab/ndt-cloud/legacy/tcplistener"
 	"github.com/m-lab/ndt-cloud/ndt7"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -100,7 +100,7 @@ func main() {
 
 	http.HandleFunc("/", defaultHandler)
 	http.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
-	ndtServer := &ndt.Server{
+	ndtServer := &legacy.Server{
 		CertFile: *fCertFile,
 		KeyFile:  *fKeyFile,
 	}
