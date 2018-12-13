@@ -141,7 +141,7 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 	t0 := time.Now()
 	ticker := time.NewTicker(MinMeasurementInterval)
 	ErrorLogger.Debug("Starting measurement loop")
-	defer ErrorLogger.Debug("Stopping measurement loop")  // say goodbye properly
+	defer ErrorLogger.Debug("Stopping measurement loop") // say goodbye properly
 	for {
 		select {
 		case <-ctx.Done():
@@ -205,34 +205,36 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	measurements := startMeasuring(ctx, request, conn)
 	ErrorLogger.Debug("Start sending data to client")
 	conn.SetReadLimit(MinMaxMessageSize)
+	// make sure we cleanup resources when we leave
+	defer func() {
+		ErrorLogger.Debug("Closing the WebSocket connection")
+		conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
+			websocket.CloseNormalClosure, ""), time.Now().Add(defaultTimeout))
+		// We could leave the context because the measuring goroutine thinks we're
+		// done or because there has been a socket error. In the latter case, it is
+		// important to synchronise with the goroutine and wait for it to exit.
+		cancel()
+		for _ = range measurements {
+			// NOTHING
+		}
+	}()
 	for {
 		select {
 		case m, ok := <-measurements:
 			if !ok {
-				goto out // the goroutine told us it's time to stop running
+				return // the goroutine told us it's time to stop running
 			}
 			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
 			if err := conn.WriteJSON(m); err != nil {
 				ErrorLogger.WithError(err).Warn("Cannot send measurement message")
-				goto out
+				return
 			}
 		default:
 			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
 			if err := conn.WritePreparedMessage(preparedMessage); err != nil {
 				ErrorLogger.WithError(err).Warn("Cannot send prepared message")
-				goto out
+				return
 			}
 		}
-	}
-out:
-	ErrorLogger.Debug("Closing the WebSocket connection")
-	conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
-		websocket.CloseNormalClosure, ""), time.Now().Add(defaultTimeout))
-	// If we jumped here because of `goto out`, make sure we wait for the
-	// goroutine to finish emitting its events. Use the context to tell it
-	// that it should stop possibly earlier than expected.
-	cancel()
-	for _ = range measurements {
-		// NOTHING
 	}
 }
