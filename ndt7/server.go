@@ -201,7 +201,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		return
 	}
 	ErrorLogger.Debug("Start measurement goroutine")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(request.Context())
 	measurements := startMeasuring(ctx, request, conn)
 	ErrorLogger.Debug("Start sending data to client")
 	conn.SetReadLimit(MinMaxMessageSize)
