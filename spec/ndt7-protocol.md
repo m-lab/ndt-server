@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.5.0 of the ndt7 specification.
+This is version v0.6.0 of the ndt7 specification.
 
 ## Protocol description
 
@@ -62,22 +62,18 @@ NOT be smaller than 1 << 17 bytes.
 
 Both textual and binary WebSocket messages are allowed. Textual WebSocket
 messages will contain serialised JSON structures containing measurements
-results (see below). Since both parties MAY in principle perform measurements
-during any subtest, both parties MAY send such textual messages.
+results (see below). When downloading, the server is expected to send
+measurement to the client, and when uploading, conversely, the client is
+expected to send measurements to the server. Both parties SHOULD NOT
+send measurement results when they're not expected to. Measurements SHOULD
+NOT be sent more frequently than every 250 ms, to avoid generating too
+much unnecessary processing load on the receiver.
 
 To generate network load, the party that is currently sending (i.e. the
-server during a download subtest) has two options:
-
-1. add a random padding string to each measurement JSON message;
-
-2. send, in addition to textual WebSocket messages, binary WebSocket
-   messages carrying random binary data.
-
-The party that is receiving MUST ignore random padding included in
-textual messages and binary messages. The party that is sending SHOULD
-close the connection if it receives textual messages with padding
-or binary messages, since such messages SHOULD only be used by the
-party that is sending to generate network load.
+server during a download subtest) MUST send, in addition to textual
+WebSocket messages, binary WebSocket messages carrying a random payload;
+the receiver (i.e. the client during a download subtest) MUST discard
+these messages without processing them.
 
 The expected transfer time of each subtest is ten seconds (unless BBR
 is used, in which case it may be shorter, as explained below). The sender
@@ -124,13 +120,14 @@ structure:
 
 ```json
 {
+  "app_info": {
+    "num_bytes": 17.0,
+  },
   "bbr_info": {
     "max_bandwidth": 12345.4,
     "min_rtt": 123.4
   },
   "elapsed": 1.2345,
-  "num_bytes": 17.0,
-  "padding": "ABFHFghghghhghgFLLF...",
   "tcp_info": {
     "rtt_var": 123.4,
     "smoothed_rtt": 567.8
@@ -139,6 +136,15 @@ structure:
 ```
 
 Where:
+
+
+- `app_info` is an _optional_ JSON object only included in the measurement
+  when an application-level measurement is available:
+
+    - `num_bytes` (a `float64`) is the number of bytes sent (or received) since
+      the beginning of the specific subtest. Note that this counter tracks the
+      amount of data sent at application level. It does not account for the
+      protocol overheaded of WebSockets, TCP, UDP, IP, and link layer;
 
 - `bbr_info` is an _optional_ JSON object only included in the measurement
   when it is possible to access `TCP_CC_INFO` stats for BBR:
@@ -150,14 +156,8 @@ Where:
       in millisecond;
 
 - `elapsed` (a `float64`) is the number of seconds elapsed since the beginning
-  of the specific subtest;
-
-- `num_bytes` (a `float64`) is the number of bytes sent (or received) since the
-  beginning of the specific subtest;
-
-- `padding` is an _optional_ string containing random uppercase and/or
-  lowercase letters that the sending party MAY choose to add to measurement
-  messages to generate network load, as explained above.
+  of the specific subtest and marks the moment in which the measurement has
+  been performed by the client or by the server;
 
 - `tcp_info` is an _optional_ JSON object only included in the measurement
   when it is possible to access `TCP_INFO` stats:

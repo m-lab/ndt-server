@@ -47,7 +47,7 @@ func listenRandom() (net.Listener, int, error) {
 		return nil, 0, err
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	return tcplistener.RawListener{TCPListener: ln, TryToEnableBBR: false}, port, nil
+	return tcplistener.RawListener{TCPListener: ln}, port, nil
 }
 
 // StartTLSAsync allocates a new TLS HTTP server listening on a random port. The

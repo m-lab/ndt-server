@@ -120,6 +120,6 @@ func main() {
 		log.Fatal(err)
 	}
 	s := &http.Server{Handler: ndt7.MakeAccessLogHandler(http.DefaultServeMux)}
-	log.Fatal(s.ServeTLS(tcplistener.RawListener{TCPListener: ln, TryToEnableBBR: true},
+	log.Fatal(s.ServeTLS(tcplistener.RawListener{TCPListener: ln},
 		*fCertFile, *fKeyFile))
 }
