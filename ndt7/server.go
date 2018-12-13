@@ -141,28 +141,27 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 	t0 := time.Now()
 	ticker := time.NewTicker(MinMeasurementInterval)
 	ErrorLogger.Debug("Starting measurement loop")
-MeasurementLoop:
+	defer ErrorLogger.Debug("Stopping measurement loop")  // say goodbye properly
 	for {
 		select {
 		case <-ctx.Done():
-			break MeasurementLoop
+			return
 		case now := <-ticker.C:
 			elapsed := now.Sub(t0)
 			if elapsed > defaultDuration {
 				ErrorLogger.Debug("Download run for enough time")
-				break MeasurementLoop
+				return
 			}
 			measurement := Measurement{
 				Elapsed: elapsed.Seconds(),
 			}
 			err = gatherAndSaveTCPInfoAndBBRInfo(&measurement, sockfp, resultfp)
 			if err != nil {
-				break MeasurementLoop // error already printed
+				return // error already printed
 			}
 			dst <- measurement
 		}
 	}
-	ErrorLogger.Debug("Stopping measurement loop")
 }
 
 // startMeasuring runs the measurement loop. This runs in a separate goroutine
