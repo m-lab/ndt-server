@@ -116,57 +116,60 @@ func gatherAndSaveTCPInfoAndBBRInfo(measurement *Measurement, sockfp *os.File, r
 	return nil
 }
 
-// startMeasuring runs the measurement loop. This runs in a separate goroutine
-// and emits Measurement events on the returned channel. The goroutine will
-// exit when (1) a fatal error occurs or (2) the maximum elapsed time for the
-// download test expires. Because the goroutine has access to BBR stats (if BBR
+// This is the loop that runs the measurements in a goroutine. This function
+// exits when (1) a fatal error occurs or (2) the maximum elapsed time for the
+// download test expires. Because this function has access to BBR stats (if BBR
 // is available), then that's the right place to stop the test early. The rest
-// of the download code is supposed to stop downloading when this goroutine will
-// signal that we're done by closing the channel. The goroutine will not tell
+// of the download code is supposed to stop downloading when this function will
+// signal that we're done by closing the channel. This function will not tell
 // the test of the downloader whether an error occurred because closing it will
 // log any error and closing the channel provides already enough bits of info
 // to synchronize this part of the downloader with the rest. The context param
 // will be used by the outer loop to tell us when we need to stop early.
+func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.Conn, dst chan Measurement) {
+	defer close(dst)
+	resultfp, err := openResultsFileAndWriteMetadata(request, conn)
+	if err != nil {
+		return // error already printed
+	}
+	defer resultfp.Close()
+	sockfp, err := getConnFileAndPossiblyEnableBBR(conn)
+	if err != nil {
+		return // error already printed
+	}
+	defer sockfp.Close()
+	t0 := time.Now()
+	ticker := time.NewTicker(MinMeasurementInterval)
+	ErrorLogger.Debug("Starting measurement loop")
+MeasurementLoop:
+	for {
+		select {
+		case <-ctx.Done():
+			break MeasurementLoop
+		case now := <-ticker.C:
+			elapsed := now.Sub(t0)
+			if elapsed > defaultDuration {
+				ErrorLogger.Debug("Download run for enough time")
+				break MeasurementLoop
+			}
+			measurement := Measurement{
+				Elapsed: elapsed.Seconds(),
+			}
+			err = gatherAndSaveTCPInfoAndBBRInfo(&measurement, sockfp, resultfp)
+			if err != nil {
+				break MeasurementLoop // error already printed
+			}
+			dst <- measurement
+		}
+	}
+	ErrorLogger.Debug("Stopping measurement loop")
+}
+
+// startMeasuring runs the measurement loop. This runs in a separate goroutine
+// and emits Measurement events on the returned channel.
 func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.Conn) chan Measurement {
 	dst := make(chan Measurement)
-	go func() {
-		defer close(dst)
-		resultfp, err := openResultsFileAndWriteMetadata(request, conn)
-		if err != nil {
-			return // error already printed
-		}
-		defer resultfp.Close()
-		sockfp, err := getConnFileAndPossiblyEnableBBR(conn)
-		if err != nil {
-			return // error already printed
-		}
-		defer sockfp.Close()
-		t0 := time.Now()
-		ticker := time.NewTicker(MinMeasurementInterval)
-		ErrorLogger.Debug("Starting measurement loop")
-		for {
-			select {
-			case <-ctx.Done():
-				goto out
-			case now := <-ticker.C:
-				elapsed := now.Sub(t0)
-				if elapsed > defaultDuration {
-					ErrorLogger.Debug("Download run for enough time")
-					goto out
-				}
-				measurement := Measurement{
-					Elapsed: elapsed.Seconds(),
-				}
-				err = gatherAndSaveTCPInfoAndBBRInfo(&measurement, sockfp, resultfp)
-				if err != nil {
-					goto out // error already printed
-				}
-				dst <- measurement
-			}
-		}
-	out:
-		ErrorLogger.Debug("Stopping measurement loop")
-	}()
+	go measuringLoop(ctx, request, conn, dst)
 	return dst
 }
 
