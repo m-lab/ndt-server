@@ -194,8 +194,8 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	// in which the corresponding *os.File is kept in cache.
 	defer conn.Close()
 	ErrorLogger.Debug("Generating random buffer")
-	const randomDataSize = 1 << 13
-	preparedMessage, err := makePreparedMessage(randomDataSize)
+	const bulkMessageSize = 1 << 13
+	preparedMessage, err := makePreparedMessage(bulkMessageSize)
 	if err != nil {
 		ErrorLogger.WithError(err).Warn("Cannot prepare message")
 		return
