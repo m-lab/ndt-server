@@ -78,7 +78,7 @@ type entry struct {
 }
 
 // cache maps a connKey to the corresponding *os.File.
-var cache map[connKey]entry = make(map[connKey]entry)
+var cache = make(map[connKey]entry)
 
 // mutex serializes access to cache.
 var mutex sync.Mutex

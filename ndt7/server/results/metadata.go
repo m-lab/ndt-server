@@ -1,4 +1,4 @@
-// package results contains server results
+// Package results contains server results
 package results
 
 import (

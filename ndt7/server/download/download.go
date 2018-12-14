@@ -25,7 +25,7 @@ const defaultTimeout = 7 * time.Second
 // defaultDuration is the default duration of a subtest in nanoseconds.
 const defaultDuration = 10 * time.Second
 
-// Handle handles a download subtest from the server side.
+// Handler handles a download subtest from the server side.
 type Handler struct {
 	Upgrader websocket.Upgrader
 }
@@ -195,7 +195,7 @@ func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		// done or because there has been a socket error. In the latter case, it is
 		// important to synchronise with the goroutine and wait for it to exit.
 		cancel()
-		for _ = range measurements {
+		for range measurements {
 			// NOTHING
 		}
 	}()

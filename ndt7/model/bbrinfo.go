@@ -1,4 +1,4 @@
-// package model contains the ndt7 data model
+// Package model contains the ndt7 data model
 package model
 
 // The BBRInfo struct contains information measured using BBR.

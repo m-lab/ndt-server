@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Responder responds to c2s tests.
 type Responder struct {
 	testresponder.TestResponder
 }
@@ -72,6 +73,7 @@ func (tr *Responder) recvC2SUntil(ws *websocket.Conn) float64 {
 	}
 }
 
+// ManageTest manages the c2s test lifecycle.
 func ManageTest(ws *websocket.Conn, certFile, keyFile string) (float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()

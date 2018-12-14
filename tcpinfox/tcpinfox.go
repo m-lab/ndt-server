@@ -1,4 +1,4 @@
-// package tcpinfox helps to gather TCP_INFO statistics.
+// Package tcpinfox helps to gather TCP_INFO statistics.
 package tcpinfox
 
 import (
