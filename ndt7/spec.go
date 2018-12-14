@@ -6,6 +6,7 @@ package ndt7
 
 import (
 	"github.com/m-lab/ndt-cloud/tcpinfox"
+	"github.com/m-lab/ndt-cloud/ndt7/model"
 
 	"time"
 )
@@ -27,15 +28,6 @@ const MinMaxMessageSize = 1 << 17
 // MinMeasurementInterval is the minimum interval between measurements.
 const MinMeasurementInterval = 250 * time.Millisecond
 
-// The BBRInfo struct contains information measured using BBR.
-type BBRInfo struct {
-	// MaxBandwidth is the max bandwidth measured by BBR in bits per second.
-	MaxBandwidth float64 `json:"max_bandwidth"`
-
-	// MinRTT is the min RTT measured by BBR in milliseconds.
-	MinRTT float64 `json:"min_rtt"`
-}
-
 // The AppInfo struct contains application level measurements.
 type AppInfo struct {
 	// NumBytes is the number of bytes transferred so far.
@@ -52,7 +44,7 @@ type Measurement struct {
 	AppInfo *AppInfo `json:"app_info,omitempty"`
 
 	// BBRInfo is the data measured using TCP BBR instrumentation.
-	BBRInfo *BBRInfo `json:"bbr_info,omitempty"`
+	BBRInfo *model.BBRInfo `json:"bbr_info,omitempty"`
 
 	// TCPInfo contains metrics measured using TCP_INFO instrumentation.
 	TCPInfo *tcpinfox.TCPInfo `json:"tcp_info,omitempty"`

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-cloud/ndt7/model"
 	"github.com/m-lab/ndt-cloud/bbr"
 	"github.com/m-lab/ndt-cloud/fdcache"
 	"github.com/m-lab/ndt-cloud/tcpinfox"
@@ -100,7 +101,7 @@ func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 func gatherAndSaveTCPInfoAndBBRInfo(measurement *Measurement, sockfp *os.File, resultfp *resultsfile) error {
 	bw, rtt, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
 	if err == nil {
-		measurement.BBRInfo = &BBRInfo{
+		measurement.BBRInfo = &model.BBRInfo{
 			MaxBandwidth: bw,
 			MinRTT:       rtt,
 		}
