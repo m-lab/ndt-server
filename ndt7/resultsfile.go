@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"time"
+
+	"github.com/m-lab/ndt-cloud/ndt7/model"
 )
 
 // resultsfile is the file where we save measurements.
@@ -54,11 +56,11 @@ type savedMeasurement struct {
 	// the measurement that is currently being saved.
 	Origin string `json:"origin"`
 	// Measurement is the actual measurement to be saved.
-	Measurement Measurement `json:"measurement"`
+	Measurement model.Measurement `json:"measurement"`
 }
 
 // WriteMeasurement writes |measurement| on the measurements file.
-func (fp *resultsfile) WriteMeasurement(measurement Measurement, origin string) error {
+func (fp *resultsfile) WriteMeasurement(measurement model.Measurement, origin string) error {
 	return fp.writeInterface(savedMeasurement{
 		Origin: origin,
 		Measurement: measurement,

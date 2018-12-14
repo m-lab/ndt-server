@@ -43,7 +43,7 @@ func (cl Client) Download() error {
 	for {
 		select {
 		case t1 := <-ticker.C:
-			mm := Measurement{
+			mm := model.Measurement{
 				AppInfo: &model.AppInfo{
 					NumBytes: num,
 				},
@@ -69,7 +69,7 @@ func (cl Client) Download() error {
 		if mtype == websocket.TextMessage {
 			// Unmarshal to verify that this message is correct JSON but do not
 			// otherwise process the message's content.
-			measurement := Measurement{}
+			measurement := model.Measurement{}
 			err := json.Unmarshal(mdata, &measurement)
 			if err != nil {
 				return err

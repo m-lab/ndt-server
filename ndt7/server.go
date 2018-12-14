@@ -98,7 +98,7 @@ func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 // gatherAndSaveTCPInfoAndBBRInfo gathers TCP info and BBR measurements from
 // |fp| and stores them into the |measurement| object as well as into the
 // |resultfp| file. Returns an error on failure and nil in case of success.
-func gatherAndSaveTCPInfoAndBBRInfo(measurement *Measurement, sockfp *os.File, resultfp *resultsfile) error {
+func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.File, resultfp *resultsfile) error {
 	bw, rtt, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
 	if err == nil {
 		measurement.BBRInfo = &model.BBRInfo{
@@ -127,7 +127,7 @@ func gatherAndSaveTCPInfoAndBBRInfo(measurement *Measurement, sockfp *os.File, r
 // log any error and closing the channel provides already enough bits of info
 // to synchronize this part of the downloader with the rest. The context param
 // will be used by the outer loop to tell us when we need to stop early.
-func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.Conn, dst chan Measurement) {
+func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.Conn, dst chan model.Measurement) {
 	defer close(dst)
 	resultfp, err := openResultsFileAndWriteMetadata(request, conn)
 	if err != nil {
@@ -153,7 +153,7 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 				ErrorLogger.Debug("Download run for enough time")
 				return
 			}
-			measurement := Measurement{
+			measurement := model.Measurement{
 				Elapsed: elapsed.Seconds(),
 			}
 			err = gatherAndSaveTCPInfoAndBBRInfo(&measurement, sockfp, resultfp)
@@ -167,8 +167,8 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 
 // startMeasuring runs the measurement loop. This runs in a separate goroutine
 // and emits Measurement events on the returned channel.
-func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.Conn) chan Measurement {
-	dst := make(chan Measurement)
+func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.Conn) chan model.Measurement {
+	dst := make(chan model.Measurement)
 	go measuringLoop(ctx, request, conn, dst)
 	return dst
 }

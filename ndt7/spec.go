@@ -5,8 +5,6 @@
 package ndt7
 
 import (
-	"github.com/m-lab/ndt-cloud/ndt7/model"
-
 	"time"
 )
 
@@ -26,19 +24,3 @@ const MinMaxMessageSize = 1 << 17
 
 // MinMeasurementInterval is the minimum interval between measurements.
 const MinMeasurementInterval = 250 * time.Millisecond
-
-// The Measurement struct contains measurement results. This structure is
-// meant to be serialised as JSON as sent on a textual message.
-type Measurement struct {
-	// Elapsed is the number of seconds elapsed since the beginning.
-	Elapsed float64 `json:"elapsed"`
-
-	// AppInfo contains application level measurements.
-	AppInfo *model.AppInfo `json:"app_info,omitempty"`
-
-	// BBRInfo is the data measured using TCP BBR instrumentation.
-	BBRInfo *model.BBRInfo `json:"bbr_info,omitempty"`
-
-	// TCPInfo contains metrics measured using TCP_INFO instrumentation.
-	TCPInfo *model.TCPInfo `json:"tcp_info,omitempty"`
-}
