@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-cloud/logging"
 	"github.com/m-lab/ndt-cloud/ndt7/model"
 	"github.com/m-lab/ndt-cloud/ndt7/server/results"
 	"github.com/m-lab/ndt-cloud/bbr"
@@ -30,7 +31,7 @@ type DownloadHandler struct {
 // warnAndClose emits a warning |message| and then closes the HTTP connection
 // using the |writer| http.ResponseWriter.
 func warnAndClose(writer http.ResponseWriter, message string) {
-	ErrorLogger.Warn(message)
+	logging.Logger.Warn(message)
 	writer.Header().Set("Connection", "Close")
 	writer.WriteHeader(http.StatusBadRequest)
 }
@@ -66,7 +67,7 @@ func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 	}
 	err := bbr.Enable(fp)
 	if err != nil {
-		ErrorLogger.WithError(err).Warn("Cannot enable BBR")
+		logging.Logger.WithError(err).Warn("Cannot enable BBR")
 		// FALLTHROUGH
 	}
 	return fp, nil
@@ -88,7 +89,7 @@ func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.F
 		measurement.TCPInfo = &metrics
 	}
 	if err := resultfp.WriteMeasurement(*measurement, "server"); err != nil {
-		ErrorLogger.WithError(err).Warn("Cannot save measurement on disk")
+		logging.Logger.WithError(err).Warn("Cannot save measurement on disk")
 		return err
 	}
 	return nil
@@ -118,8 +119,8 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 	defer sockfp.Close()
 	t0 := time.Now()
 	ticker := time.NewTicker(MinMeasurementInterval)
-	ErrorLogger.Debug("Starting measurement loop")
-	defer ErrorLogger.Debug("Stopping measurement loop") // say goodbye properly
+	logging.Logger.Debug("Starting measurement loop")
+	defer logging.Logger.Debug("Stopping measurement loop") // say goodbye properly
 	for {
 		select {
 		case <-ctx.Done():
@@ -127,7 +128,7 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 		case now := <-ticker.C:
 			elapsed := now.Sub(t0)
 			if elapsed > defaultDuration {
-				ErrorLogger.Debug("Download run for enough time")
+				logging.Logger.Debug("Download run for enough time")
 				return
 			}
 			measurement := model.Measurement{
@@ -152,7 +153,7 @@ func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.
 
 // Handle handles the download subtest.
 func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	ErrorLogger.Debug("Upgrading to WebSockets")
+	logging.Logger.Debug("Upgrading to WebSockets")
 	if request.Header.Get("Sec-WebSocket-Protocol") != SecWebSocketProtocol {
 		warnAndClose(writer, "Missing Sec-WebSocket-Protocol in request")
 		return
@@ -171,21 +172,21 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	// code above (e.g. because the handshake was not okay) alive for the time
 	// in which the corresponding *os.File is kept in cache.
 	defer conn.Close()
-	ErrorLogger.Debug("Generating random buffer")
+	logging.Logger.Debug("Generating random buffer")
 	const bulkMessageSize = 1 << 13
 	preparedMessage, err := makePreparedMessage(bulkMessageSize)
 	if err != nil {
-		ErrorLogger.WithError(err).Warn("Cannot prepare message")
+		logging.Logger.WithError(err).Warn("Cannot prepare message")
 		return
 	}
-	ErrorLogger.Debug("Start measurement goroutine")
+	logging.Logger.Debug("Start measurement goroutine")
 	ctx, cancel := context.WithCancel(request.Context())
 	measurements := startMeasuring(ctx, request, conn)
-	ErrorLogger.Debug("Start sending data to client")
+	logging.Logger.Debug("Start sending data to client")
 	conn.SetReadLimit(MinMaxMessageSize)
 	// make sure we cleanup resources when we leave
 	defer func() {
-		ErrorLogger.Debug("Closing the WebSocket connection")
+		logging.Logger.Debug("Closing the WebSocket connection")
 		conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
 			websocket.CloseNormalClosure, ""), time.Now().Add(defaultTimeout))
 		// We could leave the context because the measuring goroutine thinks we're
@@ -204,13 +205,13 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 			}
 			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
 			if err := conn.WriteJSON(m); err != nil {
-				ErrorLogger.WithError(err).Warn("Cannot send measurement message")
+				logging.Logger.WithError(err).Warn("Cannot send measurement message")
 				return
 			}
 		default:
 			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
 			if err := conn.WritePreparedMessage(preparedMessage); err != nil {
-				ErrorLogger.WithError(err).Warn("Cannot send prepared message")
+				logging.Logger.WithError(err).Warn("Cannot send prepared message")
 				return
 			}
 		}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/m-lab/ndt-cloud/legacy"
 	"github.com/m-lab/ndt-cloud/legacy/tcplistener"
+	"github.com/m-lab/ndt-cloud/logging"
 	"github.com/m-lab/ndt-cloud/ndt7"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -119,7 +120,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := &http.Server{Handler: ndt7.MakeAccessLogHandler(http.DefaultServeMux)}
+	s := &http.Server{Handler: logging.MakeAccessLogHandler(http.DefaultServeMux)}
 	log.Fatal(s.ServeTLS(tcplistener.RawListener{TCPListener: ln},
 		*fCertFile, *fKeyFile))
 }

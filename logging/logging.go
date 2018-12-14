@@ -1,4 +1,6 @@
-package ndt7
+// Package logging contains data structures useful to implement logging
+// across ndt-cloud in a Docker friendly way.
+package logging
 
 import (
 	"net/http"
@@ -9,11 +11,11 @@ import (
 	"github.com/gorilla/handlers"
 )
 
-// ErrorLogger is a logger that logs messages on the standard error
+// Logger is a logger that logs messages on the standard error
 // in a structured JSON format, to simplify processing. Emitting logs
 // on the standard error is consistent with the standard practices
 // when dockerising an Apache or Nginx instance.
-var ErrorLogger = log.Logger{
+var Logger = log.Logger{
 	Handler: json.New(os.Stderr),
 	Level: log.DebugLevel,
 }
