@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/apex/log"
+	"github.com/m-lab/ndt-cloud/ndt7/model"
 	"github.com/gorilla/websocket"
 )
 
@@ -43,7 +44,7 @@ func (cl Client) Download() error {
 		select {
 		case t1 := <-ticker.C:
 			mm := Measurement{
-				AppInfo: &AppInfo{
+				AppInfo: &model.AppInfo{
 					NumBytes: num,
 				},
 				Elapsed: t1.Sub(t0).Seconds(),

@@ -28,12 +28,6 @@ const MinMaxMessageSize = 1 << 17
 // MinMeasurementInterval is the minimum interval between measurements.
 const MinMeasurementInterval = 250 * time.Millisecond
 
-// The AppInfo struct contains application level measurements.
-type AppInfo struct {
-	// NumBytes is the number of bytes transferred so far.
-	NumBytes float64 `json:"num_bytes"`
-}
-
 // The Measurement struct contains measurement results. This structure is
 // meant to be serialised as JSON as sent on a textual message.
 type Measurement struct {
@@ -41,7 +35,7 @@ type Measurement struct {
 	Elapsed float64 `json:"elapsed"`
 
 	// AppInfo contains application level measurements.
-	AppInfo *AppInfo `json:"app_info,omitempty"`
+	AppInfo *model.AppInfo `json:"app_info,omitempty"`
 
 	// BBRInfo is the data measured using TCP BBR instrumentation.
 	BBRInfo *model.BBRInfo `json:"bbr_info,omitempty"`
