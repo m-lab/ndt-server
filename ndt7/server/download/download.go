@@ -1,4 +1,5 @@
-package ndt7
+// Package download implements the ndt7/server downloader.
+package download
 
 import (
 	"context"
@@ -12,6 +13,7 @@ import (
 	"github.com/m-lab/ndt-cloud/logging"
 	"github.com/m-lab/ndt-cloud/ndt7/model"
 	"github.com/m-lab/ndt-cloud/ndt7/server/results"
+	"github.com/m-lab/ndt-cloud/ndt7"
 	"github.com/m-lab/ndt-cloud/bbr"
 	"github.com/m-lab/ndt-cloud/fdcache"
 	"github.com/m-lab/ndt-cloud/tcpinfox"
@@ -23,8 +25,8 @@ const defaultTimeout = 7 * time.Second
 // defaultDuration is the default duration of a subtest in nanoseconds.
 const defaultDuration = 10 * time.Second
 
-// DownloadHandler handles a download subtest from the server side.
-type DownloadHandler struct {
+// Handle handles a download subtest from the server side.
+type Handler struct {
 	Upgrader websocket.Upgrader
 }
 
@@ -118,7 +120,7 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 	}
 	defer sockfp.Close()
 	t0 := time.Now()
-	ticker := time.NewTicker(MinMeasurementInterval)
+	ticker := time.NewTicker(ndt7.MinMeasurementInterval)
 	logging.Logger.Debug("Starting measurement loop")
 	defer logging.Logger.Debug("Stopping measurement loop") // say goodbye properly
 	for {
@@ -152,14 +154,14 @@ func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.
 }
 
 // Handle handles the download subtest.
-func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	logging.Logger.Debug("Upgrading to WebSockets")
-	if request.Header.Get("Sec-WebSocket-Protocol") != SecWebSocketProtocol {
+	if request.Header.Get("Sec-WebSocket-Protocol") != ndt7.SecWebSocketProtocol {
 		warnAndClose(writer, "Missing Sec-WebSocket-Protocol in request")
 		return
 	}
 	headers := http.Header{}
-	headers.Add("Sec-WebSocket-Protocol", SecWebSocketProtocol)
+	headers.Add("Sec-WebSocket-Protocol", ndt7.SecWebSocketProtocol)
 	conn, err := dl.Upgrader.Upgrade(writer, request, headers)
 	if err != nil {
 		warnAndClose(writer, "Cannnot UPGRADE to WebSocket")
@@ -183,7 +185,7 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	ctx, cancel := context.WithCancel(request.Context())
 	measurements := startMeasuring(ctx, request, conn)
 	logging.Logger.Debug("Start sending data to client")
-	conn.SetReadLimit(MinMaxMessageSize)
+	conn.SetReadLimit(ndt7.MinMaxMessageSize)
 	// make sure we cleanup resources when we leave
 	defer func() {
 		logging.Logger.Debug("Closing the WebSocket connection")

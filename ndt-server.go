@@ -15,6 +15,7 @@ import (
 	"github.com/m-lab/ndt-cloud/legacy/tcplistener"
 	"github.com/m-lab/ndt-cloud/logging"
 	"github.com/m-lab/ndt-cloud/ndt7"
+	ndt7download "github.com/m-lab/ndt-cloud/ndt7/server/download"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -97,7 +98,7 @@ func main() {
 		log.Fatal(http.ListenAndServe(*fMetricsAddr, mux))
 	}()
 
-	http.Handle(ndt7.DownloadURLPath, ndt7.DownloadHandler{})
+	http.Handle(ndt7.DownloadURLPath, ndt7download.Handler{})
 
 	http.HandleFunc("/", defaultHandler)
 	http.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
@@ -115,7 +116,7 @@ func main() {
 	}()
 	log.Println("About to listen on " + *fNdtPort + ". Go to http://127.0.0.1:" + *fNdtPort + "/")
 
-	// This is the ndt7 listener on a standard port and with TCP BBR enabled.
+	// This is the ndt7 listener on a standard port
 	ln, err := net.ListenTCP("tcp", &net.TCPAddr{Port: *fNdt7Port})
 	if err != nil {
 		log.Fatal(err)

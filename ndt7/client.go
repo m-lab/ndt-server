@@ -17,6 +17,9 @@ import (
 // Measurement messages from the other endpoint.
 const minMeasurementInterval = 250 * time.Millisecond
 
+// defaultTimeout is the default I/O timeout.
+const defaultTimeout = 7 * time.Second
+
 // Client is a simplified ndt7 client.
 type Client struct {
 	Dialer websocket.Dialer
