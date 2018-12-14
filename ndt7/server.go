@@ -10,6 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-cloud/ndt7/model"
+	"github.com/m-lab/ndt-cloud/ndt7/server/results"
 	"github.com/m-lab/ndt-cloud/bbr"
 	"github.com/m-lab/ndt-cloud/fdcache"
 	"github.com/m-lab/ndt-cloud/tcpinfox"
@@ -50,30 +51,6 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 }
 
-// openResultsFileAndWriteMetadata opens the results file and writes into it
-// the results metadata based on the query string. Returns the results file
-// on success. Returns an error in case of failure. The request arg is
-// used to gather the query string. The conn arg is used to retrieve
-// the local and remote endpoint addresses.
-func openResultsFileAndWriteMetadata(request *http.Request, conn *websocket.Conn) (*resultsfile, error) {
-	ErrorLogger.Debug("Processing query string")
-	meta := make(metadata)
-	initMetadata(&meta, conn.LocalAddr().String(),
-		conn.RemoteAddr().String(), request.URL.Query(), "download")
-	resultfp, err := newResultsfile()
-	if err != nil {
-		ErrorLogger.WithError(err).Warn("Cannot open results file")
-		return nil, err
-	}
-	ErrorLogger.Debug("Writing metadata on results file")
-	if err := resultfp.WriteMetadata(meta); err != nil {
-		ErrorLogger.WithError(err).Warn("Cannot write metadata to results file")
-		resultfp.Close()
-		return nil, err
-	}
-	return resultfp, nil
-}
-
 // getConnFileAndPossiblyEnableBBR returns the connection to be used to
 // gather low level stats and possibly enables BBR. It returns a file to
 // use to gather BBR/TCP_INFO stats on success, an error on failure.
@@ -98,7 +75,7 @@ func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 // gatherAndSaveTCPInfoAndBBRInfo gathers TCP info and BBR measurements from
 // |fp| and stores them into the |measurement| object as well as into the
 // |resultfp| file. Returns an error on failure and nil in case of success.
-func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.File, resultfp *resultsfile) error {
+func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.File, resultfp *results.File) error {
 	bw, rtt, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
 	if err == nil {
 		measurement.BBRInfo = &model.BBRInfo{
@@ -129,7 +106,7 @@ func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.F
 // will be used by the outer loop to tell us when we need to stop early.
 func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.Conn, dst chan model.Measurement) {
 	defer close(dst)
-	resultfp, err := openResultsFileAndWriteMetadata(request, conn)
+	resultfp, err := results.OpenFor(request, conn, "download")
 	if err != nil {
 		return // error already printed
 	}
