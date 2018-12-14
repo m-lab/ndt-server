@@ -1,12 +1,7 @@
-// Package ndt7 contains a non-backwards compatible redesign of the NDT
-// network performance measurement protocol. The complete specification of
-// the protocol is available at
-// https://github.com/m-lab/ndt-cloud/blob/master/spec/ndt7.md.
-package ndt7
+// Package spec contains constants defined in the ndt7 specification.
+package spec
 
-import (
-	"time"
-)
+import "time"
 
 // DownloadURLPath selects the download subtest.
 const DownloadURLPath = "/ndt/v7/download"

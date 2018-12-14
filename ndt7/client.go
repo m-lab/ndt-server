@@ -8,6 +8,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/m-lab/ndt-cloud/ndt7/model"
+	"github.com/m-lab/ndt-cloud/ndt7/spec"
 	"github.com/gorilla/websocket"
 )
 
@@ -28,16 +29,16 @@ type Client struct {
 
 // Download runs a ndt7 download test.
 func (cl Client) Download() error {
-	cl.URL.Path = DownloadURLPath
+	cl.URL.Path = spec.DownloadURLPath
 	log.Infof("Creating a WebSocket connection to: %s", cl.URL.String())
 	headers := http.Header{}
-	headers.Add("Sec-WebSocket-Protocol", SecWebSocketProtocol)
+	headers.Add("Sec-WebSocket-Protocol", spec.SecWebSocketProtocol)
 	cl.Dialer.HandshakeTimeout = defaultTimeout
 	conn, _, err := cl.Dialer.Dial(cl.URL.String(), headers)
 	if err != nil {
 		return err
 	}
-	conn.SetReadLimit(MinMaxMessageSize)
+	conn.SetReadLimit(spec.MinMaxMessageSize)
 	defer conn.Close()
 	t0 := time.Now()
 	num := float64(0.0)

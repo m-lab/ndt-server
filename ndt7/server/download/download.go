@@ -13,7 +13,7 @@ import (
 	"github.com/m-lab/ndt-cloud/logging"
 	"github.com/m-lab/ndt-cloud/ndt7/model"
 	"github.com/m-lab/ndt-cloud/ndt7/server/results"
-	"github.com/m-lab/ndt-cloud/ndt7"
+	"github.com/m-lab/ndt-cloud/ndt7/spec"
 	"github.com/m-lab/ndt-cloud/bbr"
 	"github.com/m-lab/ndt-cloud/fdcache"
 	"github.com/m-lab/ndt-cloud/tcpinfox"
@@ -120,7 +120,7 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 	}
 	defer sockfp.Close()
 	t0 := time.Now()
-	ticker := time.NewTicker(ndt7.MinMeasurementInterval)
+	ticker := time.NewTicker(spec.MinMeasurementInterval)
 	logging.Logger.Debug("Starting measurement loop")
 	defer logging.Logger.Debug("Stopping measurement loop") // say goodbye properly
 	for {
@@ -156,12 +156,12 @@ func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.
 // Handle handles the download subtest.
 func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	logging.Logger.Debug("Upgrading to WebSockets")
-	if request.Header.Get("Sec-WebSocket-Protocol") != ndt7.SecWebSocketProtocol {
+	if request.Header.Get("Sec-WebSocket-Protocol") != spec.SecWebSocketProtocol {
 		warnAndClose(writer, "Missing Sec-WebSocket-Protocol in request")
 		return
 	}
 	headers := http.Header{}
-	headers.Add("Sec-WebSocket-Protocol", ndt7.SecWebSocketProtocol)
+	headers.Add("Sec-WebSocket-Protocol", spec.SecWebSocketProtocol)
 	conn, err := dl.Upgrader.Upgrade(writer, request, headers)
 	if err != nil {
 		warnAndClose(writer, "Cannnot UPGRADE to WebSocket")
@@ -185,7 +185,7 @@ func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	ctx, cancel := context.WithCancel(request.Context())
 	measurements := startMeasuring(ctx, request, conn)
 	logging.Logger.Debug("Start sending data to client")
-	conn.SetReadLimit(ndt7.MinMaxMessageSize)
+	conn.SetReadLimit(spec.MinMaxMessageSize)
 	// make sure we cleanup resources when we leave
 	defer func() {
 		logging.Logger.Debug("Closing the WebSocket connection")
