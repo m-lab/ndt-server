@@ -14,8 +14,8 @@ import (
 	"github.com/m-lab/ndt-cloud/legacy"
 	"github.com/m-lab/ndt-cloud/legacy/tcplistener"
 	"github.com/m-lab/ndt-cloud/logging"
-	ndt7spec "github.com/m-lab/ndt-cloud/ndt7/spec"
-	ndt7download "github.com/m-lab/ndt-cloud/ndt7/server/download"
+	"github.com/m-lab/ndt-cloud/ndt7/spec"
+	"github.com/m-lab/ndt-cloud/ndt7/server/download"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -98,7 +98,7 @@ func main() {
 		log.Fatal(http.ListenAndServe(*fMetricsAddr, mux))
 	}()
 
-	http.Handle(ndt7spec.DownloadURLPath, ndt7download.Handler{})
+	http.Handle(spec.DownloadURLPath, download.Handler{})
 
 	http.HandleFunc("/", defaultHandler)
 	http.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
