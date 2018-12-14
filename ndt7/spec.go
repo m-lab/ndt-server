@@ -5,7 +5,6 @@
 package ndt7
 
 import (
-	"github.com/m-lab/ndt-cloud/tcpinfox"
 	"github.com/m-lab/ndt-cloud/ndt7/model"
 
 	"time"
@@ -41,5 +40,5 @@ type Measurement struct {
 	BBRInfo *model.BBRInfo `json:"bbr_info,omitempty"`
 
 	// TCPInfo contains metrics measured using TCP_INFO instrumentation.
-	TCPInfo *tcpinfox.TCPInfo `json:"tcp_info,omitempty"`
+	TCPInfo *model.TCPInfo `json:"tcp_info,omitempty"`
 }
