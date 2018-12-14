@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/apex/log"
+	"github.com/m-lab/ndt-cloud/ndt7/model"
+	"github.com/m-lab/ndt-cloud/ndt7/spec"
 	"github.com/gorilla/websocket"
 )
 
@@ -16,6 +18,9 @@ import (
 // Measurement messages from the other endpoint.
 const minMeasurementInterval = 250 * time.Millisecond
 
+// defaultTimeout is the default I/O timeout.
+const defaultTimeout = 7 * time.Second
+
 // Client is a simplified ndt7 client.
 type Client struct {
 	Dialer websocket.Dialer
@@ -24,16 +29,16 @@ type Client struct {
 
 // Download runs a ndt7 download test.
 func (cl Client) Download() error {
-	cl.URL.Path = DownloadURLPath
+	cl.URL.Path = spec.DownloadURLPath
 	log.Infof("Creating a WebSocket connection to: %s", cl.URL.String())
 	headers := http.Header{}
-	headers.Add("Sec-WebSocket-Protocol", SecWebSocketProtocol)
+	headers.Add("Sec-WebSocket-Protocol", spec.SecWebSocketProtocol)
 	cl.Dialer.HandshakeTimeout = defaultTimeout
 	conn, _, err := cl.Dialer.Dial(cl.URL.String(), headers)
 	if err != nil {
 		return err
 	}
-	conn.SetReadLimit(MinMaxMessageSize)
+	conn.SetReadLimit(spec.MinMaxMessageSize)
 	defer conn.Close()
 	t0 := time.Now()
 	num := float64(0.0)
@@ -42,8 +47,8 @@ func (cl Client) Download() error {
 	for {
 		select {
 		case t1 := <-ticker.C:
-			mm := Measurement{
-				AppInfo: &AppInfo{
+			mm := model.Measurement{
+				AppInfo: &model.AppInfo{
 					NumBytes: num,
 				},
 				Elapsed: t1.Sub(t0).Seconds(),
@@ -68,7 +73,7 @@ func (cl Client) Download() error {
 		if mtype == websocket.TextMessage {
 			// Unmarshal to verify that this message is correct JSON but do not
 			// otherwise process the message's content.
-			measurement := Measurement{}
+			measurement := model.Measurement{}
 			err := json.Unmarshal(mdata, &measurement)
 			if err != nil {
 				return err

@@ -26,6 +26,7 @@ type TestResponder struct {
 	Cancel   context.CancelFunc
 }
 
+// MakeNdtUpgrader creates a websocket Upgrade for the NDT legacy
 func MakeNdtUpgrader(protocols []string) websocket.Upgrader {
 	return websocket.Upgrader{
 		ReadBufferSize:    81920,

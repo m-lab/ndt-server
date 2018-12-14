@@ -1,4 +1,5 @@
-package ndt7
+// Package results contains server results
+package results
 
 import (
 	"net/url"

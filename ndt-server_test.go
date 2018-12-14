@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"github.com/m-lab/ndt-cloud/legacy"
-	"github.com/m-lab/ndt-cloud/ndt7"
+	"github.com/m-lab/ndt-cloud/ndt7/spec"
+	"github.com/m-lab/ndt-cloud/ndt7/server/download"
 
 	pipe "gopkg.in/m-lab/pipe.v3"
 )
@@ -32,7 +33,7 @@ func Test_NDTe2e(t *testing.T) {
 
 	// Start a test server using the NdtServer as the entry point.
 	mux := http.NewServeMux()
-	mux.Handle(ndt7.DownloadURLPath, ndt7.DownloadHandler{})
+	mux.Handle(spec.DownloadURLPath, download.Handler{})
 
 	mux.Handle("/ndt_protocol",
 		&legacy.Server{

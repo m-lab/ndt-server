@@ -4,9 +4,11 @@ import (
 	"os"
 	"syscall"
 	"unsafe"
+
+	"github.com/m-lab/ndt-cloud/ndt7/model"
 )
 
-func getTCPInfo(fp *os.File) (TCPInfo, error) {
+func getTCPInfo(fp *os.File) (model.TCPInfo, error) {
 	// Note: Fd() returns uintptr but on Unix we can safely use int for sockets.
 	tcpInfo := syscall.TCPInfo{}
 	tcpInfoLen := uint32(unsafe.Sizeof(tcpInfo))
@@ -18,7 +20,7 @@ func getTCPInfo(fp *os.File) (TCPInfo, error) {
 		uintptr(unsafe.Pointer(&tcpInfo)),
 		uintptr(unsafe.Pointer(&tcpInfoLen)),
 		uintptr(0))
-	metrics := TCPInfo{}
+	metrics := model.TCPInfo{}
 	if err != 0 {
 		return metrics, err
 	}

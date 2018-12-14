@@ -1,4 +1,5 @@
-package ndt7
+// Package download implements the ndt7/server downloader.
+package download
 
 import (
 	"context"
@@ -9,6 +10,10 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-cloud/logging"
+	"github.com/m-lab/ndt-cloud/ndt7/model"
+	"github.com/m-lab/ndt-cloud/ndt7/server/results"
+	"github.com/m-lab/ndt-cloud/ndt7/spec"
 	"github.com/m-lab/ndt-cloud/bbr"
 	"github.com/m-lab/ndt-cloud/fdcache"
 	"github.com/m-lab/ndt-cloud/tcpinfox"
@@ -20,15 +25,15 @@ const defaultTimeout = 7 * time.Second
 // defaultDuration is the default duration of a subtest in nanoseconds.
 const defaultDuration = 10 * time.Second
 
-// DownloadHandler handles a download subtest from the server side.
-type DownloadHandler struct {
+// Handler handles a download subtest from the server side.
+type Handler struct {
 	Upgrader websocket.Upgrader
 }
 
 // warnAndClose emits a warning |message| and then closes the HTTP connection
 // using the |writer| http.ResponseWriter.
 func warnAndClose(writer http.ResponseWriter, message string) {
-	ErrorLogger.Warn(message)
+	logging.Logger.Warn(message)
 	writer.Header().Set("Connection", "Close")
 	writer.WriteHeader(http.StatusBadRequest)
 }
@@ -49,30 +54,6 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 }
 
-// openResultsFileAndWriteMetadata opens the results file and writes into it
-// the results metadata based on the query string. Returns the results file
-// on success. Returns an error in case of failure. The request arg is
-// used to gather the query string. The conn arg is used to retrieve
-// the local and remote endpoint addresses.
-func openResultsFileAndWriteMetadata(request *http.Request, conn *websocket.Conn) (*resultsfile, error) {
-	ErrorLogger.Debug("Processing query string")
-	meta := make(metadata)
-	initMetadata(&meta, conn.LocalAddr().String(),
-		conn.RemoteAddr().String(), request.URL.Query(), "download")
-	resultfp, err := newResultsfile()
-	if err != nil {
-		ErrorLogger.WithError(err).Warn("Cannot open results file")
-		return nil, err
-	}
-	ErrorLogger.Debug("Writing metadata on results file")
-	if err := resultfp.WriteMetadata(meta); err != nil {
-		ErrorLogger.WithError(err).Warn("Cannot write metadata to results file")
-		resultfp.Close()
-		return nil, err
-	}
-	return resultfp, nil
-}
-
 // getConnFileAndPossiblyEnableBBR returns the connection to be used to
 // gather low level stats and possibly enables BBR. It returns a file to
 // use to gather BBR/TCP_INFO stats on success, an error on failure.
@@ -88,7 +69,7 @@ func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 	}
 	err := bbr.Enable(fp)
 	if err != nil {
-		ErrorLogger.WithError(err).Warn("Cannot enable BBR")
+		logging.Logger.WithError(err).Warn("Cannot enable BBR")
 		// FALLTHROUGH
 	}
 	return fp, nil
@@ -97,10 +78,10 @@ func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 // gatherAndSaveTCPInfoAndBBRInfo gathers TCP info and BBR measurements from
 // |fp| and stores them into the |measurement| object as well as into the
 // |resultfp| file. Returns an error on failure and nil in case of success.
-func gatherAndSaveTCPInfoAndBBRInfo(measurement *Measurement, sockfp *os.File, resultfp *resultsfile) error {
+func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.File, resultfp *results.File) error {
 	bw, rtt, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
 	if err == nil {
-		measurement.BBRInfo = &BBRInfo{
+		measurement.BBRInfo = &model.BBRInfo{
 			MaxBandwidth: bw,
 			MinRTT:       rtt,
 		}
@@ -110,7 +91,7 @@ func gatherAndSaveTCPInfoAndBBRInfo(measurement *Measurement, sockfp *os.File, r
 		measurement.TCPInfo = &metrics
 	}
 	if err := resultfp.WriteMeasurement(*measurement, "server"); err != nil {
-		ErrorLogger.WithError(err).Warn("Cannot save measurement on disk")
+		logging.Logger.WithError(err).Warn("Cannot save measurement on disk")
 		return err
 	}
 	return nil
@@ -126,9 +107,9 @@ func gatherAndSaveTCPInfoAndBBRInfo(measurement *Measurement, sockfp *os.File, r
 // log any error and closing the channel provides already enough bits of info
 // to synchronize this part of the downloader with the rest. The context param
 // will be used by the outer loop to tell us when we need to stop early.
-func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.Conn, dst chan Measurement) {
+func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.Conn, dst chan model.Measurement) {
 	defer close(dst)
-	resultfp, err := openResultsFileAndWriteMetadata(request, conn)
+	resultfp, err := results.OpenFor(request, conn, "download")
 	if err != nil {
 		return // error already printed
 	}
@@ -139,9 +120,9 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 	}
 	defer sockfp.Close()
 	t0 := time.Now()
-	ticker := time.NewTicker(MinMeasurementInterval)
-	ErrorLogger.Debug("Starting measurement loop")
-	defer ErrorLogger.Debug("Stopping measurement loop") // say goodbye properly
+	ticker := time.NewTicker(spec.MinMeasurementInterval)
+	logging.Logger.Debug("Starting measurement loop")
+	defer logging.Logger.Debug("Stopping measurement loop") // say goodbye properly
 	for {
 		select {
 		case <-ctx.Done():
@@ -149,10 +130,10 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 		case now := <-ticker.C:
 			elapsed := now.Sub(t0)
 			if elapsed > defaultDuration {
-				ErrorLogger.Debug("Download run for enough time")
+				logging.Logger.Debug("Download run for enough time")
 				return
 			}
-			measurement := Measurement{
+			measurement := model.Measurement{
 				Elapsed: elapsed.Seconds(),
 			}
 			err = gatherAndSaveTCPInfoAndBBRInfo(&measurement, sockfp, resultfp)
@@ -166,21 +147,21 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 
 // startMeasuring runs the measurement loop. This runs in a separate goroutine
 // and emits Measurement events on the returned channel.
-func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.Conn) chan Measurement {
-	dst := make(chan Measurement)
+func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.Conn) chan model.Measurement {
+	dst := make(chan model.Measurement)
 	go measuringLoop(ctx, request, conn, dst)
 	return dst
 }
 
 // Handle handles the download subtest.
-func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	ErrorLogger.Debug("Upgrading to WebSockets")
-	if request.Header.Get("Sec-WebSocket-Protocol") != SecWebSocketProtocol {
+func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	logging.Logger.Debug("Upgrading to WebSockets")
+	if request.Header.Get("Sec-WebSocket-Protocol") != spec.SecWebSocketProtocol {
 		warnAndClose(writer, "Missing Sec-WebSocket-Protocol in request")
 		return
 	}
 	headers := http.Header{}
-	headers.Add("Sec-WebSocket-Protocol", SecWebSocketProtocol)
+	headers.Add("Sec-WebSocket-Protocol", spec.SecWebSocketProtocol)
 	conn, err := dl.Upgrader.Upgrade(writer, request, headers)
 	if err != nil {
 		warnAndClose(writer, "Cannnot UPGRADE to WebSocket")
@@ -193,28 +174,28 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	// code above (e.g. because the handshake was not okay) alive for the time
 	// in which the corresponding *os.File is kept in cache.
 	defer conn.Close()
-	ErrorLogger.Debug("Generating random buffer")
+	logging.Logger.Debug("Generating random buffer")
 	const bulkMessageSize = 1 << 13
 	preparedMessage, err := makePreparedMessage(bulkMessageSize)
 	if err != nil {
-		ErrorLogger.WithError(err).Warn("Cannot prepare message")
+		logging.Logger.WithError(err).Warn("Cannot prepare message")
 		return
 	}
-	ErrorLogger.Debug("Start measurement goroutine")
+	logging.Logger.Debug("Start measurement goroutine")
 	ctx, cancel := context.WithCancel(request.Context())
 	measurements := startMeasuring(ctx, request, conn)
-	ErrorLogger.Debug("Start sending data to client")
-	conn.SetReadLimit(MinMaxMessageSize)
+	logging.Logger.Debug("Start sending data to client")
+	conn.SetReadLimit(spec.MinMaxMessageSize)
 	// make sure we cleanup resources when we leave
 	defer func() {
-		ErrorLogger.Debug("Closing the WebSocket connection")
+		logging.Logger.Debug("Closing the WebSocket connection")
 		conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
 			websocket.CloseNormalClosure, ""), time.Now().Add(defaultTimeout))
 		// We could leave the context because the measuring goroutine thinks we're
 		// done or because there has been a socket error. In the latter case, it is
 		// important to synchronise with the goroutine and wait for it to exit.
 		cancel()
-		for _ = range measurements {
+		for range measurements {
 			// NOTHING
 		}
 	}()
@@ -226,13 +207,13 @@ func (dl DownloadHandler) ServeHTTP(writer http.ResponseWriter, request *http.Re
 			}
 			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
 			if err := conn.WriteJSON(m); err != nil {
-				ErrorLogger.WithError(err).Warn("Cannot send measurement message")
+				logging.Logger.WithError(err).Warn("Cannot send measurement message")
 				return
 			}
 		default:
 			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
 			if err := conn.WritePreparedMessage(preparedMessage); err != nil {
-				ErrorLogger.WithError(err).Warn("Cannot send prepared message")
+				logging.Logger.WithError(err).Warn("Cannot send prepared message")
 				return
 			}
 		}

@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Responder is a response for the s2c test
 type Responder struct {
 	testresponder.TestResponder
 }
@@ -89,6 +90,7 @@ func (s2c *Responder) sendUntil(ws *websocket.Conn, msg *websocket.PreparedMessa
 	}
 }
 
+// ManageTest manages the s2c test lifecycle
 func ManageTest(ws *websocket.Conn, certFile, keyFile string) (float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
