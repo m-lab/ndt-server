@@ -14,8 +14,8 @@ import (
 	"github.com/m-lab/ndt-cloud/legacy"
 	"github.com/m-lab/ndt-cloud/legacy/tcplistener"
 	"github.com/m-lab/ndt-cloud/logging"
-	"github.com/m-lab/ndt-cloud/ndt7/spec"
 	"github.com/m-lab/ndt-cloud/ndt7/server/download"
+	"github.com/m-lab/ndt-cloud/ndt7/spec"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -23,7 +23,7 @@ import (
 // Flags that can be passed in on the command line
 var (
 	fNdt7Port    = flag.Int("ndt7-port", 443, "The port to use for the ndt7 test")
-	fNdtPort     = flag.String("port", "3010", "The port to use for the main NDT test")
+	fNdtPort     = flag.String("legacy-port", ":3010", "The address and port to use for the legacy NDT test")
 	fCertFile    = flag.String("cert", "", "The file with server certificates in PEM format.")
 	fKeyFile     = flag.String("key", "", "The file with server key in PEM format.")
 	fMetricsAddr = flag.String("metrics_address", ":9090", "Export prometheus metrics on this address and port.")
@@ -112,7 +112,7 @@ func main() {
 
 	// The following is listening on the standard NDT port and without BBR.
 	go func() {
-		log.Fatal(http.ListenAndServeTLS(":"+*fNdtPort, *fCertFile, *fKeyFile, nil))
+		log.Fatal(http.ListenAndServeTLS(*fNdtPort, *fCertFile, *fKeyFile, nil))
 	}()
 	log.Println("About to listen on " + *fNdtPort + ". Go to http://127.0.0.1:" + *fNdtPort + "/")
 
