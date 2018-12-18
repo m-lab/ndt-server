@@ -9,5 +9,5 @@ before_script:
 
 script:
 - go get -v -tags netgo ./cmd/ndt-cloud-client
-- go test -v -coverprofile=ndt.cov -tags netgo ./...
+- go test -v -coverprofile=ndt.cov -coverpkg=all -tags netgo ./...
 - $GOPATH/bin/goveralls -coverprofile=ndt.cov -service=travis-ci
