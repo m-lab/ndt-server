@@ -115,9 +115,9 @@ func main() {
 	go func() {
 		log.Fatal(http.ListenAndServeTLS(*fNdtTLSPort, *fCertFile, *fKeyFile, nil))
 	}()
-	log.Println("About to listen on " + *fNdtTLSPort + ". Go to http://127.0.0.1:" + *fNdtPort + "/")
+	log.Println("About to listen on " + *fNdtTLSPort + ". Go to http://127.0.0.1:" + *fNdtTLSPort + "/")
 	go func() {
-		log.Fatal(http.ListenAndServeTLS(*fNdtPort, *fCertFile, *fKeyFile, nil))
+		log.Fatal(http.ListenAndServe(*fNdtPort, nil))
 	}()
 	log.Println("About to listen on " + *fNdtPort + ". Go to http://127.0.0.1:" + *fNdtPort + "/")
 
