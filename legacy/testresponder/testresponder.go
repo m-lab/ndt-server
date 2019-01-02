@@ -16,6 +16,11 @@ const (
 	Ready = float64(-1)
 )
 
+type Server interface {
+	ServeOnRandomPort(mux *http.ServeMux, msg string) error
+	Close()
+}
+
 // TestResponder coordinates synchronization between the main control loop and subtests.
 type TestResponder struct {
 	Response chan float64

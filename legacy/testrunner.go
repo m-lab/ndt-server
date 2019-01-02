@@ -51,7 +51,8 @@ func runMetaTest(ws *websocket.Conn) {
 // ServeHTTP is the command channel for the NDT-WS test. All subsequent client
 // communication is synchronized with this method. Returning closes the
 // websocket connection, so only occurs after all tests complete or an
-// unrecoverable error.
+// unrecoverable error. It is called ServeHTTP to make sure that the Server
+// implements the http.Handler interface.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	upgrader := testresponder.MakeNdtUpgrader([]string{"ndt"})
 	ws, err := upgrader.Upgrade(w, r, nil)
