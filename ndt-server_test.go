@@ -34,15 +34,24 @@ func Test_NDTe2e(t *testing.T) {
 	}
 
 	// Start a test server using the NdtServer as the entry point.
-	mux := http.NewServeMux()
-	mux.Handle(spec.DownloadURLPath, download.Handler{})
+	tlsMux := http.NewServeMux()
+	tlsMux.Handle(spec.DownloadURLPath, download.Handler{})
 
-	mux.Handle("/ndt_protocol",
-		&legacy.Server{
+	tlsMux.Handle("/ndt_protocol",
+		&legacy.BasicServer{
 			KeyFile:  keyFile,
 			CertFile: certFile,
 		})
-	ts := httptest.NewTLSServer(mux)
+	tsTLS := httptest.NewTLSServer(tlsMux)
+	defer tsTLS.Close()
+	uTLS, err := url.Parse(tsTLS.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/ndt_protocol", &legacy.BasicServer{})
+	ts := httptest.NewServer(mux)
 	defer ts.Close()
 	u, err := url.Parse(ts.URL)
 	if err != nil {
@@ -56,32 +65,37 @@ func Test_NDTe2e(t *testing.T) {
 	}{
 		{
 			name: "Upload legacy WSS",
-			cmd: "node ./testdata/unittest_client.js --server=" + u.Hostname() +
-				" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=18",
+			cmd: "node ./testdata/unittest_client.js --server=" + uTLS.Hostname() +
+				" --port=" + uTLS.Port() + " --protocol=wss --acceptinvalidcerts --tests=18",
 		},
 		{
 			name: "Download legacy WSS",
-			cmd: "node ./testdata/unittest_client.js --server=" + u.Hostname() +
-				" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=20",
+			cmd: "node ./testdata/unittest_client.js --server=" + uTLS.Hostname() +
+				" --port=" + uTLS.Port() + " --protocol=wss --acceptinvalidcerts --tests=20",
 		},
 		{
 			name: "Upload & Download legacy WSS",
-			cmd: "node ./testdata/unittest_client.js --server=" + u.Hostname() +
-				" --port=" + u.Port() + " --protocol=wss --acceptinvalidcerts --tests=22",
+			cmd: "node ./testdata/unittest_client.js --server=" + uTLS.Hostname() +
+				" --port=" + uTLS.Port() + " --protocol=wss --acceptinvalidcerts --tests=22",
 		},
 		{
 			// Start both tests, but kill the client during the upload test.
 			// This causes the server to wait for a test that never comes. After the
 			// timeout, the server should have cleaned up all outstanding goroutines.
 			name: "Upload & Download legacy WSS with S2C Timeout",
-			cmd: "node ./testdata/unittest_client.js --server=" + u.Hostname() +
-				" --port=" + u.Port() +
+			cmd: "node ./testdata/unittest_client.js --server=" + uTLS.Hostname() +
+				" --port=" + uTLS.Port() +
 				" --protocol=wss --acceptinvalidcerts --abort-c2s-early --tests=22 & " +
 				"sleep 25",
 		},
 		{
 			name: "Test the ndt7 protocol",
-			cmd:  "ndt-cloud-client -skip-tls-verify -port " + u.Port(),
+			cmd:  "ndt-cloud-client -skip-tls-verify -port " + uTLS.Port(),
+		},
+		{
+			name: "Connect legacy WS",
+			cmd: "node ./testdata/unittest_client.js --server=" + u.Hostname() +
+				" --port=" + u.Port() + " --protocol=ws --tests=16",
 		},
 		{
 			name: "Upload legacy WS",

@@ -91,12 +91,13 @@ func (s2c *Responder) sendUntil(ws *websocket.Conn, msg *websocket.PreparedMessa
 }
 
 // ManageTest manages the s2c test lifecycle
-func ManageTest(ws *websocket.Conn, certFile, keyFile string) (float64, error) {
+func ManageTest(ws *websocket.Conn, config *testresponder.Config) (float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	// Create a testResponder instance.
 	testResponder := &Responder{}
+	testResponder.Config = config
 
 	// Create a TLS server for running the S2C test.
 	serveMux := http.NewServeMux()
@@ -104,7 +105,7 @@ func ManageTest(ws *websocket.Conn, certFile, keyFile string) (float64, error) {
 		promhttp.InstrumentHandlerCounter(
 			metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": "s2c"}),
 			http.HandlerFunc(testResponder.TestServer)))
-	err := testResponder.StartTLSAsync(serveMux, "S2C", certFile, keyFile)
+	err := testResponder.StartAsync(serveMux, "S2C")
 	if err != nil {
 		return 0, err
 	}

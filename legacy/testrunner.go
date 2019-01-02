@@ -21,8 +21,8 @@ const (
 	cTestStatus = 16
 )
 
-// Server contains everything needed to start a new server on a random port.
-type Server struct {
+// BasicServer contains everything needed to start a new server on a random port.
+type BasicServer struct {
 	CertFile string
 	KeyFile  string
 }
@@ -53,7 +53,7 @@ func runMetaTest(ws *websocket.Conn) {
 // websocket connection, so only occurs after all tests complete or an
 // unrecoverable error. It is called ServeHTTP to make sure that the Server
 // implements the http.Handler interface.
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *BasicServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	upgrader := testresponder.MakeNdtUpgrader([]string{"ndt"})
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -61,6 +61,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer ws.Close()
+	config := &testresponder.Config{}
+	if s.CertFile == "" && s.KeyFile == "" {
+		config.TLS = false
+	} else {
+		config.CertFile = s.CertFile
+		config.KeyFile = s.KeyFile
+		config.TLS = true
+	}
 
 	message, err := protocol.ReceiveJSONMessage(ws, protocol.MsgExtendedLogin)
 	if err != nil {
@@ -93,7 +101,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var c2sRate, s2cRate float64
 	if runC2s {
-		c2sRate, err = c2s.ManageTest(ws, s.CertFile, s.KeyFile)
+		c2sRate, err = c2s.ManageTest(ws, config)
 		if err != nil {
 			log.Println("ERROR: manageC2sTest", err)
 		} else {
@@ -101,7 +109,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if runS2c {
-		s2cRate, err = s2c.ManageTest(ws, s.CertFile, s.KeyFile)
+		s2cRate, err = s2c.ManageTest(ws, config)
 		if err != nil {
 			log.Println("ERROR: manageS2cTest", err)
 		} else {

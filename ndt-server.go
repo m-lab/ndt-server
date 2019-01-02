@@ -23,7 +23,8 @@ import (
 // Flags that can be passed in on the command line
 var (
 	fNdt7Port    = flag.Int("ndt7-port", 443, "The port to use for the ndt7 test")
-	fNdtPort     = flag.String("legacy-port", ":3010", "The address and port to use for the legacy NDT test")
+	fNdtPort     = flag.String("legacy-port", ":3001", "The address and port to use for the unencrypted legacy NDT test")
+	fNdtTLSPort  = flag.String("legacy-tls-port", ":3010", "The address and port to use for the legacy NDT test over TLS")
 	fCertFile    = flag.String("cert", "", "The file with server certificates in PEM format.")
 	fKeyFile     = flag.String("key", "", "The file with server key in PEM format.")
 	fMetricsAddr = flag.String("metrics_address", ":9090", "Export prometheus metrics on this address and port.")
@@ -102,7 +103,7 @@ func main() {
 
 	http.HandleFunc("/", defaultHandler)
 	http.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
-	ndtServer := &legacy.Server{
+	ndtServer := &legacy.BasicServer{
 		CertFile: *fCertFile,
 		KeyFile:  *fKeyFile,
 	}
@@ -111,6 +112,10 @@ func main() {
 			promhttp.InstrumentHandlerDuration(testDuration, ndtServer)))
 
 	// The following is listening on the standard NDT port and without BBR.
+	go func() {
+		log.Fatal(http.ListenAndServeTLS(*fNdtTLSPort, *fCertFile, *fKeyFile, nil))
+	}()
+	log.Println("About to listen on " + *fNdtTLSPort + ". Go to http://127.0.0.1:" + *fNdtPort + "/")
 	go func() {
 		log.Fatal(http.ListenAndServeTLS(*fNdtPort, *fCertFile, *fKeyFile, nil))
 	}()
