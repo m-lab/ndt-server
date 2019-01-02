@@ -16,11 +16,7 @@ const (
 	Ready = float64(-1)
 )
 
-type Server interface {
-	ServeOnRandomPort(mux *http.ServeMux, msg string) error
-	Close()
-}
-
+// Config expresses the configuration of the server, and whether to use TLS or not.
 type Config struct {
 	KeyFile, CertFile string
 	TLS               bool
