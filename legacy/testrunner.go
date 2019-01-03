@@ -25,6 +25,7 @@ const (
 type BasicServer struct {
 	CertFile string
 	KeyFile  string
+	TLS      bool
 }
 
 // TODO: run meta test.
@@ -61,13 +62,10 @@ func (s *BasicServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer ws.Close()
-	config := &testresponder.Config{}
-	if s.CertFile == "" && s.KeyFile == "" {
-		config.TLS = false
-	} else {
-		config.CertFile = s.CertFile
-		config.KeyFile = s.KeyFile
-		config.TLS = true
+	config := &testresponder.Config{
+		TLS:      s.TLS,
+		CertFile: s.CertFile,
+		KeyFile:  s.KeyFile,
 	}
 
 	message, err := protocol.ReceiveJSONMessage(ws, protocol.MsgExtendedLogin)
