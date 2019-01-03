@@ -196,7 +196,6 @@ func Test_MainIntegrationTest(t *testing.T) {
 				t.Errorf("ERROR Command: %s\nStdout: %s\nStderr: %s\n",
 					cmd, string(stdout), string(stderr))
 			}
-			t.Log(string(stdout))
 		}(testCmd.name, testCmd.cmd)
 	}
 	wg.Wait()
