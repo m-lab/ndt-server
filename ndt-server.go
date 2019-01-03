@@ -33,7 +33,7 @@ var (
 	certFile    = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile     = flag.String("key", "", "The file with server key in PEM format.")
 
-	// Metrcs for Prometheus
+	// Metrics for Prometheus
 	currentTests = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "ndt_control_current",

@@ -199,7 +199,6 @@ func Test_MainIntegrationTest(t *testing.T) {
 		}(testCmd.name, testCmd.cmd)
 	}
 	wg.Wait()
-	cancel()
 	// wg.Wait() waits until wg.Done() has been called the right number of times.
 	// But wg.Done() is called by a goroutine as it exits, so if we proceed
 	// immediately we might spuriously measure that there are too many goroutines
@@ -209,6 +208,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 	// exiting.
 	time.Sleep(100 * time.Millisecond)
 	after := runtime.NumGoroutine()
+	cancel()
 	if before != after {
 		stack := make([]byte, 10000)
 		runtime.Stack(stack, true)
