@@ -16,6 +16,12 @@ const (
 	Ready = float64(-1)
 )
 
+// Config expresses the configuration of the server, and whether to use TLS or not.
+type Config struct {
+	KeyFile, CertFile string
+	TLS               bool
+}
+
 // TestResponder coordinates synchronization between the main control loop and subtests.
 type TestResponder struct {
 	Response chan float64
@@ -24,6 +30,7 @@ type TestResponder struct {
 	S        *http.Server
 	Ctx      context.Context
 	Cancel   context.CancelFunc
+	Config   *Config
 }
 
 // MakeNdtUpgrader creates a websocket Upgrade for the NDT legacy
@@ -51,9 +58,9 @@ func listenRandom() (net.Listener, int, error) {
 	return tcplistener.RawListener{TCPListener: ln}, port, nil
 }
 
-// StartTLSAsync allocates a new TLS HTTP server listening on a random port. The
+// StartAsync allocates a new TLS HTTP server listening on a random port. The
 // server can be stopped again using TestResponder.Close().
-func (tr *TestResponder) StartTLSAsync(mux *http.ServeMux, msg, certFile, keyFile string) error {
+func (tr *TestResponder) StartAsync(mux *http.ServeMux, msg string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	tr.Ctx = ctx
 	tr.Cancel = cancel
@@ -68,9 +75,14 @@ func (tr *TestResponder) StartTLSAsync(mux *http.ServeMux, msg, certFile, keyFil
 	tr.S = &http.Server{Handler: mux}
 	go func() {
 		log.Printf("%s: Serving for test on %s", msg, ln.Addr())
-		err := tr.S.ServeTLS(ln, certFile, keyFile)
+		var err error
+		if tr.Config.TLS {
+			err = tr.S.ServeTLS(ln, tr.Config.CertFile, tr.Config.KeyFile)
+		} else {
+			err = tr.S.Serve(ln)
+		}
 		if err != nil && err != http.ErrServerClosed {
-			log.Printf("ERROR: %s Starting TLS server: %s", msg, err)
+			log.Printf("ERROR: %s Starting server: %s", msg, err)
 		}
 	}()
 	return nil

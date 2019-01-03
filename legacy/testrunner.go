@@ -21,10 +21,11 @@ const (
 	cTestStatus = 16
 )
 
-// Server contains everything needed to start a new server on a random port.
-type Server struct {
+// BasicServer contains everything needed to start a new server on a random port.
+type BasicServer struct {
 	CertFile string
 	KeyFile  string
+	TLS      bool
 }
 
 // TODO: run meta test.
@@ -51,8 +52,9 @@ func runMetaTest(ws *websocket.Conn) {
 // ServeHTTP is the command channel for the NDT-WS test. All subsequent client
 // communication is synchronized with this method. Returning closes the
 // websocket connection, so only occurs after all tests complete or an
-// unrecoverable error.
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// unrecoverable error. It is called ServeHTTP to make sure that the Server
+// implements the http.Handler interface.
+func (s *BasicServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	upgrader := testresponder.MakeNdtUpgrader([]string{"ndt"})
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -60,6 +62,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer ws.Close()
+	config := &testresponder.Config{
+		TLS:      s.TLS,
+		CertFile: s.CertFile,
+		KeyFile:  s.KeyFile,
+	}
 
 	message, err := protocol.ReceiveJSONMessage(ws, protocol.MsgExtendedLogin)
 	if err != nil {
@@ -92,7 +99,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var c2sRate, s2cRate float64
 	if runC2s {
-		c2sRate, err = c2s.ManageTest(ws, s.CertFile, s.KeyFile)
+		c2sRate, err = c2s.ManageTest(ws, config)
 		if err != nil {
 			log.Println("ERROR: manageC2sTest", err)
 		} else {
@@ -100,7 +107,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if runS2c {
-		s2cRate, err = s2c.ManageTest(ws, s.CertFile, s.KeyFile)
+		s2cRate, err = s2c.ManageTest(ws, config)
 		if err != nil {
 			log.Println("ERROR: manageS2cTest", err)
 		} else {

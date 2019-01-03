@@ -74,12 +74,13 @@ func (tr *Responder) recvC2SUntil(ws *websocket.Conn) float64 {
 }
 
 // ManageTest manages the c2s test lifecycle.
-func ManageTest(ws *websocket.Conn, certFile, keyFile string) (float64, error) {
+func ManageTest(ws *websocket.Conn, config *testresponder.Config) (float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	// Create a testResponder instance.
 	testResponder := &Responder{}
+	testResponder.Config = config
 
 	// Create a TLS server for running the C2S test.
 	serveMux := http.NewServeMux()
@@ -87,7 +88,7 @@ func ManageTest(ws *websocket.Conn, certFile, keyFile string) (float64, error) {
 		promhttp.InstrumentHandlerCounter(
 			metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": "c2s"}),
 			http.HandlerFunc(testResponder.TestServer)))
-	err := testResponder.StartTLSAsync(serveMux, "C2S", certFile, keyFile)
+	err := testResponder.StartAsync(serveMux, "C2S")
 	if err != nil {
 		return 0, err
 	}
