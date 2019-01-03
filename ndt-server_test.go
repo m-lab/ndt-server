@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/m-lab/go/osx"
-
 	"github.com/m-lab/go/rtx"
 
 	pipe "gopkg.in/m-lab/pipe.v3"
@@ -34,7 +33,7 @@ func getOpenPorts(n int) []string {
 	return ports
 }
 
-func SetupMain() func() {
+func setupMain() func() {
 	cleanups := []func(){}
 
 	// Create self-signed certs in a temp directory.
@@ -77,7 +76,7 @@ func SetupMain() func() {
 
 func Test_ContextCancelsMain(t *testing.T) {
 	// Set up certs and the environment vars for the commandline.
-	cleanup := SetupMain()
+	cleanup := setupMain()
 	defer cleanup()
 
 	// Set up the global context for main()
@@ -101,7 +100,7 @@ func Test_ContextCancelsMain(t *testing.T) {
 
 func Test_MainIntegrationTest(t *testing.T) {
 	// Set up certs and the environment vars for the commandline.
-	cleanup := SetupMain()
+	cleanup := setupMain()
 	defer cleanup()
 
 	// Set up the global context for main()
@@ -208,7 +207,6 @@ func Test_MainIntegrationTest(t *testing.T) {
 	// exiting.
 	time.Sleep(100 * time.Millisecond)
 	after := runtime.NumGoroutine()
-	cancel()
 	if before != after {
 		stack := make([]byte, 10000)
 		runtime.Stack(stack, true)
