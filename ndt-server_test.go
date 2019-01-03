@@ -138,7 +138,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsPort + " --protocol=ws --tests=22",
 		},
-		/*{
+		{
 			// Start both tests, but kill the client during the upload test.
 			// This causes the server to wait for a test that never comes. After the
 			// timeout, the server should have cleaned up all outstanding goroutines.
@@ -147,7 +147,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 				" --port=" + wsPort +
 				" --protocol=ws --abort-c2s-early --tests=22 & " +
 				"sleep 25",
-		},*/
+		},
 		// Test WSS clients with the legacy protocol.
 		{
 			name: "Upload legacy WSS",
@@ -164,7 +164,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=22",
 		},
-		/*{
+		{
 			// Start both tests, but kill the client during the upload test.
 			// This causes the server to wait for a test that never comes. After the
 			// timeout, the server should have cleaned up all outstanding goroutines.
@@ -173,7 +173,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 				" --port=" + wssPort +
 				" --protocol=wss --acceptinvalidcerts --abort-c2s-early --tests=22 & " +
 				"sleep 25",
-		},*/
+		},
 		// Test NDT7 clients
 		{
 			name: "Test the ndt7 protocol",
