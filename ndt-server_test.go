@@ -182,7 +182,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 	}
 
 	go main()
-	time.Sleep(1) // Give main a little time to grab all the ports and start listening.
+	time.Sleep(1 * time.Second) // Give main a little time to grab all the ports and start listening.
 
 	before := runtime.NumGoroutine()
 	wg := sync.WaitGroup{}
