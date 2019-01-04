@@ -1,13 +1,17 @@
 package legacy
 
 import (
+	"bufio"
+	"context"
 	"fmt"
+	"io"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 
-	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/legacy/c2s"
 	"github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
@@ -26,10 +30,12 @@ type BasicServer struct {
 	CertFile string
 	KeyFile  string
 	TLS      bool
+	HTTPAddr string
+	Raw      bool
 }
 
 // TODO: run meta test.
-func runMetaTest(ws *websocket.Conn) {
+func runMetaTest(ws protocol.Connection) {
 	var err error
 	var message *protocol.JSONMessage
 
@@ -49,26 +55,31 @@ func runMetaTest(ws *websocket.Conn) {
 	protocol.SendJSONMessage(protocol.TestFinalize, "", ws)
 }
 
-// ServeHTTP is the command channel for the NDT-WS test. All subsequent client
-// communication is synchronized with this method. Returning closes the
-// websocket connection, so only occurs after all tests complete or an
-// unrecoverable error. It is called ServeHTTP to make sure that the Server
+// ServeHTTP is the command channel for the NDT-WS or NDT-WSS test. All
+// subsequent client communication is synchronized with this method. Returning
+// closes the websocket connection, so only occurs after all tests complete or
+// an unrecoverable error. It is called ServeHTTP to make sure that the Server
 // implements the http.Handler interface.
 func (s *BasicServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	upgrader := testresponder.MakeNdtUpgrader([]string{"ndt"})
-	ws, err := upgrader.Upgrade(w, r, nil)
+	wsc, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("ERROR SERVER:", err)
 		return
 	}
+	ws := protocol.AdaptWsConn(wsc)
 	defer ws.Close()
+	s.HandleControlChannel(ws)
+}
+
+func (s *BasicServer) HandleControlChannel(conn protocol.Connection) {
 	config := &testresponder.Config{
 		TLS:      s.TLS,
 		CertFile: s.CertFile,
 		KeyFile:  s.KeyFile,
 	}
 
-	message, err := protocol.ReceiveJSONMessage(ws, protocol.MsgExtendedLogin)
+	message, err := protocol.ReceiveJSONMessage(conn, protocol.MsgExtendedLogin)
 	if err != nil {
 		log.Println("Error reading JSON message:", err)
 		return
@@ -79,7 +90,7 @@ func (s *BasicServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if (tests & cTestStatus) == 0 {
-		log.Println("We don't support clients that don't support cTestStatus")
+		log.Println("We don't support clients that don't support TestStatus")
 		return
 	}
 	testsToRun := []string{}
@@ -93,13 +104,13 @@ func (s *BasicServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestS2C))
 	}
 
-	protocol.SendJSONMessage(protocol.SrvQueue, "0", ws)
-	protocol.SendJSONMessage(protocol.MsgLogin, "v5.0-NDTinGO", ws)
-	protocol.SendJSONMessage(protocol.MsgLogin, strings.Join(testsToRun, " "), ws)
+	protocol.SendJSONMessage(protocol.SrvQueue, "0", conn)
+	protocol.SendJSONMessage(protocol.MsgLogin, "v5.0-NDTinGO", conn)
+	protocol.SendJSONMessage(protocol.MsgLogin, strings.Join(testsToRun, " "), conn)
 
 	var c2sRate, s2cRate float64
 	if runC2s {
-		c2sRate, err = c2s.ManageTest(ws, config)
+		c2sRate, err = c2s.ManageTest(conn, config)
 		if err != nil {
 			log.Println("ERROR: manageC2sTest", err)
 		} else {
@@ -107,14 +118,84 @@ func (s *BasicServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if runS2c {
-		s2cRate, err = s2c.ManageTest(ws, config)
+		s2cRate, err = s2c.ManageTest(conn, config)
 		if err != nil {
 			log.Println("ERROR: manageS2cTest", err)
 		} else {
 			metrics.TestRate.WithLabelValues("s2c").Observe(s2cRate / 1000.0)
 		}
 	}
-	log.Printf("NDT: %s uploaded at %.4f and downloaded at %.4f", r.RemoteAddr, c2sRate, s2cRate)
-	protocol.SendJSONMessage(protocol.MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate, s2cRate), ws)
-	protocol.SendJSONMessage(protocol.MsgLogout, "", ws)
+	log.Printf("NDT: uploaded at %.4f and downloaded at %.4f", c2sRate, s2cRate)
+	protocol.SendJSONMessage(protocol.MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate, s2cRate), conn)
+	protocol.SendJSONMessage(protocol.MsgLogout, "", conn)
+
+}
+
+func (s *BasicServer) SniffThenHandle(conn net.Conn) {
+	// Peek at the first three bytes. If they are "GET", then this is an HTTP
+	// conversation and should be forwarded to the HTTP server.
+	input := bufio.NewReader(conn)
+	lead, err := input.Peek(3)
+	if err != nil {
+		log.Println("Could not handle connection", conn)
+		return
+	}
+	if string(lead) == "GET" {
+		// Forward HTTP-like handshakes to the HTTP server. Note that this does NOT
+		// introduce overhead for the s2c and c2s tests, because in those tests the
+		// HTTP server itself opens the testing port, and that server will not use
+		// this TCP proxy.
+		fwd, err := net.Dial("tcp", s.HTTPAddr)
+		if err != nil {
+			log.Println("Could not forward connection", err)
+			return
+		}
+		wg := sync.WaitGroup{}
+		wg.Add(2)
+		// Copy the input channel.
+		go func() {
+			io.Copy(fwd, input)
+			wg.Done()
+		}()
+		// Copy the ouput channel.
+		go func() {
+			io.Copy(conn, fwd)
+			wg.Done()
+		}()
+		// When both Copy calls are done, close everything.
+		go func() {
+			wg.Wait()
+			conn.Close()
+			fwd.Close()
+		}()
+		return
+	}
+	// If there was no error and there was no GET, then this should be treated as a
+	// legitimate attempt to perform a non-ws-based NDT test.
+	s.HandleControlChannel(protocol.AdaptNetConn(conn))
+}
+
+func (s *BasicServer) ListenAndServeRawAsync(ctx context.Context, addr string) error {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	// Close the listener when the context is canceled. We do this in a separate
+	// goroutine to ensure that context cancellation interrupts the Accept() call.
+	go func() {
+		<-ctx.Done()
+		ln.Close()
+	}()
+	// Serve requests until the context is canceled.
+	go func() {
+		for ctx.Err() == nil {
+			conn, err := ln.Accept()
+			if err != nil {
+				log.Println("Failed to accept connection:", err)
+				continue
+			}
+			go s.SniffThenHandle(conn)
+		}
+	}()
+	return nil
 }

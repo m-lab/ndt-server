@@ -3,6 +3,8 @@ package protocol
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -35,16 +37,108 @@ const (
 	MsgExtendedLogin = MessageType(11)
 )
 
-// Connection is a general system over which we might be able to read an NDT message.
-// It contains a subset of the methods of websocket.Conn, in order to allow non-websocket-based NDT tests in support of legacy clients.
-// Every websocket.Conn already implements Connection.
+// Connection is a general system over which we might be able to read an NDT
+// message. It contains a subset of the methods of websocket.Conn, in order to
+// allow non-websocket-based NDT tests in support of legacy clients, along with
+// the new methods "DrainUntil" and "FillUntil".
 type Connection interface {
 	ReadMessage() (_ int, p []byte, err error) // The first value in the returned tuple should be ignored. It is included in the API for websocket.Conn compatibility.
 	WriteMessage(messageType int, data []byte) error
+	DrainUntil(t time.Time) (bytesRead int64, err error)
+	FillUntil(t time.Time, buffer []byte) (bytesWritten int64, err error)
+	Close() error
 }
 
-// ReadMessage reads a single NDT message out of the connection.
-func ReadMessage(ws Connection, expectedType MessageType) ([]byte, error) {
+// wsConnection wraps a websocket connection to allow it to be used as a
+// Connection.
+type wsConnection struct {
+	*websocket.Conn
+}
+
+// AdaptWsConn turns a websocket Connection into a protcol.Connection.
+func AdaptWsConn(ws *websocket.Conn) Connection {
+	return &wsConnection{ws}
+}
+
+func (ws *wsConnection) DrainUntil(t time.Time) (bytesRead int64, err error) {
+	for time.Now().Before(t) {
+		_, buffer, err := ws.ReadMessage()
+		if err != nil {
+			return bytesRead, err
+		}
+		bytesRead += int64(len(buffer))
+	}
+	return bytesRead, nil
+}
+
+func (ws *wsConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64, err error) {
+	messageToSend, err := websocket.NewPreparedMessage(websocket.BinaryMessage, bytes)
+	if err != nil {
+		return 0, err
+	}
+	for time.Now().Before(t) {
+		err := ws.WritePreparedMessage(messageToSend)
+		if err != nil {
+			return bytesWritten, err
+		}
+		bytesWritten += int64(len(bytes))
+	}
+	return bytesWritten, nil
+}
+
+// netConnection is a utility struct that allows us to use OS sockets and
+// Websockets using the same set of methods.
+type netConnection struct {
+	net.Conn
+}
+
+func (nc *netConnection) ReadMessage() (int, []byte, error) {
+	firstThree := make([]byte, 3)
+	_, err := nc.Read(firstThree)
+	if err != nil {
+		return 0, []byte{}, err
+	}
+	size := int64(firstThree[1])<<8 + int64(firstThree[2])
+	bytes := make([]byte, size)
+	_, err = nc.Read(bytes)
+	return 0, append(firstThree, bytes...), err
+}
+
+func (nc *netConnection) WriteMessage(_messageType int, data []byte) error {
+	// _messageType is ignored because it is meaningless for a net.Conn
+	_, err := nc.Write(data)
+	return err
+}
+
+func (nc *netConnection) DrainUntil(t time.Time) (bytesRead int64, err error) {
+	buff := make([]byte, 8192)
+	for time.Now().Before(t) {
+		n, err := nc.Read(buff)
+		if err != nil {
+			return bytesRead, err
+		}
+		bytesRead += int64(n)
+	}
+	return bytesRead, nil
+}
+
+func (nc *netConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64, err error) {
+	for time.Now().Before(t) {
+		n, err := nc.Write(bytes)
+		if err != nil {
+			return bytesWritten, err
+		}
+		bytesWritten += int64(n)
+	}
+	return bytesWritten, nil
+}
+
+func AdaptNetConn(conn net.Conn) Connection {
+	return &netConnection{conn}
+}
+
+// ReadNDTMessage reads a single NDT message out of the connection.
+func ReadNDTMessage(ws Connection, expectedType MessageType) ([]byte, error) {
 	_, inbuff, err := ws.ReadMessage()
 	if err != nil {
 		return nil, err
@@ -61,8 +155,8 @@ func ReadMessage(ws Connection, expectedType MessageType) ([]byte, error) {
 	return inbuff[3:], nil
 }
 
-// WriteMessage write a single NDT message to the connection.
-func WriteMessage(ws Connection, msgType MessageType, msg fmt.Stringer) error {
+// WriteNDTMessage write a single NDT message to the connection.
+func WriteNDTMessage(ws Connection, msgType MessageType, msg fmt.Stringer) error {
 	message := msg.String()
 	outbuff := make([]byte, 3+len(message))
 	outbuff[0] = byte(msgType)
@@ -91,7 +185,7 @@ func (n *JSONMessage) String() string {
 // ReceiveJSONMessage reads a single NDT message in JSON format.
 func ReceiveJSONMessage(ws Connection, expectedType MessageType) (*JSONMessage, error) {
 	message := &JSONMessage{}
-	jsonString, err := ReadMessage(ws, expectedType)
+	jsonString, err := ReadNDTMessage(ws, expectedType)
 	if err != nil {
 		return nil, err
 	}
@@ -105,5 +199,5 @@ func ReceiveJSONMessage(ws Connection, expectedType MessageType) (*JSONMessage, 
 // SendJSONMessage writes a single NDT message in JSON format.
 func SendJSONMessage(msgType MessageType, msg string, ws Connection) error {
 	message := &JSONMessage{Msg: msg}
-	return WriteMessage(ws, msgType, message)
+	return WriteNDTMessage(ws, msgType, message)
 }

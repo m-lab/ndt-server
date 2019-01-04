@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/testresponder"
@@ -24,12 +23,13 @@ type Responder struct {
 // TestServer performs the NDT c2s test.
 func (tr *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
 	upgrader := testresponder.MakeNdtUpgrader([]string{"c2s"})
-	ws, err := upgrader.Upgrade(w, r, nil)
+	wsc, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		// Upgrade should have already returned an HTTP error code.
 		log.Println("ERROR C2S: upgrader", err)
 		return
 	}
+	ws := protocol.AdaptWsConn(wsc)
 	defer ws.Close()
 	tr.Response <- testresponder.Ready
 	bytesPerSecond := tr.recvC2SUntil(ws)
@@ -42,22 +42,18 @@ func (tr *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
 	_ = tr.recvC2SUntil(ws)
 }
 
-func (tr *Responder) recvC2SUntil(ws *websocket.Conn) float64 {
+func (tr *Responder) recvC2SUntil(ws protocol.Connection) float64 {
 	done := make(chan float64)
 
 	go func() {
-		totalBytes := float64(0)
 		startTime := time.Now()
 		endTime := startTime.Add(10 * time.Second)
-		for time.Now().Before(endTime) {
-			_, buffer, err := ws.ReadMessage()
-			if err != nil {
-				tr.Cancel()
-				return
-			}
-			totalBytes += float64(len(buffer))
+		totalBytes, err := ws.DrainUntil(endTime)
+		if err != nil {
+			tr.Cancel()
+			return
 		}
-		bytesPerSecond := totalBytes / float64(time.Since(startTime)/time.Second)
+		bytesPerSecond := float64(totalBytes) / float64(time.Since(startTime)/time.Second)
 		done <- bytesPerSecond
 	}()
 
@@ -74,7 +70,7 @@ func (tr *Responder) recvC2SUntil(ws *websocket.Conn) float64 {
 }
 
 // ManageTest manages the c2s test lifecycle.
-func ManageTest(ws *websocket.Conn, config *testresponder.Config) (float64, error) {
+func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 

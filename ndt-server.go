@@ -30,7 +30,8 @@ var (
 	metricsPort = flag.String("metrics_port", ":9090", "The address and port to use for prometheus metrics")
 	ndt7Port    = flag.String("ndt7_port", ":443", "The address and port to use for the ndt7 test")
 	ndtPort     = flag.String("legacy_port", ":3001", "The address and port to use for the unencrypted legacy NDT test")
-	ndtTLSPort  = flag.String("legacy_tls_port", ":3010", "The address and port to use for the legacy NDT test over TLS")
+	ndtWsPort   = flag.String("legacy_ws_port", ":3002", "The address and port to use for the legacy NDT WS test")
+	ndtTLSPort  = flag.String("legacy_wss_port", ":3010", "The address and port to use for the legacy NDT WSS test")
 	certFile    = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile     = flag.String("key", "", "The file with server key in PEM format.")
 	dataDir     = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
@@ -129,8 +130,16 @@ func main() {
 		}),
 		"Could not start metric server")
 
-	// The legacy protocol serving WS-based tests.
-	// TODO: Add protocol-sniffing support for non-WS tests.
+	// The legacy protocol serving non-HTTP-based tests - forwards to WS-based
+	// server if the first three bytes are "GET".
+	legacyRawServer := legacy.BasicServer{
+		HTTPAddr: *ndtWsPort,
+		Raw:      true,
+	}
+	rtx.Must(legacyRawServer.ListenAndServeRawAsync(ctx, *ndtPort), "Could not start raw server")
+
+	// The legacy protocol serving WS-based tests. Most clients are hard-coded to
+	// connect to the raw server, which will forward things along.
 	legacyLabel := prometheus.Labels{"type": "legacy_ws"}
 	legacyMux := http.NewServeMux()
 	legacyMux.HandleFunc("/", defaultHandler)
@@ -143,7 +152,7 @@ func main() {
 				testDuration.MustCurryWith(legacyLabel),
 				&legacy.BasicServer{TLS: false})))
 	legacyServer := &http.Server{
-		Addr:    *ndtPort,
+		Addr:    *ndtWsPort,
 		Handler: logging.MakeAccessLogHandler(legacyMux),
 	}
 	log.Println("About to listen for unencrypted legacy NDT tests on " + *ndtPort)

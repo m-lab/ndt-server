@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/testresponder"
@@ -36,46 +35,38 @@ func (n *Result) String() string {
 // TestServer performs the NDT s2c test.
 func (s2c *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
 	upgrader := testresponder.MakeNdtUpgrader([]string{"s2c"})
-	ws, err := upgrader.Upgrade(w, r, nil)
+	wsc, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		// Upgrade should have already returned an HTTP error code.
 		log.Println("ERROR S2C: upgrader", err)
 		return
 	}
+	ws := protocol.AdaptWsConn(wsc)
 	defer ws.Close()
 	dataToSend := make([]byte, 81920)
 	for i := range dataToSend {
 		dataToSend[i] = byte(((i * 101) % (122 - 33)) + 33)
 	}
-	messageToSend, err := websocket.NewPreparedMessage(websocket.BinaryMessage, dataToSend)
-	if err != nil {
-		log.Println("ERROR S2C: Could not make prepared message:", err)
-		return
-	}
 
 	// Signal control channel that we are about to start the test.
 	s2c.Response <- testresponder.Ready
-	s2c.Response <- s2c.sendUntil(ws, messageToSend, len(dataToSend))
+	s2c.Response <- s2c.sendUntil(ws, dataToSend)
 }
 
-func (s2c *Responder) sendUntil(ws *websocket.Conn, msg *websocket.PreparedMessage, dataLen int) float64 {
+func (s2c *Responder) sendUntil(ws protocol.Connection, msg []byte) float64 {
 	// Create ticker to enforce timeout on
 	done := make(chan float64)
 
 	go func() {
-		totalBytes := float64(0)
 		startTime := time.Now()
 		endTime := startTime.Add(10 * time.Second)
-		for time.Now().Before(endTime) {
-			err := ws.WritePreparedMessage(msg)
-			if err != nil {
-				log.Println("ERROR S2C: sending message", err)
-				s2c.Cancel()
-				return
-			}
-			totalBytes += float64(dataLen)
+		totalBytes, err := ws.FillUntil(endTime, msg)
+		if err != nil {
+			log.Println("ERROR S2C: sending message", err)
+			s2c.Cancel()
+			return
 		}
-		done <- totalBytes / float64(time.Since(startTime)/time.Second)
+		done <- float64(totalBytes) / float64(time.Since(startTime)/time.Second)
 	}()
 
 	log.Println("S2C: Waiting for test to complete or timeout")
@@ -91,7 +82,7 @@ func (s2c *Responder) sendUntil(ws *websocket.Conn, msg *websocket.PreparedMessa
 }
 
 // ManageTest manages the s2c test lifecycle
-func ManageTest(ws *websocket.Conn, config *testresponder.Config) (float64, error) {
+func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
@@ -132,7 +123,7 @@ func ManageTest(ws *websocket.Conn, config *testresponder.Config) (float64, erro
 			UnsentDataAmount: 0,
 			TotalSentByte:    int64(10 * s2cBytesPerSecond), // TODO: use actual bytes sent.
 		}
-		err = protocol.WriteMessage(ws, protocol.TestMsg, resultMsg)
+		err = protocol.WriteNDTMessage(ws, protocol.TestMsg, resultMsg)
 		if err != nil {
 			log.Println("S2C: Failed to write JSON message:", err)
 			cancel()

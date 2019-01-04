@@ -67,12 +67,13 @@ func setupMain() func() {
 		"Failed to generate server key and certs")
 
 	// Set up the command-line args via environment variables:
-	ports := getOpenPorts(4)
+	ports := getOpenPorts(5)
 	for _, ev := range []struct{ key, value string }{
 		{"METRICS_PORT", ports[0]},
 		{"NDT7_PORT", ports[1]},
 		{"LEGACY_PORT", ports[2]},
-		{"LEGACY_TLS_PORT", ports[3]},
+		{"LEGACY_WS_PORT", ports[3]},
+		{"LEGACY_WSS_PORT", ports[4]},
 		{"CERT", certFile},
 		{"KEY", keyFile},
 		{"DATADIR", dir},
@@ -121,8 +122,8 @@ func Test_MainIntegrationTest(t *testing.T) {
 	defer cancel()
 
 	// Get the ports but remove the leading ":"
-	wsPort := os.Getenv("LEGACY_PORT")[1:]
-	wssPort := os.Getenv("LEGACY_TLS_PORT")[1:]
+	legacyPort := os.Getenv("LEGACY_PORT")[1:]
+	wssPort := os.Getenv("LEGACY_WSS_PORT")[1:]
 	ndt7Port := os.Getenv("NDT7_PORT")[1:]
 
 	// Get the datadir
@@ -136,30 +137,31 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// data to explicitly specify this fact.
 		ignoreData bool
 	}{
-		// Test legacy clients
+		// Test legacy raw JSON clients
+		{
+			name: "Connect with web100clt",
+			cmd:  "./web100clt -n localhost -p " + legacyPort + " --disablemid --disablesfw",
+		},
+		// Test legacy WS clients
 		{
 			name: "Connect legacy WS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=16",
-			ignoreData: true,
+				" --port=" + legacyPort + " --protocol=ws --tests=16",
 		},
 		{
 			name: "Upload legacy WS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=18",
-			ignoreData: true,
+				" --port=" + legacyPort + " --protocol=ws --tests=18",
 		},
 		{
 			name: "Download legacy WS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=20",
-			ignoreData: true,
+				" --port=" + legacyPort + " --protocol=ws --tests=20",
 		},
 		{
 			name: "Upload & Download legacy WS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=22",
-			ignoreData: true,
+				" --port=" + legacyPort + " --protocol=ws --tests=22",
 		},
 		{
 			// Start both tests, but kill the client during the upload test.
@@ -167,7 +169,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 			// timeout, the server should have cleaned up all outstanding goroutines.
 			name: "Upload & Download legacy WS with S2C Timeout",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort +
+				" --port=" + legacyPort +
 				" --protocol=ws --abort-c2s-early --tests=22 & " +
 				"sleep 25",
 			ignoreData: true,
