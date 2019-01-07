@@ -27,11 +27,10 @@ const (
 
 // BasicServer contains everything needed to start a new server on a random port.
 type BasicServer struct {
-	CertFile string
-	KeyFile  string
-	TLS      bool
-	HTTPAddr string
-	Raw      bool
+	CertFile   string
+	KeyFile    string
+	ServerType testresponder.ServerType
+	HTTPAddr   string
 }
 
 // TODO: run meta test.
@@ -74,9 +73,9 @@ func (s *BasicServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *BasicServer) HandleControlChannel(conn protocol.Connection) {
 	config := &testresponder.Config{
-		TLS:      s.TLS,
-		CertFile: s.CertFile,
-		KeyFile:  s.KeyFile,
+		ServerType: s.ServerType,
+		CertFile:   s.CertFile,
+		KeyFile:    s.KeyFile,
 	}
 
 	message, err := protocol.ReceiveJSONMessage(conn, protocol.MsgExtendedLogin)
@@ -172,7 +171,16 @@ func (s *BasicServer) SniffThenHandle(conn net.Conn) {
 	}
 	// If there was no error and there was no GET, then this should be treated as a
 	// legitimate attempt to perform a non-ws-based NDT test.
-	s.HandleControlChannel(protocol.AdaptNetConn(conn))
+
+	// First, send the kickoff message (which is only sent for non-WS clients),
+	// then transition to the protocol engine where everything should be the same
+	// for TCP, WS, and WSS.
+	kickoff := "123456 654321"
+	n, err := conn.Write([]byte(kickoff))
+	if n != len(kickoff) || err != nil {
+		log.Printf("Could not write %d byte kickoff string: %d bytes written err: %v\n", len(kickoff), n, err)
+	}
+	s.HandleControlChannel(protocol.AdaptNetConn(conn, input))
 }
 
 func (s *BasicServer) ListenAndServeRawAsync(ctx context.Context, addr string) error {

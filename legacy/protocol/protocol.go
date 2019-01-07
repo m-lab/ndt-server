@@ -3,6 +3,7 @@ package protocol
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -36,6 +37,35 @@ const (
 	// MsgExtendedLogin is used to signal advanced (now required) capabilities.
 	MsgExtendedLogin = MessageType(11)
 )
+
+func (m MessageType) String() string {
+	switch m {
+	case SrvQueue:
+		return "SrvQueue"
+	case MsgLogin:
+		return "MsgLogin"
+	case TestPrepare:
+		return "TestPrepare"
+	case TestStart:
+		return "TestStart"
+	case TestMsg:
+		return "TestMsg"
+	case TestFinalize:
+		return "TestFinalize"
+	case MsgError:
+		return "MsgError"
+	case MsgResults:
+		return "MsgResults"
+	case MsgLogout:
+		return "MsgLogout"
+	case MsgWaiting:
+		return "MsgWaiting"
+	case MsgExtendedLogin:
+		return "MsgExtendedLogin"
+	default:
+		return fmt.Sprintf("UnknownMessage(0x%X)", byte(m))
+	}
+}
 
 // Connection is a general system over which we might be able to read an NDT
 // message. It contains a subset of the methods of websocket.Conn, in order to
@@ -87,20 +117,22 @@ func (ws *wsConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64
 }
 
 // netConnection is a utility struct that allows us to use OS sockets and
-// Websockets using the same set of methods.
+// Websockets using the same set of methods. Its second element is a Reader
+// because we want to allow the input channel to be buffered.
 type netConnection struct {
 	net.Conn
+	input io.Reader
 }
 
 func (nc *netConnection) ReadMessage() (int, []byte, error) {
 	firstThree := make([]byte, 3)
-	_, err := nc.Read(firstThree)
+	_, err := nc.input.Read(firstThree)
 	if err != nil {
 		return 0, []byte{}, err
 	}
 	size := int64(firstThree[1])<<8 + int64(firstThree[2])
 	bytes := make([]byte, size)
-	_, err = nc.Read(bytes)
+	_, err = nc.input.Read(bytes)
 	return 0, append(firstThree, bytes...), err
 }
 
@@ -133,8 +165,8 @@ func (nc *netConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int6
 	return bytesWritten, nil
 }
 
-func AdaptNetConn(conn net.Conn) Connection {
-	return &netConnection{conn}
+func AdaptNetConn(conn net.Conn, input io.Reader) Connection {
+	return &netConnection{conn, input}
 }
 
 // ReadNDTMessage reads a single NDT message out of the connection.
@@ -144,7 +176,7 @@ func ReadNDTMessage(ws Connection, expectedType MessageType) ([]byte, error) {
 		return nil, err
 	}
 	if MessageType(inbuff[0]) != expectedType {
-		return nil, fmt.Errorf("Read wrong message type. Wanted 0x%x, got 0x%x", expectedType, inbuff[0])
+		return nil, fmt.Errorf("Read wrong message type. Wanted %s, got %s", expectedType, MessageType(inbuff[0]))
 	}
 	// Verify that the expected length matches the given data.
 	expectedLen := int(inbuff[1])<<8 + int(inbuff[2])

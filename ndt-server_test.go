@@ -140,7 +140,8 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// Test legacy raw JSON clients
 		{
 			name: "Connect with web100clt",
-			cmd:  "./web100clt -n localhost -p " + legacyPort + " --disablemid --disablesfw",
+			cmd: "docker run -i --net=host pboothe/test-runner " +
+				"/ndt/src/web100clt --name localhost --port " + legacyPort + " --disablemid --disablesfw",
 		},
 		// Test legacy WS clients
 		{

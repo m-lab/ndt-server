@@ -22,9 +22,9 @@ type Responder struct {
 
 // Result is the result object returned to S2C clients as JSON.
 type Result struct {
-	ThroughputValue  float64
-	UnsentDataAmount int64
-	TotalSentByte    int64
+	ThroughputValue  string
+	UnsentDataAmount string
+	TotalSentByte    string
 }
 
 func (n *Result) String() string {
@@ -32,8 +32,8 @@ func (n *Result) String() string {
 	return string(b)
 }
 
-// TestServer performs the NDT s2c test.
-func (s2c *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
+// websocketHandler performs the NDT s2c test.
+func (s2c *Responder) websocketHandler(w http.ResponseWriter, r *http.Request) {
 	upgrader := testresponder.MakeNdtUpgrader([]string{"s2c"})
 	wsc, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -42,7 +42,10 @@ func (s2c *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ws := protocol.AdaptWsConn(wsc)
-	defer ws.Close()
+	s2c.PerformTest(ws)
+}
+
+func (s2c *Responder) PerformTest(ws protocol.Connection) {
 	dataToSend := make([]byte, 81920)
 	for i := range dataToSend {
 		dataToSend[i] = byte(((i * 101) % (122 - 33)) + 33)
@@ -50,17 +53,14 @@ func (s2c *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
 
 	// Signal control channel that we are about to start the test.
 	s2c.Response <- testresponder.Ready
-	s2c.Response <- s2c.sendUntil(ws, dataToSend)
-}
 
-func (s2c *Responder) sendUntil(ws protocol.Connection, msg []byte) float64 {
 	// Create ticker to enforce timeout on
 	done := make(chan float64)
 
 	go func() {
 		startTime := time.Now()
 		endTime := startTime.Add(10 * time.Second)
-		totalBytes, err := ws.FillUntil(endTime, msg)
+		totalBytes, err := ws.FillUntil(endTime, dataToSend)
 		if err != nil {
 			log.Println("ERROR S2C: sending message", err)
 			s2c.Cancel()
@@ -73,17 +73,18 @@ func (s2c *Responder) sendUntil(ws protocol.Connection, msg []byte) float64 {
 	select {
 	case <-s2c.Ctx.Done():
 		log.Println("S2C: Context Done!", s2c.Ctx.Err())
-		ws.Close()
 		// Return zero on error.
-		return 0
+		s2c.Response <- 0
 	case bytesPerSecond := <-done:
-		return bytesPerSecond
+		log.Println("S2C: Ran test and measured a download speed of", bytesPerSecond)
+		s2c.Response <- bytesPerSecond
 	}
+	ws.Close()
 }
 
 // ManageTest manages the s2c test lifecycle
 func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// Create a testResponder instance.
@@ -95,8 +96,8 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 	serveMux.HandleFunc("/ndt_protocol",
 		promhttp.InstrumentHandlerCounter(
 			metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": "s2c"}),
-			http.HandlerFunc(testResponder.TestServer)))
-	err := testResponder.StartAsync(serveMux, "S2C")
+			http.HandlerFunc(testResponder.websocketHandler)))
+	err := testResponder.StartAsync(serveMux, testResponder.PerformTest, "S2C")
 	if err != nil {
 		return 0, err
 	}
@@ -119,9 +120,9 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 
 		// Send additional download results to the client.
 		resultMsg := &Result{
-			ThroughputValue:  s2cKbps,
-			UnsentDataAmount: 0,
-			TotalSentByte:    int64(10 * s2cBytesPerSecond), // TODO: use actual bytes sent.
+			ThroughputValue:  strconv.FormatInt(int64(s2cKbps), 10),
+			UnsentDataAmount: "0",
+			TotalSentByte:    strconv.FormatInt(int64(10*s2cBytesPerSecond), 10), // TODO: use actual bytes sent.
 		}
 		err = protocol.WriteNDTMessage(ws, protocol.TestMsg, resultMsg)
 		if err != nil {
