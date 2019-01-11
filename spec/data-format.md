@@ -1,6 +1,6 @@
 # Data format
 
-This specification describes how ndt-cloud serializes ndt7 data
+This specification describes how ndt-server serializes ndt7 data
 on disk. Other implementations of the ndt7 protocol MAY use other
 data serialization formats.
 
@@ -43,7 +43,7 @@ A valid JSON metadata document could look like this:
   "client_library_name":"libndt7.js",
   "client_library_version":"0.4",
   "server_local_endpoint":"127.0.0.1:443",
-  "server_name":"ndt-cloud",
+  "server_name":"ndt-server",
   "server_remote_endpoint":"127.0.0.1:58142",
   "server_subtest": "download",
   "server_version":"v0.4.0-beta.2-26-ga90a780"

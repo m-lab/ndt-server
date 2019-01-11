@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-cloud/legacy/tcplistener"
+	"github.com/m-lab/ndt-server/legacy/tcplistener"
 )
 
 // Message constants for use in their respective channels

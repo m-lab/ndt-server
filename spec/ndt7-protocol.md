@@ -171,5 +171,5 @@ that this allows also 32 bit systems to handle such variables easily.
 
 # Reference implementation
 
-The reference implementation is [github.com/m-lab/ndt-cloud](
-https://github.com/m-lab/ndt-cloud).
+The reference implementation is [github.com/m-lab/ndt-server](
+https://github.com/m-lab/ndt-server).

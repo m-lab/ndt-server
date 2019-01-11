@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-cloud/logging"
-	"github.com/m-lab/ndt-cloud/ndt7/model"
-	"github.com/m-lab/ndt-cloud/ndt7/server/results"
-	"github.com/m-lab/ndt-cloud/ndt7/spec"
-	"github.com/m-lab/ndt-cloud/bbr"
-	"github.com/m-lab/ndt-cloud/fdcache"
-	"github.com/m-lab/ndt-cloud/tcpinfox"
+	"github.com/m-lab/ndt-server/logging"
+	"github.com/m-lab/ndt-server/ndt7/model"
+	"github.com/m-lab/ndt-server/ndt7/server/results"
+	"github.com/m-lab/ndt-server/ndt7/spec"
+	"github.com/m-lab/ndt-server/bbr"
+	"github.com/m-lab/ndt-server/fdcache"
+	"github.com/m-lab/ndt-server/tcpinfox"
 )
 
 // defaultTimeout is the default value of the I/O timeout.

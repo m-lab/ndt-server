@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-cloud/ndt7/model"
+	"github.com/m-lab/ndt-server/ndt7/model"
 )
 
 // File is the file where we save measurements.

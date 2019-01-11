@@ -8,11 +8,11 @@ import (
 	"strings"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-cloud/legacy/c2s"
-	"github.com/m-lab/ndt-cloud/legacy/metrics"
-	"github.com/m-lab/ndt-cloud/legacy/protocol"
-	"github.com/m-lab/ndt-cloud/legacy/s2c"
-	"github.com/m-lab/ndt-cloud/legacy/testresponder"
+	"github.com/m-lab/ndt-server/legacy/c2s"
+	"github.com/m-lab/ndt-server/legacy/metrics"
+	"github.com/m-lab/ndt-server/legacy/protocol"
+	"github.com/m-lab/ndt-server/legacy/s2c"
+	"github.com/m-lab/ndt-server/legacy/testresponder"
 )
 
 const (

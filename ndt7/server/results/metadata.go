@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"regexp"
 
-	"github.com/m-lab/ndt-cloud/version"
+	"github.com/m-lab/ndt-server/version"
 )
 
 // metadata contains ndt7 metadata.
@@ -27,7 +27,7 @@ func initMetadata(m *metadata, localEpnt, remoteEpnt string, values url.Values, 
 		}
 		(*m)[k] = v[0]
 	}
-	(*m)["server_name"] = "ndt-cloud"
+	(*m)["server_name"] = "ndt-server"
 	(*m)["server_version"] = version.Version
 	(*m)["server_local_endpoint"] = localEpnt
 	(*m)["server_remote_endpoint"] = remoteEpnt

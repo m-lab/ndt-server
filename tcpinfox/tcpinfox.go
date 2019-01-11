@@ -5,7 +5,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/m-lab/ndt-cloud/ndt7/model"
+	"github.com/m-lab/ndt-server/ndt7/model"
 )
 
 // ErrNoSupport is returned on systems that do not support TCP_INFO.
