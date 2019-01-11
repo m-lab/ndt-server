@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/apex/log"
-	"github.com/m-lab/ndt-cloud/ndt7"
+	"github.com/m-lab/ndt-server/ndt7"
 )
 
 var hostname = flag.String("hostname", "localhost", "Host to connect to")

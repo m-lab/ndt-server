@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"regexp"
 
-	"github.com/m-lab/ndt-cloud/version"
+	"github.com/m-lab/ndt-server/version"
 )
 
 // metadata contains ndt7 metadata.

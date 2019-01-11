@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/apex/log"
-	"github.com/m-lab/ndt-cloud/ndt7/model"
-	"github.com/m-lab/ndt-cloud/ndt7/spec"
+	"github.com/m-lab/ndt-server/ndt7/model"
+	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/gorilla/websocket"
 )
 

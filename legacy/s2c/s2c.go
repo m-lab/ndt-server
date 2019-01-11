@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-cloud/legacy/metrics"
-	"github.com/m-lab/ndt-cloud/legacy/protocol"
-	"github.com/m-lab/ndt-cloud/legacy/testresponder"
+	"github.com/m-lab/ndt-server/legacy/metrics"
+	"github.com/m-lab/ndt-server/legacy/protocol"
+	"github.com/m-lab/ndt-server/legacy/testresponder"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )

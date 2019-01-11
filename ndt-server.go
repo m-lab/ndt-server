@@ -15,10 +15,10 @@ import (
 	"github.com/m-lab/go/httpx"
 	"github.com/m-lab/go/rtx"
 
-	"github.com/m-lab/ndt-cloud/legacy"
-	"github.com/m-lab/ndt-cloud/logging"
-	"github.com/m-lab/ndt-cloud/ndt7/server/download"
-	"github.com/m-lab/ndt-cloud/ndt7/spec"
+	"github.com/m-lab/ndt-server/legacy"
+	"github.com/m-lab/ndt-server/logging"
+	"github.com/m-lab/ndt-server/ndt7/server/download"
+	"github.com/m-lab/ndt-server/ndt7/spec"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

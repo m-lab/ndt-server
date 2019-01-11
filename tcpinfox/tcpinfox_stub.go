@@ -5,7 +5,7 @@ package tcpinfox
 import (
 	"os"
 
-	"github.com/m-lab/ndt-cloud/ndt7/model"
+	"github.com/m-lab/ndt-server/ndt7/model"
 )
 
 func getTCPInfo(*os.File) (model.TCPInfo, error) {
