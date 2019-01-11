@@ -1,5 +1,5 @@
 // Package logging contains data structures useful to implement logging
-// across ndt-cloud in a Docker friendly way.
+// across ndt-server in a Docker friendly way.
 package logging
 
 import (
