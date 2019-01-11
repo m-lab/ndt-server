@@ -33,7 +33,7 @@ func (n *Result) String() string {
 }
 
 // websocketHandler performs the NDT s2c test.
-func (s2c *Responder) websocketHandler(w http.ResponseWriter, r *http.Request) {
+func (responder *Responder) websocketHandler(w http.ResponseWriter, r *http.Request) {
 	upgrader := testresponder.MakeNdtUpgrader([]string{"s2c"})
 	wsc, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -42,17 +42,17 @@ func (s2c *Responder) websocketHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ws := protocol.AdaptWsConn(wsc)
-	s2c.PerformTest(ws)
+	responder.performTest(ws)
 }
 
-func (s2c *Responder) PerformTest(ws protocol.Connection) {
-	dataToSend := make([]byte, 81920)
+func (r *Responder) performTest(ws protocol.Connection) {
+	dataToSend := make([]byte, 8192)
 	for i := range dataToSend {
 		dataToSend[i] = byte(((i * 101) % (122 - 33)) + 33)
 	}
 
 	// Signal control channel that we are about to start the test.
-	s2c.Response <- testresponder.Ready
+	r.Response <- testresponder.Ready
 
 	// Create ticker to enforce timeout on
 	done := make(chan float64)
@@ -63,7 +63,7 @@ func (s2c *Responder) PerformTest(ws protocol.Connection) {
 		totalBytes, err := ws.FillUntil(endTime, dataToSend)
 		if err != nil {
 			log.Println("ERROR S2C: sending message", err)
-			s2c.Cancel()
+			r.Cancel()
 			return
 		}
 		done <- float64(totalBytes) / float64(time.Since(startTime)/time.Second)
@@ -71,15 +71,75 @@ func (s2c *Responder) PerformTest(ws protocol.Connection) {
 
 	log.Println("S2C: Waiting for test to complete or timeout")
 	select {
-	case <-s2c.Ctx.Done():
-		log.Println("S2C: Context Done!", s2c.Ctx.Err())
+	case <-r.Ctx.Done():
+		log.Println("S2C: Context Done!", r.Ctx.Err())
 		// Return zero on error.
-		s2c.Response <- 0
+		r.Response <- 0
 	case bytesPerSecond := <-done:
 		log.Println("S2C: Ran test and measured a download speed of", bytesPerSecond)
-		s2c.Response <- bytesPerSecond
+		r.Response <- bytesPerSecond
 	}
+	<-r.Response // Wait to close until we are told to close.
 	ws.Close()
+}
+
+func (r *Responder) runControlChannel(ctx context.Context, cancel context.CancelFunc, done chan float64, ws protocol.Connection) {
+	// Wait for test to run. ///////////////////////////////////////////
+	// Send the server port to the client.
+	protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(r.Port), ws)
+	// Wait for the client to connect to the test port
+	s2cReady := <-r.Response
+	if s2cReady != testresponder.Ready {
+		log.Println("ERROR S2C: Bad value received on the s2c channel", s2cReady)
+		cancel()
+		return
+	}
+	protocol.SendJSONMessage(protocol.TestStart, "", ws)
+	// Wait for the 10 seconds download test to be complete.
+	s2cBytesPerSecond := <-r.Response
+	s2cKbps := 8 * s2cBytesPerSecond / 1000.0
+
+	// Send additional download results to the client.
+	resultMsg := &Result{
+		ThroughputValue:  strconv.FormatInt(int64(s2cKbps), 10),
+		UnsentDataAmount: "0",
+		TotalSentByte:    strconv.FormatInt(int64(10*s2cBytesPerSecond), 10), // TODO: use actual bytes sent.
+	}
+	err := protocol.WriteNDTMessage(ws, protocol.TestMsg, resultMsg)
+	if err != nil {
+		log.Println("S2C: Failed to write JSON message:", err)
+		cancel()
+		return
+	}
+	// Receive the client results.
+	clientRateMsg, err := protocol.ReceiveJSONMessage(ws, protocol.TestMsg)
+	if err != nil {
+		log.Println("S2C: Failed to read JSON message:", err)
+		cancel()
+		return
+	}
+	// Send the web100vars (TODO: make these TCP_INFO vars)
+	log.Println("S2C: The client sent us:", clientRateMsg.Msg)
+	requiredWeb100Vars := []string{"MaxRTT", "MinRTT", "AckPktsIn", "CountRTT",
+		"CongestionSignals", "CurRTO", "CurMSS", "DataBytesOut", "DupAcksIn",
+		"MaxCwnd", "MaxRwinRcvd", "PktsOut", "PktsRetrans", "RcvWinScale",
+		"Sndbuf", "SndLimTimeCwnd", "SndLimTimeRwin", "SndLimTimeSender",
+		"SndWinScale", "SumRTT", "Timeouts"}
+
+	for _, web100Var := range requiredWeb100Vars {
+		protocol.SendJSONMessage(protocol.TestMsg, web100Var+": 0\n", ws)
+	}
+	protocol.SendJSONMessage(protocol.TestFinalize, "", ws)
+	r.Response <- 0.0
+	clientRate, err := strconv.ParseFloat(clientRateMsg.Msg, 64)
+	if err != nil {
+		log.Println("S2C: Bad client rate:", err)
+		cancel()
+		return
+	}
+	log.Println("S2C: server rate:", s2cKbps, "vs client rate:", clientRate)
+	done <- s2cKbps
+
 }
 
 // ManageTest manages the s2c test lifecycle
@@ -88,70 +148,23 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 	defer cancel()
 
 	// Create a testResponder instance.
-	testResponder := &Responder{}
-	testResponder.Config = config
+	responder := &Responder{}
+	responder.Config = config
 
 	// Create a TLS server for running the S2C test.
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc("/ndt_protocol",
 		promhttp.InstrumentHandlerCounter(
 			metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": "s2c"}),
-			http.HandlerFunc(testResponder.websocketHandler)))
-	err := testResponder.StartAsync(serveMux, testResponder.PerformTest, "S2C")
+			http.HandlerFunc(responder.websocketHandler)))
+	err := responder.StartAsync(serveMux, responder.performTest, "S2C")
 	if err != nil {
 		return 0, err
 	}
-	defer testResponder.Close()
+	defer responder.Close()
 
 	done := make(chan float64)
-	go func() {
-		// Wait for test to run. ///////////////////////////////////////////
-		// Send the server port to the client.
-		protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(testResponder.Port), ws)
-		s2cReady := <-testResponder.Response
-		if s2cReady != testresponder.Ready {
-			log.Println("ERROR S2C: Bad value received on the s2c channel", s2cReady)
-			cancel()
-			return
-		}
-		protocol.SendJSONMessage(protocol.TestStart, "", ws)
-		s2cBytesPerSecond := <-testResponder.Response
-		s2cKbps := 8 * s2cBytesPerSecond / 1000.0
-
-		// Send additional download results to the client.
-		resultMsg := &Result{
-			ThroughputValue:  strconv.FormatInt(int64(s2cKbps), 10),
-			UnsentDataAmount: "0",
-			TotalSentByte:    strconv.FormatInt(int64(10*s2cBytesPerSecond), 10), // TODO: use actual bytes sent.
-		}
-		err = protocol.WriteNDTMessage(ws, protocol.TestMsg, resultMsg)
-		if err != nil {
-			log.Println("S2C: Failed to write JSON message:", err)
-			cancel()
-			return
-		}
-		clientRateMsg, err := protocol.ReceiveJSONMessage(ws, protocol.TestMsg)
-		if err != nil {
-			log.Println("S2C: Failed to read JSON message:", err)
-			cancel()
-			return
-		}
-		log.Println("S2C: The client sent us:", clientRateMsg.Msg)
-		requiredWeb100Vars := []string{"MaxRTT", "MinRTT"}
-
-		for _, web100Var := range requiredWeb100Vars {
-			protocol.SendJSONMessage(protocol.TestMsg, web100Var+": 0", ws)
-		}
-		protocol.SendJSONMessage(protocol.TestFinalize, "", ws)
-		clientRate, err := strconv.ParseFloat(clientRateMsg.Msg, 64)
-		if err != nil {
-			log.Println("S2C: Bad client rate:", err)
-			cancel()
-			return
-		}
-		log.Println("S2C: server rate:", s2cKbps, "vs client rate:", clientRate)
-		done <- s2cKbps
-	}()
+	go responder.runControlChannel(ctx, cancel, done, ws)
 
 	select {
 	case <-ctx.Done():
