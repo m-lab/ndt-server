@@ -19,6 +19,7 @@ import (
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/server/download"
 	"github.com/m-lab/ndt-server/ndt7/server/listener"
+	"github.com/m-lab/ndt-server/ndt7/server/upload"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -187,6 +188,13 @@ func main() {
 			promhttp.InstrumentHandlerDuration(
 				testDuration.MustCurryWith(ndt7Label),
 				&download.Handler{DataDir: *dataDir})))
+	ndt7Mux.Handle(
+		spec.UploadURLPath,
+		promhttp.InstrumentHandlerInFlight(
+			currentTests.With(ndt7Label),
+			promhttp.InstrumentHandlerDuration(
+				testDuration.MustCurryWith(ndt7Label),
+				&upload.Handler{})))
 	ndt7Server := &http.Server{
 		Addr:    *ndt7Port,
 		Handler: logging.MakeAccessLogHandler(ndt7Mux),
