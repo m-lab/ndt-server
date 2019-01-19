@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.6.0 of the ndt7 specification.
+This is version v0.6.1 of the ndt7 specification.
 
 ## Protocol description
 
@@ -64,10 +64,10 @@ Both textual and binary WebSocket messages are allowed. Textual WebSocket
 messages will contain serialised JSON structures containing measurements
 results (see below). When downloading, the server is expected to send
 measurement to the client, and when uploading, conversely, the client is
-expected to send measurements to the server. Both parties SHOULD NOT
-send measurement results when they're not expected to. Measurements SHOULD
+expected to send measurements to the server. Measurements SHOULD
 NOT be sent more frequently than every 250 ms, to avoid generating too
-much unnecessary processing load on the receiver.
+much unnecessary processing load on the receiver. A party receiving
+too frequent measurements MAY decide to close the connection.
 
 To generate network load, the party that is currently sending (i.e. the
 server during a download subtest) MUST send, in addition to textual
@@ -75,10 +75,21 @@ WebSocket messages, binary WebSocket messages carrying a random payload;
 the receiver (i.e. the client during a download subtest) MUST discard
 these messages without processing them.
 
+As far as textual and binary messages are concerned, ndt7 subtests are
+half duplex. During the download, the client MUST NOT send any binary
+or textual message to the server. During the upload, the server MUST NOT
+send any binary or textual message to the client.
+
+Control messages, on the other hand, are always allowed. Ping messages,
+specifically, SHOULD NOT be sent more frequently than one every 250
+millisecond. A party receiving too frequent ping messages MAY decide
+to close the connection.
+
 The expected transfer time of each subtest is ten seconds (unless BBR
 is used, in which case it may be shorter, as explained below). The sender
-SHOULD stop sending after ten seconds. The receiver MAY close the
-connection if the transfer runs for more than fifteen seconds.
+(i.e. the server during the download subtest) SHOULD stop sending after
+ten seconds. The receiver (i.e. the client during the download subtest) MAY
+close the connection if the elapsed time exceeds fifteen seconds.
 
 When the expected transfer time has expired, the parties SHOULD close
 the WebSocket channel by sending a Close WebSocket frame. The client
@@ -90,9 +101,11 @@ server because we avoid the `TIME_WAIT` TCP state.
 
 If TCP BBR is available, a compliant server MAY choose to enable it
 for the client connection and terminate the download test early when
-it believes that BBR parameters become stable.
+it believes that BBR parameters become stable. Before v1.0 of this
+spec is out, we'll specify a mechanism allowing a client to opt out
+of terminating the download early.
 
-Client can detect whether BBR is enabled by checking whether the measurement
+Clients can detect whether BBR is enabled by checking whether the measurement
 returned by the server contains a `bbr_info` field (see below).
 
 ## Query string parameters
@@ -136,7 +149,6 @@ structure:
 ```
 
 Where:
-
 
 - `app_info` is an _optional_ JSON object only included in the measurement
   when an application-level measurement is available:
