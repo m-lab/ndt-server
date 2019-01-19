@@ -65,7 +65,9 @@ func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 	// remove the fp BEFORE we can steal it. In case we cannot get a file
 	// we just abort the test, as this should not happen (TM).
 	if fp == nil {
-		return nil, errors.New("cannot get file bound to websocket conn")
+		err := errors.New("cannot get file bound to websocket conn")
+		logging.Logger.WithError(err).Warn("Cannot enable BBR")
+		return nil, err
 	}
 	err := bbr.Enable(fp)
 	if err != nil {
