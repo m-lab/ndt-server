@@ -1,11 +1,13 @@
-// Package httpx provides generic functions which extend the capabilities of
-// the http package.
+// Package listener provides generic functions which extend the capabilities of
+// the http package. This is a fork of github.com/m-lab/go which is specially
+// tailored for the needs of ndt7. I believe we will want to enhance the code at
+// github.com/m-lab/go and make this code unnecessary.
 //
 // The code here eliminates an annoying race condition in net/http that prevents
 // you from knowing when it is safe to connect to the server socket. For the
 // functions in this package, the listening socket is fully estabished when the
 // function returns, and it is safe to run an HTTP GET immediately.
-package httpx
+package listener
 
 import (
 	"log"
@@ -13,6 +15,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/m-lab/ndt-server/fdcache"
 )
 
 var logFatalf = log.Fatalf
@@ -34,6 +38,19 @@ func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
 	}
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
+	fp, err := fdcache.TCPConnToFile(tc)
+	if err != nil {
+		tc.Close()
+		return nil, err
+	}
+	// Transfer ownership of |fp| to fdcache so that later we can retrieve
+	// it from the generic net.Conn object bound to a websocket.Conn. We will
+	// enable BBR at a later time and only if we really need it.
+	//
+	// Note: enabling BBR before performing the WebSocket handshake leaded
+	// to the connection being stuck. See m-lab/ndt-cloud#37
+	// <https://github.com/m-lab/ndt-cloud/issues/37>.
+	fdcache.OwnFile(tc, fp)
 	return tc, nil
 }
 
