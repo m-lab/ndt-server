@@ -102,7 +102,7 @@ server because we avoid the `TIME_WAIT` TCP state.
 If TCP BBR is available, a compliant server MAY choose to enable it
 for the client connection and terminate the download test early when
 it believes that BBR parameters become stable. Before v1.0 of this
-spec is out, we'll specify a mechanism allowing a client to opt out
+spec is out, we hope to specify a mechanism allowing a client to opt out
 of terminating the download early.
 
 Clients can detect whether BBR is enabled by checking whether the measurement
