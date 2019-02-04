@@ -65,7 +65,9 @@ func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 	// remove the fp BEFORE we can steal it. In case we cannot get a file
 	// we just abort the test, as this should not happen (TM).
 	if fp == nil {
-		return nil, errors.New("cannot get file bound to websocket conn")
+		err := errors.New("cannot get file bound to websocket conn")
+		logging.Logger.WithError(err).Warn("Cannot enable BBR")
+		return nil, err
 	}
 	err := bbr.Enable(fp)
 	if err != nil {
@@ -108,6 +110,8 @@ func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.F
 // to synchronize this part of the downloader with the rest. The context param
 // will be used by the outer loop to tell us when we need to stop early.
 func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.Conn, dst chan model.Measurement) {
+	logging.Logger.Debug("Starting measurement loop")
+	defer logging.Logger.Debug("Stopping measurement loop") // say goodbye properly
 	defer close(dst)
 	resultfp, err := results.OpenFor(request, conn, "download")
 	if err != nil {
@@ -121,8 +125,6 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 	defer sockfp.Close()
 	t0 := time.Now()
 	ticker := time.NewTicker(spec.MinMeasurementInterval)
-	logging.Logger.Debug("Starting measurement loop")
-	defer logging.Logger.Debug("Stopping measurement loop") // say goodbye properly
 	for {
 		select {
 		case <-ctx.Done():

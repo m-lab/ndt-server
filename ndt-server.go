@@ -18,6 +18,7 @@ import (
 	"github.com/m-lab/ndt-server/legacy"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/server/download"
+	"github.com/m-lab/ndt-server/ndt7/server/listener"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -190,7 +191,7 @@ func main() {
 		Handler: logging.MakeAccessLogHandler(ndt7Mux),
 	}
 	log.Println("About to listen for ndt7 tests on " + *ndt7Port)
-	rtx.Must(httpx.ListenAndServeTLSAsync(ndt7Server, *certFile, *keyFile), "Could not start ndt7 server")
+	rtx.Must(listener.ListenAndServeTLSAsync(ndt7Server, *certFile, *keyFile), "Could not start ndt7 server")
 	defer ndt7Server.Close()
 
 	// Serve until the context is canceled.
