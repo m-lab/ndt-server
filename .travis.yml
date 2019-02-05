@@ -2,6 +2,8 @@ language: go
 go:
 - "1.11"
 
+dist: xenial
+
 before_script:
 - go get golang.org/x/tools/cmd/cover
 - go get github.com/mattn/goveralls
