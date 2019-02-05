@@ -5,6 +5,7 @@ go:
 before_script:
 - go get golang.org/x/tools/cmd/cover
 - go get github.com/mattn/goveralls
+- go get gopkg.in/m-lab/pipe.v3
 - npm install --verbose ws minimist
 
 script:
