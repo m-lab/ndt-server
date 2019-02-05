@@ -57,10 +57,14 @@
 package fdcache
 
 import (
+	"fmt"
+	"log"
 	"net"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/m-lab/go/uuid"
 )
 
 // connKey is the key associated to a TCP connection.
@@ -154,4 +158,18 @@ func GetAndForgetFile(conn net.Conn) *os.File {
 	}
 	delete(cache, key)
 	return entry.Fp // Pass ownership to caller
+}
+
+// GetUUID returns the UUID for a passed-in connection.
+func GetUUID(conn net.Conn) (string, error) {
+	key := makekey(conn)
+	mutex.Lock()
+	defer mutex.Unlock()
+	entry, found := cache[key]
+	if !found {
+		return "", fmt.Errorf("fd not found")
+	}
+	id, err := uuid.FromFile(entry.Fp)
+	log.Println("UUID:", id)
+	return id, err
 }

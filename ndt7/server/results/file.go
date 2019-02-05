@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"path"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/ndt7/model"
 )
 
@@ -16,15 +18,19 @@ type File struct {
 	// Writer is the gzip writer instance
 	Writer *gzip.Writer
 	// Fp is the underlying file
-	Fp     *os.File
+	Fp *os.File
 }
 
 // newFile opens a measurements file in the current working
 // directory on success and returns an error on failure.
-func newFile() (*File, error) {
-	format := "2006-01-02T15:04:05.000000000Z"
-	timestamp := time.Now().UTC().Format(format)
-	name := "ndt7-" + timestamp + ".jsonl.gz"
+func newFile(datadir, what, uuid string) (*File, error) {
+	timestamp := time.Now().UTC()
+	dir := path.Join(datadir, what, timestamp.Format("2006/01/02"))
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		return nil, err
+	}
+	name := dir + "/" + timestamp.Format("T15:04:05.000000000Z") + "." + uuid + ".jsonl.gz"
 	// My assumption here is that we have nanosecond precision and hence it's
 	// unlikely to have conflicts. If I'm wrong, O_EXCL will let us know.
 	fp, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
@@ -38,21 +44,27 @@ func newFile() (*File, error) {
 	}
 	return &File{
 		Writer: writer,
-		Fp: fp,
+		Fp:     fp,
 	}, nil
 }
 
 // OpenFor opens the results file and writes into it the results metadata based
-// on the query string. Returns the results file on success. Returns an error
-// in case of failure. The request argument is used to get the query string
+// on the query string. Returns the results file on success. Returns an error in
+// case of failure. The request argument is used to get the query string
 // containing the metadata. The conn argument is used to retrieve the local and
-// the remote endpoints addresses. The what argument should indicate whether
-// this is a "download" or an "upload" ndt7 measurement.
-func OpenFor(request *http.Request, conn *websocket.Conn, what string) (*File, error) {
+// the remote endpoints addresses. The "datadir" argument specifies the
+// directory on disk to write the data into and the what argument should
+// indicate whether this is a "download" or an "upload" ndt7 measurement.
+func OpenFor(request *http.Request, conn *websocket.Conn, datadir, what string) (*File, error) {
 	meta := make(metadata)
-	initMetadata(&meta, conn.LocalAddr().String(),
-		conn.RemoteAddr().String(), request.URL.Query(), "download")
-	resultfp, err := newFile()
+	netConn := conn.UnderlyingConn()
+	id, err := fdcache.GetUUID(netConn)
+	if err != nil {
+		return nil, err
+	}
+	initMetadata(&meta, conn.LocalAddr().String(), conn.RemoteAddr().String(), id,
+		request.URL.Query(), "download")
+	resultfp, err := newFile(datadir, what, id)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +97,7 @@ type savedMeasurement struct {
 // WriteMeasurement writes |measurement| on the measurements file.
 func (fp *File) WriteMeasurement(measurement model.Measurement, origin string) error {
 	return fp.writeInterface(savedMeasurement{
-		Origin: origin,
+		Origin:      origin,
 		Measurement: measurement,
 	})
 }
