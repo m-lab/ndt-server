@@ -30,7 +30,7 @@ func newFile(datadir, what, uuid string) (*File, error) {
 	if err != nil {
 		return nil, err
 	}
-	name := dir + "/" + timestamp.Format("T15:04:05.000000000Z") + "." + uuid + ".jsonl.gz"
+	name := dir + "/ndt7-" + timestamp.Format("20060102T15:04:05.000000000Z") + "." + uuid + ".jsonl.gz"
 	// My assumption here is that we have nanosecond precision and hence it's
 	// unlikely to have conflicts. If I'm wrong, O_EXCL will let us know.
 	fp, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
@@ -63,7 +63,7 @@ func OpenFor(request *http.Request, conn *websocket.Conn, datadir, what string) 
 		return nil, err
 	}
 	initMetadata(&meta, conn.LocalAddr().String(), conn.RemoteAddr().String(), id,
-		request.URL.Query(), "download")
+		request.URL.Query(), what)
 	resultfp, err := newFile(datadir, what, id)
 	if err != nil {
 		return nil, err

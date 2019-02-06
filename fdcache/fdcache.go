@@ -57,7 +57,7 @@
 package fdcache
 
 import (
-	"fmt"
+	"errors"
 	"net"
 	"os"
 	"sync"
@@ -166,7 +166,7 @@ func GetUUID(conn net.Conn) (string, error) {
 	defer mutex.Unlock()
 	entry, found := cache[key]
 	if !found {
-		return "", fmt.Errorf("fd not found")
+		return "", errors.New("fd not found")
 	}
 	id, err := uuid.FromFile(entry.Fp)
 	return id, err
