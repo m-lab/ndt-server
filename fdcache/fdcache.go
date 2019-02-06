@@ -58,7 +58,6 @@ package fdcache
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"sync"
@@ -170,6 +169,5 @@ func GetUUID(conn net.Conn) (string, error) {
 		return "", fmt.Errorf("fd not found")
 	}
 	id, err := uuid.FromFile(entry.Fp)
-	log.Println("UUID:", id)
 	return id, err
 }
