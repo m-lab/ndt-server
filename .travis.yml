@@ -2,15 +2,17 @@ language: go
 go:
 - "1.11"
 
-dist: xenial
+services:
+- docker
 
 before_script:
-- go get golang.org/x/tools/cmd/cover
 - go get github.com/mattn/goveralls
-- go get gopkg.in/m-lab/pipe.v3
 - npm install --verbose ws minimist
 
 script:
-- go get -v -tags netgo ./cmd/ndt-cloud-client
-- go test -v -coverprofile=ndt.cov -coverpkg=./... -tags netgo ./...
+- docker build -f TestDockerfile -t m-lab/ndt-server-test --build-arg DIRECTORY=`pwd` .
+- docker run -it -v `pwd`:`pwd` -w `pwd` m-lab/ndt-server-test
 - $GOPATH/bin/goveralls -coverprofile=ndt.cov -service=travis-ci
+- docker build . -f Dockerfile -t m-lab/ndt-server
+
+# Need a deployment section which calls "docker push"

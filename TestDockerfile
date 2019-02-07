@@ -1,0 +1,10 @@
+FROM golang:1.11 as build
+RUN apt-get update && apt-get install -y nodejs
+RUN ln -s /usr/bin/nodejs /usr/bin/node
+# To build this docker image, we recommend the command line:
+#  docker build -f TestDockerfile -t m-lab/ndt-server-test --build-arg DIRECTORY=`pwd` .
+ARG DIRECTORY
+WORKDIR $DIRECTORY
+ADD . $DIRECTORY
+RUN $DIRECTORY/build.sh
+CMD /bin/bash test.sh
