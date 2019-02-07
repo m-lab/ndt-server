@@ -10,9 +10,13 @@ before_script:
 - npm install --verbose ws minimist
 
 script:
-- docker build -f TestDockerfile -t m-lab/ndt-server-test --build-arg DIRECTORY=`pwd` .
-- docker run -it -v `pwd`:`pwd` -w `pwd` m-lab/ndt-server-test
-- $GOPATH/bin/goveralls -coverprofile=ndt.cov -service=travis-ci
+- docker build -f TestDockerfile -t ndt-server-test --build-arg DIRECTORY=`pwd` .
+- docker run -t
+    -e TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST
+    -e TRAVIS_JOB_ID=$TRAVIS_JOB_ID
+    -e TRAVIS=true
+    -e COVERALLS_SERVICE_NAME=travis-ci
+    ndt-server-test
 - docker build . -f Dockerfile -t m-lab/ndt-server
 
 # Need a deployment section which calls "docker push"
