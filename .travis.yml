@@ -5,12 +5,8 @@ go:
 services:
 - docker
 
-before_script:
-- go get github.com/mattn/goveralls
-- npm install --verbose ws minimist
-
 script:
-- docker build -f TestDockerfile -t ndt-server-test --build-arg DIRECTORY=`pwd` .
+- docker build -f TestDockerfile -t ndt-server-test .
 - docker run -t
     -e TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST
     -e TRAVIS_JOB_ID=$TRAVIS_JOB_ID
