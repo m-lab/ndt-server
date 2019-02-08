@@ -1,7 +1,6 @@
 FROM golang:1.11 as build
 RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
 RUN apt-get update && apt-get install -y nodejs
-RUN npm install -g --verbose ws minimist
 ENV GOPATH=/go
 RUN go get -v gopkg.in/m-lab/pipe.v3
 RUN go get github.com/m-lab/ndt-server/cmd/ndt-cloud-client
@@ -9,6 +8,8 @@ RUN go get github.com/mattn/goveralls
 # To build this docker image, we recommend the command line:
 #  docker build -f TestDockerfile -t m-lab/ndt-server-test --build-arg DIRECTORY=`pwd` .
 ADD . /go/src/github.com/m-lab/ndt-server
+WORKDIR /go/src/github.com/m-lab/ndt-server/testdata
+RUN npm install .
 WORKDIR /go/src/github.com/m-lab/ndt-server
 RUN ./build.sh
 CMD /bin/bash ./test.sh
