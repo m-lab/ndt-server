@@ -206,6 +206,8 @@ func Test_MainIntegrationTest(t *testing.T) {
 		{
 			name: "Test the ndt7 protocol",
 			cmd:  "ndt-cloud-client -skip-tls-verify -port " + ndt7Port,
+			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
+			ignoreData: true,
 		},
 	}
 
