@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"testing"
@@ -33,15 +34,26 @@ func getOpenPorts(n int) []string {
 	return ports
 }
 
+func countFiles(dir string) int {
+	count := 0
+	filepath.Walk(dir, func(_path string, info os.FileInfo, _err error) error {
+		if !info.IsDir() {
+			count++
+		}
+		return nil
+	})
+	return count
+}
+
 func setupMain() func() {
 	cleanups := []func(){}
 
 	// Create self-signed certs in a temp directory.
-	dir, err := ioutil.TempDir("", "TestContextCancelsMain")
+	dir, err := ioutil.TempDir("", "TestNdtServerMain")
 	rtx.Must(err, "Could not create tempdir")
 
-	certFile := dir + "/cert.pem"
-	keyFile := dir + "/key.pem"
+	certFile := "cert.pem"
+	keyFile := "key.pem"
 
 	rtx.Must(
 		pipe.Run(
@@ -63,6 +75,7 @@ func setupMain() func() {
 		{"LEGACY_TLS_PORT", ports[3]},
 		{"CERT", certFile},
 		{"KEY", keyFile},
+		{"DATADIR", dir},
 	} {
 		cleanups = append(cleanups, osx.MustSetenv(ev.key, ev.value))
 	}
@@ -112,30 +125,41 @@ func Test_MainIntegrationTest(t *testing.T) {
 	wssPort := os.Getenv("LEGACY_TLS_PORT")[1:]
 	ndt7Port := os.Getenv("NDT7_PORT")[1:]
 
+	// Get the datadir
+	dataDir := os.Getenv("DATADIR")
+
 	tests := []struct {
 		name string
 		cmd  string
+		// ignoreData's default value (false) will NOT ignore whether data is
+		// produced. This is good, because it forces tests which ignore their output
+		// data to explicitly specify this fact.
+		ignoreData bool
 	}{
 		// Test legacy clients
 		{
 			name: "Connect legacy WS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsPort + " --protocol=ws --tests=16",
+			ignoreData: true,
 		},
 		{
 			name: "Upload legacy WS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsPort + " --protocol=ws --tests=18",
+			ignoreData: true,
 		},
 		{
 			name: "Download legacy WS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsPort + " --protocol=ws --tests=20",
+			ignoreData: true,
 		},
 		{
 			name: "Upload & Download legacy WS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsPort + " --protocol=ws --tests=22",
+			ignoreData: true,
 		},
 		{
 			// Start both tests, but kill the client during the upload test.
@@ -146,22 +170,26 @@ func Test_MainIntegrationTest(t *testing.T) {
 				" --port=" + wsPort +
 				" --protocol=ws --abort-c2s-early --tests=22 & " +
 				"sleep 25",
+			ignoreData: true,
 		},
 		// Test WSS clients with the legacy protocol.
 		{
 			name: "Upload legacy WSS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=18",
+			ignoreData: true,
 		},
 		{
 			name: "Download legacy WSS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=20",
+			ignoreData: true,
 		},
 		{
 			name: "Upload & Download legacy WSS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=22",
+			ignoreData: true,
 		},
 		{
 			// Start both tests, but kill the client during the upload test.
@@ -172,11 +200,14 @@ func Test_MainIntegrationTest(t *testing.T) {
 				" --port=" + wssPort +
 				" --protocol=wss --acceptinvalidcerts --abort-c2s-early --tests=22 & " +
 				"sleep 25",
+			ignoreData: true,
 		},
 		// Test NDT7 clients
 		{
 			name: "Test the ndt7 protocol",
 			cmd:  "ndt-cloud-client -skip-tls-verify -port " + ndt7Port,
+			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
+			ignoreData: true,
 		},
 	}
 
@@ -188,14 +219,23 @@ func Test_MainIntegrationTest(t *testing.T) {
 	// Run every test in parallel (the server must handle parallel tests just fine)
 	for _, testCmd := range tests {
 		wg.Add(1)
-		go func(name, cmd string) {
+		go func(name, cmd string, ignoreData bool) {
 			defer wg.Done()
+			preFileCount := countFiles(dataDir)
 			stdout, stderr, err := pipe.DividedOutput(pipe.Script(name, pipe.System(cmd)))
 			if err != nil {
 				t.Errorf("ERROR Command: %s\nStdout: %s\nStderr: %s\n",
 					cmd, string(stdout), string(stderr))
 			}
-		}(testCmd.name, testCmd.cmd)
+			postFileCount := countFiles(dataDir)
+			if !ignoreData {
+				// Verify that at least one data file was produced while the test ran.
+				if postFileCount <= preFileCount {
+					t.Error("No files produced. Before test:", preFileCount, "files. After test:", postFileCount, "files.")
+				}
+			}
+
+		}(testCmd.name, testCmd.cmd, testCmd.ignoreData)
 	}
 	wg.Wait()
 	// wg.Wait() waits until wg.Done() has been called the right number of times.

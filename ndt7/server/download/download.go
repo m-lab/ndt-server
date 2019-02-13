@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-server/bbr"
+	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/server/results"
 	"github.com/m-lab/ndt-server/ndt7/spec"
-	"github.com/m-lab/ndt-server/bbr"
-	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/tcpinfox"
 )
 
@@ -28,6 +28,7 @@ const defaultDuration = 10 * time.Second
 // Handler handles a download subtest from the server side.
 type Handler struct {
 	Upgrader websocket.Upgrader
+	DataDir  string
 }
 
 // warnAndClose emits a warning |message| and then closes the HTTP connection
@@ -109,11 +110,11 @@ func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.F
 // log any error and closing the channel provides already enough bits of info
 // to synchronize this part of the downloader with the rest. The context param
 // will be used by the outer loop to tell us when we need to stop early.
-func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.Conn, dst chan model.Measurement) {
+func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.Conn, dataDir string, dst chan model.Measurement) {
 	logging.Logger.Debug("Starting measurement loop")
 	defer logging.Logger.Debug("Stopping measurement loop") // say goodbye properly
 	defer close(dst)
-	resultfp, err := results.OpenFor(request, conn, "download")
+	resultfp, err := results.OpenFor(request, conn, dataDir, "download")
 	if err != nil {
 		return // error already printed
 	}
@@ -149,9 +150,9 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 
 // startMeasuring runs the measurement loop. This runs in a separate goroutine
 // and emits Measurement events on the returned channel.
-func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.Conn) chan model.Measurement {
+func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.Conn, dataDir string) chan model.Measurement {
 	dst := make(chan model.Measurement)
-	go measuringLoop(ctx, request, conn, dst)
+	go measuringLoop(ctx, request, conn, dataDir, dst)
 	return dst
 }
 
@@ -185,7 +186,7 @@ func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	}
 	logging.Logger.Debug("Start measurement goroutine")
 	ctx, cancel := context.WithCancel(request.Context())
-	measurements := startMeasuring(ctx, request, conn)
+	measurements := startMeasuring(ctx, request, conn, dl.DataDir)
 	logging.Logger.Debug("Start sending data to client")
 	conn.SetReadLimit(spec.MinMaxMessageSize)
 	// make sure we cleanup resources when we leave

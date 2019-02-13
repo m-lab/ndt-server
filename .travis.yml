@@ -2,12 +2,17 @@ language: go
 go:
 - "1.11"
 
-before_script:
-- go get golang.org/x/tools/cmd/cover
-- go get github.com/mattn/goveralls
-- npm install --verbose ws minimist
+services:
+- docker
 
 script:
-- go get -v -tags netgo ./cmd/ndt-cloud-client
-- go test -v -coverprofile=ndt.cov -coverpkg=./... -tags netgo ./...
-- $GOPATH/bin/goveralls -coverprofile=ndt.cov -service=travis-ci
+- docker build -f TestDockerfile -t ndt-server-test .
+- docker run -t
+    -e TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST
+    -e TRAVIS_JOB_ID=$TRAVIS_JOB_ID
+    -e TRAVIS=true
+    -e COVERALLS_SERVICE_NAME=travis-ci
+    ndt-server-test
+- docker build . -f Dockerfile -t m-lab/ndt-server
+
+# Need a deployment section which calls "docker push"

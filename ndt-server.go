@@ -33,6 +33,7 @@ var (
 	ndtTLSPort  = flag.String("legacy_tls_port", ":3010", "The address and port to use for the legacy NDT test over TLS")
 	certFile    = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile     = flag.String("key", "", "The file with server key in PEM format.")
+	dataDir     = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
 
 	// Metrics for Prometheus
 	currentTests = prometheus.NewGaugeVec(
@@ -185,7 +186,7 @@ func main() {
 			currentTests.With(ndt7Label),
 			promhttp.InstrumentHandlerDuration(
 				testDuration.MustCurryWith(ndt7Label),
-				&download.Handler{})))
+				&download.Handler{DataDir: *dataDir})))
 	ndt7Server := &http.Server{
 		Addr:    *ndt7Port,
 		Handler: logging.MakeAccessLogHandler(ndt7Mux),
