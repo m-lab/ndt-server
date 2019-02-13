@@ -1,6 +1,6 @@
 #!/bin/sh
 # Script to build ndt-server with the correct `go get` flags.  This script
-# should be run inside a container.
+# was designed and tested to run as part of the container build process.
 set -ex
 
 TOPDIR=`cd $(dirname $0) && pwd -P`
