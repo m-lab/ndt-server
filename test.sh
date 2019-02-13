@@ -5,6 +5,9 @@ set -ex
 
 # Test the NDT binary
 PATH=${PATH}:${GOPATH}/bin
+
+# If we aren't running on Travis, then there's no need to produce a coverage
+# file and submit it to coveralls.io
 if [[ -z ${TRAVIS_PULL_REQUEST} ]]; then
   go test -v -cover=1 -coverpkg=./... -tags netgo ./...
 else
