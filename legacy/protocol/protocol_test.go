@@ -10,9 +10,29 @@ import (
 )
 
 func Test_verifyStringConversions(t *testing.T) {
-	for m := protocol.MessageType(0); m < 13; m++ {
+	for m := protocol.MessageType(0); m < 255; m++ {
 		if m.String() == "" {
 			t.Errorf("MessageType(0x%x) should not result in an empty string", m)
+		}
+	}
+	for _, subtest := range []struct {
+		mt  protocol.MessageType
+		str string
+	}{
+		{protocol.SrvQueue, "SrvQueue"},
+		{protocol.MsgLogin, "MsgLogin"},
+		{protocol.TestPrepare, "TestPrepare"},
+		{protocol.TestStart, "TestStart"},
+		{protocol.TestMsg, "TestMsg"},
+		{protocol.TestFinalize, "TestFinalize"},
+		{protocol.MsgError, "MsgError"},
+		{protocol.MsgResults, "MsgResults"},
+		{protocol.MsgLogout, "MsgLogout"},
+		{protocol.MsgWaiting, "MsgWaiting"},
+		{protocol.MsgExtendedLogin, "MsgExtendedLogin"},
+	} {
+		if subtest.mt.String() != subtest.str {
+			t.Errorf("%q != %q", subtest.mt.String(), subtest.str)
 		}
 	}
 }
