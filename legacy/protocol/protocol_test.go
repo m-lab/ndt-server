@@ -6,8 +6,16 @@ import (
 	"testing"
 
 	"github.com/m-lab/go/rtx"
-	"github.com/m-lab/ndt-cloud/legacy/protocol"
+	"github.com/m-lab/ndt-server/legacy/protocol"
 )
+
+func Test_verifyStringConversions(t *testing.T) {
+	for m := protocol.MessageType(0); m < 13; m++ {
+		if m.String() == "" {
+			t.Errorf("MessageType(0x%x) should not result in an empty string", m)
+		}
+	}
+}
 
 func Test_netConnReadJSONMessage(t *testing.T) {
 	// Set up a listener

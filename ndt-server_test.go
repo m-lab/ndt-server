@@ -113,6 +113,9 @@ func Test_ContextCancelsMain(t *testing.T) {
 }
 
 func Test_MainIntegrationTest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Integration tests take too long")
+	}
 	// Set up certs and the environment vars for the commandline.
 	cleanup := setupMain()
 	defer cleanup()
