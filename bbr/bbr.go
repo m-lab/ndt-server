@@ -6,6 +6,8 @@ package bbr
 import (
 	"errors"
 	"os"
+
+	"github.com/m-lab/ndt-server/ndt7/model"
 )
 
 // ErrNoSupport indicates that this system does not support BBR.
@@ -16,13 +18,7 @@ func Enable(fp *os.File) error {
 	return enableBBR(fp)
 }
 
-// GetMaxBandwidthAndMinRTT obtains BBR info from |fp|. The returned values are
-// the max-bandwidth in bits per second and the min-rtt in milliseconds.
-func GetMaxBandwidthAndMinRTT(fp *os.File) (float64, float64, error) {
-	// Implementation note: for simplicity I have decided to use float64 here
-	// rather than uint64, mainly because the proper C type to use AFAICT (and
-	// I may be wrong here) changes between 32 and 64 bit. That is, it is not
-	// clear to me how to use a 64 bit integer (which I what I would have used
-	// by default) on a 32 bit system. So let's use float64.
+// GetMaxBandwidthAndMinRTT obtains BBR info from |fp|.
+func GetMaxBandwidthAndMinRTT(fp *os.File) (model.BBRInfo, error) {
 	return getMaxBandwidthAndMinRTT(fp)
 }
