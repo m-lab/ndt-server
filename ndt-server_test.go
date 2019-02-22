@@ -234,17 +234,17 @@ func Test_MainIntegrationTest(t *testing.T) {
 			preFileCount := countFiles(dataDir)
 			stdout, stderr, err := pipe.DividedOutput(pipe.Script(name, pipe.System(cmd)))
 			if err != nil {
-				t.Errorf("ERROR Command: %s\nStdout: %s\nStderr: %s\n",
+				t.Fatalf("ERROR Command: %s\nStdout: %s\nStderr: %s\n",
 					cmd, string(stdout), string(stderr))
 			}
 			postFileCount := countFiles(dataDir)
 			if !ignoreData {
 				// Verify that at least one data file was produced while the test ran.
 				if postFileCount <= preFileCount {
-					t.Error("No files produced. Before test:", preFileCount, "files. After test:", postFileCount, "files.")
+					t.Fatal("No files produced. Before test:", preFileCount, "files. After test:", postFileCount, "files.")
 				}
 			}
-
+			t.Logf("%s (command=%q) has completed successfully", name, cmd)
 		}(testCmd.name, testCmd.cmd, testCmd.ignoreData)
 	}
 	wg.Wait()
