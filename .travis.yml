@@ -1,3 +1,11 @@
+# We don't care about the language because we build in a docker. Not doing
+# that and instead requiring go leads to failures caused by missing headers
+# on the build machine. So we use minimal, which is basically "no lang".
+#
+# See <https://docs.travis-ci.com/user/languages/minimal-and-generic/>
+# See <https://travis-ci.org/m-lab/ndt-server/builds/496487913>
+language: minimal
+
 services:
 - docker
 
