@@ -18,12 +18,19 @@ const (
 	Ready = float64(-1)
 )
 
+// ServerType indicates what type of NDT test the particular server is
+// performing. There are extant active clients for each of these protocol
+// variations.
 type ServerType int
 
 const (
+	// RawNoJSON NDT tests correspond to the code integrated into the uTorrent client.
 	RawNoJSON = ServerType(iota)
+	// RawJSON NDT tests correspond to code that integrated web100clt anytime after 2016.
 	RawJSON
+	// WS NDT tests take place over unencrypted websockets.
 	WS
+	// WSS NDT tests take place over encrypted websockets.
 	WSS
 )
 

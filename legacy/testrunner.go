@@ -68,10 +68,13 @@ func (s *BasicServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ws := protocol.AdaptWsConn(wsc)
 	defer ws.Close()
-	s.HandleControlChannel(ws)
+	s.handleControlChannel(ws)
 }
 
-func (s *BasicServer) HandleControlChannel(conn protocol.Connection) {
+// handleControlChannel is the "business logic" of an NDT test. It is designed
+// to run every test, and to never need to know whether the underlying
+// connection is just a TCP socket, a WS connection, or a WSS connection.
+func (s *BasicServer) handleControlChannel(conn protocol.Connection) {
 	config := &testresponder.Config{
 		ServerType: s.ServerType,
 		CertFile:   s.CertFile,
@@ -130,7 +133,12 @@ func (s *BasicServer) HandleControlChannel(conn protocol.Connection) {
 
 }
 
-func (s *BasicServer) SniffThenHandle(conn net.Conn) {
+// sniffThenHandle implements protocol sniffing to allow WS clients and just-TCP
+// clients to connect to the same port. This was a mistake to implement the
+// first time, but enough clients exist that need it that we are keeping it in
+// this code. In the future, if you are thinking of adding protocol sniffing to
+// your system, don't.
+func (s *BasicServer) sniffThenHandle(conn net.Conn) {
 	// Peek at the first three bytes. If they are "GET", then this is an HTTP
 	// conversation and should be forwarded to the HTTP server.
 	input := bufio.NewReader(conn)
@@ -180,9 +188,11 @@ func (s *BasicServer) SniffThenHandle(conn net.Conn) {
 	if n != len(kickoff) || err != nil {
 		log.Printf("Could not write %d byte kickoff string: %d bytes written err: %v\n", len(kickoff), n, err)
 	}
-	s.HandleControlChannel(protocol.AdaptNetConn(conn, input))
+	s.handleControlChannel(protocol.AdaptNetConn(conn, input))
 }
 
+// ListenAndServeRawAsync starts up the sniffing server that delegates to the
+// appropriate just-TCP or WS protocol.Connection.
 func (s *BasicServer) ListenAndServeRawAsync(ctx context.Context, addr string) error {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -202,7 +212,7 @@ func (s *BasicServer) ListenAndServeRawAsync(ctx context.Context, addr string) e
 				log.Println("Failed to accept connection:", err)
 				continue
 			}
-			go s.SniffThenHandle(conn)
+			go s.sniffThenHandle(conn)
 		}
 	}()
 	return nil

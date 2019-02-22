@@ -30,11 +30,11 @@ func (tr *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ws := protocol.AdaptWsConn(wsc)
-	tr.PerformTest(ws)
+	tr.performTest(ws)
 	ws.Close()
 }
 
-func (tr *Responder) PerformTest(ws protocol.Connection) {
+func (tr *Responder) performTest(ws protocol.Connection) {
 	tr.Response <- testresponder.Ready
 	bytesPerSecond := tr.recvC2SUntil(ws)
 	tr.Response <- bytesPerSecond
@@ -88,7 +88,7 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 		promhttp.InstrumentHandlerCounter(
 			metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": "c2s"}),
 			http.HandlerFunc(testResponder.TestServer)))
-	err := testResponder.StartAsync(serveMux, testResponder.PerformTest, "C2S")
+	err := testResponder.StartAsync(serveMux, testResponder.performTest, "C2S")
 	if err != nil {
 		return 0, err
 	}

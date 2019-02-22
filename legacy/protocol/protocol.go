@@ -165,6 +165,7 @@ func (nc *netConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int6
 	return bytesWritten, nil
 }
 
+// AdaptNetConn turns a non-WS-based TCP connection into a protocol.Connection.
 func AdaptNetConn(conn net.Conn, input io.Reader) Connection {
 	return &netConnection{conn, input}
 }

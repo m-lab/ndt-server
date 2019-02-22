@@ -33,16 +33,16 @@ func (n *Result) String() string {
 }
 
 // websocketHandler performs the NDT s2c test.
-func (responder *Responder) websocketHandler(w http.ResponseWriter, r *http.Request) {
+func (r *Responder) websocketHandler(w http.ResponseWriter, req *http.Request) {
 	upgrader := testresponder.MakeNdtUpgrader([]string{"s2c"})
-	wsc, err := upgrader.Upgrade(w, r, nil)
+	wsc, err := upgrader.Upgrade(w, req, nil)
 	if err != nil {
 		// Upgrade should have already returned an HTTP error code.
 		log.Println("ERROR S2C: upgrader", err)
 		return
 	}
 	ws := protocol.AdaptWsConn(wsc)
-	responder.performTest(ws)
+	r.performTest(ws)
 }
 
 func (r *Responder) performTest(ws protocol.Connection) {
