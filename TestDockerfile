@@ -1,6 +1,9 @@
 FROM golang:1.11 as build
+COPY --from=pboothe/test-runner /ndt/src/web100clt /bin
+COPY --from=pboothe/test-runner  /lib/x86_64-linux-gnu/libssl.so.1.0.0 /lib/x86_64-linux-gnu/libssl.so.1.0.0
+COPY --from=pboothe/test-runner  /lib/x86_64-linux-gnu/libcrypto.so.1.0.0 /lib/x86_64-linux-gnu/libcrypto.so.1.0.0
 RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
-RUN apt-get update && apt-get install -y nodejs
+RUN apt-get update && apt-get install -y nodejs libjansson4
 ENV GOPATH=/go
 RUN go get -v gopkg.in/m-lab/pipe.v3
 RUN go get github.com/m-lab/ndt-server/cmd/ndt-cloud-client

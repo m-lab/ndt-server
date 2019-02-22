@@ -143,29 +143,33 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// Test legacy raw JSON clients
 		{
 			name: "Connect with web100clt",
-			cmd: "docker run -i --net=host pboothe/test-runner " +
-				"/ndt/src/web100clt --name localhost --port " + legacyPort + " --disablemid --disablesfw",
+			cmd: "/bin/web100clt --name localhost --port " + legacyPort + " --disablemid --disablesfw",
+			ignoreData: true,
 		},
 		// Test legacy WS clients
 		{
 			name: "Connect legacy WS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + legacyPort + " --protocol=ws --tests=16",
+			ignoreData: true,
 		},
 		{
 			name: "Upload legacy WS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + legacyPort + " --protocol=ws --tests=18",
+			ignoreData: true,
 		},
 		{
 			name: "Download legacy WS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + legacyPort + " --protocol=ws --tests=20",
+			ignoreData: true,
 		},
 		{
 			name: "Upload & Download legacy WS",
 			cmd: "node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + legacyPort + " --protocol=ws --tests=22",
+			ignoreData: true,
 		},
 		{
 			// Start both tests, but kill the client during the upload test.
