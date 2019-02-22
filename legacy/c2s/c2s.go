@@ -31,19 +31,22 @@ func (tr *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
 	}
 	ws := protocol.AdaptWsConn(wsc)
 	tr.performTest(ws)
-	ws.Close()
+	go func() {
+		// After the test is supposedly over, let the socket drain a bit to not
+		// confuse poorly-written clients by closing unexpectedly when there is still
+		// buffered data. We make the judgement call that if the clients are so poorly
+		// written that they still have data buffered after 5 seconds and are confused
+		// when the c2s socket closes when buffered data is still in flight, then it
+		// is okay to break them.
+		ws.DrainUntil(time.Now().Add(5 * time.Second))
+		ws.Close()
+	}()
 }
 
 func (tr *Responder) performTest(ws protocol.Connection) {
 	tr.Response <- testresponder.Ready
 	bytesPerSecond := tr.recvC2SUntil(ws)
 	tr.Response <- bytesPerSecond
-
-	// Drain client for a few more seconds, and discard results.
-	deadline, _ := tr.Ctx.Deadline()
-	tr.Cancel()
-	tr.Ctx, tr.Cancel = context.WithDeadline(context.Background(), deadline)
-	_ = tr.recvC2SUntil(ws)
 }
 
 func (tr *Responder) recvC2SUntil(ws protocol.Connection) float64 {
@@ -92,17 +95,7 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 	if err != nil {
 		return 0, err
 	}
-	defer func() {
-		// After the test is supposedly over, let the socket drain a bit to not
-		// confuse poorly-written clients by closing unexpectedly when there is still
-		// buffered data. We make the judgement call that if the clients are so poorly
-		// written that they still have data buffered after 5 seconds and are confused
-		// when the c2s socket closes when buffered data is still in flight, then it
-		// is okay to break them.
-		ws.DrainUntil(time.Now().Add(5 * time.Second))
-		ws.Close()
-		testResponder.Close()
-	}()
+	defer testResponder.Close()
 
 	done := make(chan float64)
 	go func() {
