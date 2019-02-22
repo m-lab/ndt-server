@@ -224,7 +224,6 @@ func Test_MainIntegrationTest(t *testing.T) {
 	go main()
 	time.Sleep(1 * time.Second) // Give main a little time to grab all the ports and start listening.
 
-	//before := runtime.NumGoroutine()
 	wg := sync.WaitGroup{}
 	// Run every test in parallel (the server must handle parallel tests just fine)
 	for _, testCmd := range tests {
@@ -248,19 +247,4 @@ func Test_MainIntegrationTest(t *testing.T) {
 		}(testCmd.name, testCmd.cmd, testCmd.ignoreData)
 	}
 	wg.Wait()
-//	// wg.Wait() waits until wg.Done() has been called the right number of times.
-//	// But wg.Done() is called by a goroutine as it exits, so if we proceed
-//	// immediately we might spuriously measure that there are too many goroutines
-//	// just because the wg.Done() call caused an immediate resumption in the main
-//	// test thread before the goroutine exit had completed. time.Sleep() deals with
-//	// this race condition by giving all goroutines more than enough time to finish
-//	// exiting.
-//	time.Sleep(100 * time.Millisecond)
-//	after := runtime.NumGoroutine()
-//	if before != after {
-//		stack := make([]byte, 10000)
-//		runtime.Stack(stack, true)
-//		t.Errorf("After running NumGoroutines changed: %d to %d. Stacke: %s", before, after, string(stack))
-//
-//	}
 }
