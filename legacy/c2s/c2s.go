@@ -65,7 +65,14 @@ func (tr *Responder) recvC2SUntil(ws protocol.Connection) float64 {
 	select {
 	case <-tr.Ctx.Done():
 		log.Println("C2S: Context Done!", tr.Ctx.Err())
-		ws.Close()
+		go func() {
+			// Let the socket drain a bit to not confuse poorly-written clients by
+			// closing unexpectedly when there is still buffered data. If the clients are
+			// so poorly written that they still have data buffered after 5 seconds, then
+			// it is okay to break them.
+			ws.DrainUntil(time.Now().Add(5 * time.Second))
+			ws.Close()
+		}()
 		// Return zero on error.
 		return 0
 	case bytesPerSecond := <-done:
