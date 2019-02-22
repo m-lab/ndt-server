@@ -65,14 +65,7 @@ func (tr *Responder) recvC2SUntil(ws protocol.Connection) float64 {
 	select {
 	case <-tr.Ctx.Done():
 		log.Println("C2S: Context Done!", tr.Ctx.Err())
-		go func() {
-			// Let the socket drain a bit to not confuse poorly-written clients by
-			// closing unexpectedly when there is still buffered data. If the clients are
-			// so poorly written that they still have data buffered after 5 seconds, then
-			// it is okay to break them.
-			ws.DrainUntil(time.Now().Add(5 * time.Second))
-			ws.Close()
-		}()
+		ws.Close()
 		// Return zero on error.
 		return 0
 	case bytesPerSecond := <-done:
@@ -99,7 +92,17 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 	if err != nil {
 		return 0, err
 	}
-	defer testResponder.Close()
+	defer func() {
+		// After the test is supposedly over, let the socket drain a bit to not
+		// confuse poorly-written clients by closing unexpectedly when there is still
+		// buffered data. We make the judgement call that if the clients are so poorly
+		// written that they still have data buffered after 5 seconds and are confused
+		// when the c2s socket closes when buffered data is still in flight, then it
+		// is okay to break them.
+		ws.DrainUntil(time.Now().Add(5 * time.Second))
+		ws.Close()
+		testResponder.Close()
+	}()
 
 	done := make(chan float64)
 	go func() {
