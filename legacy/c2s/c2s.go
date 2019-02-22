@@ -106,7 +106,7 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 
 	done := make(chan float64)
 	go func() {
-		// Wait for test to run. ///////////////////////////////////////////
+		// Wait for test to run.
 		// Send the server port to the client.
 		protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(testResponder.Port), ws)
 		c2sReady := <-testResponder.Response
@@ -115,10 +115,14 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 			cancel()
 			return
 		}
+		// Tell the client to start the test.
 		protocol.SendJSONMessage(protocol.TestStart, "", ws)
+
+		// Wait for results to be generated.
 		c2sBytesPerSecond := <-testResponder.Response
 		c2sKbps := 8 * c2sBytesPerSecond / 1000.0
 
+		// Finish the test.
 		protocol.SendJSONMessage(protocol.TestMsg, fmt.Sprintf("%.4f", c2sKbps), ws)
 		protocol.SendJSONMessage(protocol.TestFinalize, "", ws)
 		log.Println("C2S: server rate:", c2sKbps)
