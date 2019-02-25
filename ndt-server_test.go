@@ -142,8 +142,8 @@ func Test_MainIntegrationTest(t *testing.T) {
 	}{
 		// Test legacy raw JSON clients
 		{
-			name: "Connect with web100clt",
-			cmd: "/bin/web100clt --name localhost --port " + legacyPort + " --disablemid --disablesfw",
+			name: "Connect with web100clt (with JSON)",
+			cmd: "/bin/web100clt-with-json-support --name localhost --port " + legacyPort + " --disablemid --disablesfw",
 			ignoreData: true,
 		},
 		// Test legacy WS clients

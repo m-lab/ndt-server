@@ -1,18 +1,52 @@
+# A base image with some helpful tools and liraries installed.
+FROM ubuntu as ndtbuild
+RUN apt-get update && apt-get install -y build-essential autotools-dev automake zlib1g-dev git
+RUN git clone --recursive http://github.com/m-lab/ndt/
+
+# Build a version of web100clt that uses JSON.
+FROM ndtbuild as ndtrawjson
+RUN apt-get install -y libjansson-dev libssl-dev
+WORKDIR /ndt
+RUN ./bootstrap
+RUN ./configure --enable-static
+WORKDIR /ndt/src
+RUN make web100clt
+
+# Build a version of web100clt that does not use JSON.
+FROM ndtbuild as ndtrawnojson
+# I2util used to be a separate library, so make sure to install it from the
+# modern NDT repo before we back up to a super-old code version that expects it
+# to be installed separately.
+WORKDIR /ndt/I2util
+RUN ./bootstrap.sh
+RUN ./configure
+RUN make install
+WORKDIR /ndt
+# Check out a build from before JSON support was in the binary.  Because
+# libjansson is not installed in this image, if the build succeeds, then it
+# does not use JSON.
+RUN git checkout 1f918aa4411c5bd3a863127b58bbd3b75c9d8a09
+RUN ./bootstrap
+RUN ./configure --enable-static
+WORKDIR /ndt/src
+RUN make web100clt
+
+# Build the image in which the server will be tested.
 FROM golang:1.11 as build
-COPY --from=pboothe/test-runner /ndt/src/web100clt /bin
-COPY --from=pboothe/test-runner  /lib/x86_64-linux-gnu/libssl.so.1.0.0 /lib/x86_64-linux-gnu/libssl.so.1.0.0
-COPY --from=pboothe/test-runner  /lib/x86_64-linux-gnu/libcrypto.so.1.0.0 /lib/x86_64-linux-gnu/libcrypto.so.1.0.0
+COPY --from=ndtrawjson /ndt/src/web100clt /bin/web100clt-with-json-support
+COPY --from=ndtrawnojson /ndt/src/web100clt /bin/web100clt-without-json-support
 RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
-RUN apt-get update && apt-get install -y nodejs libjansson4
+RUN apt-get update && apt-get install -y nodejs
 ENV GOPATH=/go
 RUN go get -v gopkg.in/m-lab/pipe.v3
 RUN go get github.com/m-lab/ndt-server/cmd/ndt-cloud-client
 RUN go get github.com/mattn/goveralls
-# To build this docker image, we recommend the command line:
-#  docker build -f TestDockerfile -t m-lab/ndt-server-test --build-arg DIRECTORY=`pwd` .
 ADD . /go/src/github.com/m-lab/ndt-server
 WORKDIR /go/src/github.com/m-lab/ndt-server/testdata
 RUN npm install .
 WORKDIR /go/src/github.com/m-lab/ndt-server
 RUN ./build.sh
 CMD /bin/bash ./test.sh
+
+# To build everything and run unit and integration tests, we recommend a commandline like:
+#    docker build -f TestDockerfile . -t ndttest && docker run -it ndttest
