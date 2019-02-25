@@ -30,7 +30,7 @@ type BasicServer struct {
 	CertFile   string
 	KeyFile    string
 	ServerType testresponder.ServerType
-	HTTPAddr   string
+	ForwardingAddr   string
 }
 
 // TODO: run meta test.
@@ -152,7 +152,7 @@ func (s *BasicServer) sniffThenHandle(conn net.Conn) {
 		// introduce overhead for the s2c and c2s tests, because in those tests the
 		// HTTP server itself opens the testing port, and that server will not use
 		// this TCP proxy.
-		fwd, err := net.Dial("tcp", s.HTTPAddr)
+		fwd, err := net.Dial("tcp", s.ForwardingAddr)
 		if err != nil {
 			log.Println("Could not forward connection", err)
 			return

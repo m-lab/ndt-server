@@ -126,15 +126,16 @@ func (tr *TestResponder) Close() {
 	if tr.S != nil {
 		// Shutdown the server for the test.
 		tr.S.Close()
+		tr.S = nil
 	}
 	if tr.Ln != nil {
 		// Shutdown the socket listener.
 		tr.Ln.Close()
+		tr.Ln = nil
 	}
 	if tr.Cancel != nil {
 		// Cancel the test responder context.
 		tr.Cancel()
+		tr.Cancel = nil
 	}
-	// Close channel for communication between the control routine and test routine.
-	close(tr.Response)
 }

@@ -154,25 +154,25 @@ func Test_MainIntegrationTest(t *testing.T) {
 				" --port=" + legacyPort + " --protocol=ws --tests=22",
 			ignoreData: true,
 		},
-		// Test legacy WS clients
 		{
 			name: "Connect legacy WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=16",
+				" --port=" + legacyPort + " --protocol=ws --tests=16",
 			ignoreData: true,
 		},
 		{
 			name: "Upload legacy WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=18",
+				" --port=" + legacyPort + " --protocol=ws --tests=18",
 			ignoreData: true,
 		},
 		{
 			name: "Download legacy WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=20",
+				" --port=" + legacyPort + " --protocol=ws --tests=20",
 			ignoreData: true,
 		},
+		// Test legacy WS clients connected to the HTTP port
 		{
 			name: "Upload & Download legacy WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +

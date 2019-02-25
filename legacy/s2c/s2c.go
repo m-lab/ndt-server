@@ -130,7 +130,7 @@ func (r *Responder) runControlChannel(ctx context.Context, cancel context.Cancel
 		protocol.SendJSONMessage(protocol.TestMsg, web100Var+": 0\n", ws)
 	}
 	protocol.SendJSONMessage(protocol.TestFinalize, "", ws)
-	r.Response <- 0.0
+	close(r.Response)
 	clientRate, err := strconv.ParseFloat(clientRateMsg.Msg, 64)
 	if err != nil {
 		log.Println("S2C: Bad client rate:", err)
