@@ -36,7 +36,7 @@ FROM golang:1.11 as build
 COPY --from=ndtrawjson /ndt/src/web100clt /bin/web100clt-with-json-support
 COPY --from=ndtrawnojson /ndt/src/web100clt /bin/web100clt-without-json-support
 RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
-RUN apt-get update && apt-get install -y nodejs
+RUN apt-get update && apt-get install -y nodejs libjansson4 libssl1.1 libssl1.0
 ENV GOPATH=/go
 RUN go get -v gopkg.in/m-lab/pipe.v3
 RUN go get github.com/m-lab/ndt-server/cmd/ndt-cloud-client
