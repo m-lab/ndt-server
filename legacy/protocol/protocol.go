@@ -177,7 +177,7 @@ func ReadNDTMessage(ws Connection, expectedType MessageType) ([]byte, error) {
 		return nil, err
 	}
 	if MessageType(inbuff[0]) != expectedType {
-		return nil, fmt.Errorf("Read wrong message type. Wanted %s, got %s", expectedType, MessageType(inbuff[0]))
+		return nil, fmt.Errorf("Read wrong message type. Wanted %q, got %q", expectedType, MessageType(inbuff[0]))
 	}
 	// Verify that the expected length matches the given data.
 	expectedLen := int(inbuff[1])<<8 + int(inbuff[2])
