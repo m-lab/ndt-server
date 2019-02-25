@@ -31,6 +31,12 @@ func (tr *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
 	}
 	ws := protocol.AdaptWsConn(wsc)
 	tr.performTest(ws)
+}
+
+func (tr *Responder) performTest(ws protocol.Connection) {
+	tr.Response <- testresponder.Ready
+	bytesPerSecond := tr.recvC2SUntil(ws)
+	tr.Response <- bytesPerSecond
 	go func() {
 		// After the test is supposedly over, let the socket drain a bit to not
 		// confuse poorly-written clients by closing unexpectedly when there is still
@@ -41,12 +47,6 @@ func (tr *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
 		ws.DrainUntil(time.Now().Add(5 * time.Second))
 		ws.Close()
 	}()
-}
-
-func (tr *Responder) performTest(ws protocol.Connection) {
-	tr.Response <- testresponder.Ready
-	bytesPerSecond := tr.recvC2SUntil(ws)
-	tr.Response <- bytesPerSecond
 }
 
 func (tr *Responder) recvC2SUntil(ws protocol.Connection) float64 {

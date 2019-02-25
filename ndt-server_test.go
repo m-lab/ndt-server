@@ -126,6 +126,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 
 	// Get the ports but remove the leading ":"
 	legacyPort := os.Getenv("LEGACY_PORT")[1:]
+	wsPort := os.Getenv("LEGACY_WS_PORT")[1:]
 	wssPort := os.Getenv("LEGACY_WSS_PORT")[1:]
 	ndt7Port := os.Getenv("NDT7_PORT")[1:]
 
@@ -142,33 +143,40 @@ func Test_MainIntegrationTest(t *testing.T) {
 	}{
 		// Test legacy raw JSON clients
 		{
-			name: "Connect with web100clt (with JSON)",
-			cmd: "/bin/web100clt-with-json-support --name localhost --port " + legacyPort + " --disablemid --disablesfw",
+			name:       "Connect with web100clt (with JSON)",
+			cmd:        "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyPort + " --disablemid --disablesfw",
+			ignoreData: true,
+		},
+		// Test legacy WS clients connecting to the raw port
+		{
+			name: "Connect legacy WS (upload and download) to RAW port",
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
+				" --port=" + legacyPort + " --protocol=ws --tests=22",
 			ignoreData: true,
 		},
 		// Test legacy WS clients
 		{
 			name: "Connect legacy WS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + legacyPort + " --protocol=ws --tests=16",
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
+				" --port=" + wsPort + " --protocol=ws --tests=16",
 			ignoreData: true,
 		},
 		{
 			name: "Upload legacy WS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + legacyPort + " --protocol=ws --tests=18",
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
+				" --port=" + wsPort + " --protocol=ws --tests=18",
 			ignoreData: true,
 		},
 		{
 			name: "Download legacy WS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + legacyPort + " --protocol=ws --tests=20",
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
+				" --port=" + wsPort + " --protocol=ws --tests=20",
 			ignoreData: true,
 		},
 		{
 			name: "Upload & Download legacy WS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + legacyPort + " --protocol=ws --tests=22",
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
+				" --port=" + wsPort + " --protocol=ws --tests=22",
 			ignoreData: true,
 		},
 		{
@@ -176,8 +184,8 @@ func Test_MainIntegrationTest(t *testing.T) {
 			// This causes the server to wait for a test that never comes. After the
 			// timeout, the server should have cleaned up all outstanding goroutines.
 			name: "Upload & Download legacy WS with S2C Timeout",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + legacyPort +
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
+				" --port=" + wsPort +
 				" --protocol=ws --abort-c2s-early --tests=22 & " +
 				"sleep 25",
 			ignoreData: true,
@@ -185,19 +193,19 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// Test WSS clients with the legacy protocol.
 		{
 			name: "Upload legacy WSS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=18",
 			ignoreData: true,
 		},
 		{
 			name: "Download legacy WSS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=20",
 			ignoreData: true,
 		},
 		{
 			name: "Upload & Download legacy WSS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=22",
 			ignoreData: true,
 		},
@@ -206,7 +214,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 			// This causes the server to wait for a test that never comes. After the
 			// timeout, the server should have cleaned up all outstanding goroutines.
 			name: "Upload & Download legacy WSS with S2C Timeout",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort +
 				" --protocol=wss --acceptinvalidcerts --abort-c2s-early --tests=22 & " +
 				"sleep 25",
@@ -215,7 +223,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// Test NDT7 clients
 		{
 			name: "Test the ndt7 protocol",
-			cmd:  "ndt-cloud-client -skip-tls-verify -port " + ndt7Port,
+			cmd:  "timeout 45s ndt-cloud-client -skip-tls-verify -port " + ndt7Port,
 			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
 			ignoreData: true,
 		},
@@ -233,8 +241,8 @@ func Test_MainIntegrationTest(t *testing.T) {
 			preFileCount := countFiles(dataDir)
 			stdout, stderr, err := pipe.DividedOutput(pipe.Script(name, pipe.System(cmd)))
 			if err != nil {
-				t.Fatalf("ERROR Command: %s\nStdout: %s\nStderr: %s\n",
-					cmd, string(stdout), string(stderr))
+				t.Fatalf("ERROR %s (Command: %s)\nStdout: %s\nStderr: %s\n",
+					name, cmd, string(stdout), string(stderr))
 			}
 			postFileCount := countFiles(dataDir)
 			if !ignoreData {

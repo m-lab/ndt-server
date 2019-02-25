@@ -41,6 +41,7 @@ ENV GOPATH=/go
 RUN go get -v gopkg.in/m-lab/pipe.v3
 RUN go get github.com/m-lab/ndt-server/cmd/ndt-cloud-client
 RUN go get github.com/mattn/goveralls
+RUN rm -Rf /go/src/github.com/m-lab/ndt-server
 ADD . /go/src/github.com/m-lab/ndt-server
 WORKDIR /go/src/github.com/m-lab/ndt-server/testdata
 RUN npm install .

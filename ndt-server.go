@@ -133,7 +133,7 @@ func main() {
 	// The legacy protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
 	legacyServer := legacy.BasicServer{
-		HTTPAddr:   *legacyPort,
+		HTTPAddr:   *legacyWsPort, // This is the port to which connections are forwarded.
 		ServerType: testresponder.RawJSON,
 	}
 	rtx.Must(legacyServer.ListenAndServeRawAsync(ctx, *legacyPort), "Could not start raw server")
