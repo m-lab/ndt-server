@@ -1,4 +1,4 @@
-# A base image with some helpful tools and liraries installed.
+# A base image with some helpful tools and libraries installed.
 FROM ubuntu as ndtbuild
 RUN apt-get update && apt-get install -y build-essential autotools-dev automake zlib1g-dev git
 RUN git clone --recursive http://github.com/m-lab/ndt/
