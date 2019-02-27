@@ -198,6 +198,7 @@ func (ul Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 				return // the goroutine told us it's time to stop running
 			}
 		default:
+			conn.SetReadDeadline(time.Now().Add(defaultTimeout))
 			mt, message, err := conn.ReadMessage()
 			if err != nil {
 				if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
