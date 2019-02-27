@@ -10,7 +10,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/go/iox"
-	"github.com/m-lab/ndt-server/bbr"
 	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
@@ -41,10 +40,10 @@ func warnAndClose(writer http.ResponseWriter, message string) {
 	writer.WriteHeader(http.StatusBadRequest)
 }
 
-// getConnFileAndPossiblyEnableBBR returns the connection to be used to
-// gather low level stats and possibly enables BBR. It returns a file to
-// use to gather BBR/TCP_INFO stats on success, an error on failure.
-func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
+// getConnFile returns the connection to be used to gather low level stats.
+// It returns a file to use to gather TCP_INFO stats on success, an error
+// on failure.
+func getConnFile(conn *websocket.Conn) (*os.File, error) {
 	fp := fdcache.GetAndForgetFile(conn.UnderlyingConn())
 	// Implementation note: in theory fp SHOULD always be non-nil because
 	// now we always register the fp bound to a net.TCPConn. However, in
@@ -53,26 +52,15 @@ func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 	// we just abort the test, as this should not happen (TM).
 	if fp == nil {
 		err := errors.New("cannot get file bound to websocket conn")
-		logging.Logger.WithError(err).Warn("Cannot enable BBR")
 		return nil, err
-	}
-	err := bbr.Enable(fp)
-	if err != nil {
-		logging.Logger.WithError(err).Warn("Cannot enable BBR")
-		// FALLTHROUGH
 	}
 	return fp, nil
 }
 
-// gatherAndSaveTCPInfoAndBBRInfo gathers TCP info and BBR measurements from
-// |sockfp| and stores them into the |measurement| object as well as into the
-// |resultfp| file. Returns an error on failure and nil in case of success.
-func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.File, resultfp *results.File) error {
-	bbrinfo, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
-	if err == nil {
-		measurement.BBRInfo = &bbrinfo
-	}
-
+// gatherAndSaveTCPInfo gathers TCP info measurements from |sockfp| and stores
+// them into the |measurement| object as well as into the |resultfp| file.
+// It returns an error on failure and nil in case of success.
+func gatherAndSaveTCPInfo(measurement *model.Measurement, sockfp *os.File, resultfp *results.File) error {
 	metrics, err := tcpinfox.GetTCPInfo(sockfp)
 	if err == nil {
 		measurement.TCPInfo = &metrics
@@ -89,10 +77,8 @@ func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.F
 // This function exits when
 //     (1) a fatal error occurs or
 //     (2) the maximum elapsed time for the upload test expires.
-// Since this function has access to BBR stats (if available), it's the
-// right place to stop the test early. The rest of the upload code is supposed
-// to stop receiving when this function signals that we're done by closing
-// the channel.
+// The rest of the upload code is supposed to stop receiving when this function
+// signals that we're done by closing the channel.
 func measuringLoop(ctx context.Context, request *http.Request,
 	conn *websocket.Conn, dataDir string, dst chan model.Measurement) {
 	logging.Logger.Debug("Starting measurement loop")
@@ -106,7 +92,7 @@ func measuringLoop(ctx context.Context, request *http.Request,
 
 	defer iox.ErrorLoggingCloser(resultfp).Close()
 
-	sockfp, err := getConnFileAndPossiblyEnableBBR(conn)
+	sockfp, err := getConnFile(conn)
 	if err != nil {
 		return // error printed already
 	}
@@ -129,7 +115,7 @@ func measuringLoop(ctx context.Context, request *http.Request,
 				Elapsed: elapsed.Seconds(),
 			}
 
-			err = gatherAndSaveTCPInfoAndBBRInfo(&measurement, sockfp, resultfp)
+			err = gatherAndSaveTCPInfo(&measurement, sockfp, resultfp)
 			if err != nil {
 				return // error printed already
 			}
@@ -149,7 +135,7 @@ func startMeasuring(ctx context.Context, request *http.Request, conn *websocket.
 
 // ServeHTTP handles the upload subtest.
 func (ul Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	// TODO: factor out this stuff as it's the same for both UL/DL
+	// TODO(evfirerob): factor out this stuff as it's the same for both UL/DL
 	logging.Logger.Debug("Upgrading to WebSockets")
 
 	if request.Header.Get("Sec-WebSocket-Protocol") != spec.SecWebSocketProtocol {
@@ -204,7 +190,6 @@ func (ul Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 				if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
 					logging.Logger.WithError(err)
 				}
-				logging.Logger.Debug(request.RemoteAddr + ": connection closed.")
 				break
 			}
 
@@ -214,7 +199,7 @@ func (ul Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 				if err == nil {
 					logging.Logger.Errorf("Unable to unmarshal JSON message: %s", message)
 				}
-				logging.Logger.Debugf("Received Measurement - AppInfo.NumBytes: %d", mdata.AppInfo.NumBytes)
+				break
 			}
 		}
 	}
