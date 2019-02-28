@@ -151,7 +151,7 @@ func (ul Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	defer conn.Close()
+	defer iox.ErrorLoggingCloser(conn).Close()
 
 	// Read limit is set to the smallest allowed payload size.
 	conn.SetReadLimit(spec.MinMaxMessageSize)
