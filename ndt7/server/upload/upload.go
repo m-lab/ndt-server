@@ -196,10 +196,10 @@ func (ul Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 			if mt == websocket.TextMessage {
 				var mdata model.Measurement
 				err := json.Unmarshal(message, &mdata)
-				if err == nil {
+				if err != nil {
 					logging.Logger.Errorf("Unable to unmarshal JSON message: %s", message)
+					break
 				}
-				break
 			}
 		}
 	}
