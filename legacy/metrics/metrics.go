@@ -1,10 +1,13 @@
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
 
 var (
 	// TestRate exports a histogram of request rates using prometheus
-	TestRate = prometheus.NewHistogramVec(
+	TestRate = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "ndt_test_rate_mbps",
 			Help: "A histogram of request rates.",
@@ -17,16 +20,13 @@ var (
 		[]string{"direction"},
 	)
 	// TestCount exports via prometheus the number of tests run by this server.
-	TestCount = prometheus.NewCounterVec(
+	TestCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt_test_total",
 			Help: "Number of NDT tests run by this server.",
 		},
 		[]string{"direction", "code"},
 	)
-)
 
-func init() {
-	prometheus.MustRegister(TestCount)
-	prometheus.MustRegister(TestRate)
-}
+
+)

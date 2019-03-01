@@ -11,12 +11,16 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/m-lab/ndt-server/legacy/c2s"
-	"github.com/m-lab/ndt-server/legacy/metrics"
+	legacymetrics "github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/s2c"
 	"github.com/m-lab/ndt-server/legacy/testresponder"
+	"github.com/m-lab/ndt-server/metrics"
 )
 
 const (
@@ -27,10 +31,11 @@ const (
 
 // BasicServer contains everything needed to start a new server on a random port.
 type BasicServer struct {
-	CertFile   string
-	KeyFile    string
-	ServerType testresponder.ServerType
-	ForwardingAddr   string
+	CertFile       string
+	KeyFile        string
+	ServerType     testresponder.ServerType
+	ForwardingAddr string
+	Labels         prometheus.Labels
 }
 
 // TODO: run meta test.
@@ -116,7 +121,7 @@ func (s *BasicServer) handleControlChannel(conn protocol.Connection) {
 		if err != nil {
 			log.Println("ERROR: manageC2sTest", err)
 		} else {
-			metrics.TestRate.WithLabelValues("c2s").Observe(c2sRate / 1000.0)
+			legacymetrics.TestRate.WithLabelValues("c2s").Observe(c2sRate / 1000.0)
 		}
 	}
 	if runS2c {
@@ -124,7 +129,7 @@ func (s *BasicServer) handleControlChannel(conn protocol.Connection) {
 		if err != nil {
 			log.Println("ERROR: manageS2cTest", err)
 		} else {
-			metrics.TestRate.WithLabelValues("s2c").Observe(s2cRate / 1000.0)
+			legacymetrics.TestRate.WithLabelValues("s2c").Observe(s2cRate / 1000.0)
 		}
 	}
 	log.Printf("NDT: uploaded at %.4f and downloaded at %.4f", c2sRate, s2cRate)
@@ -139,6 +144,13 @@ func (s *BasicServer) handleControlChannel(conn protocol.Connection) {
 // this code. In the future, if you are thinking of adding protocol sniffing to
 // your system, don't.
 func (s *BasicServer) sniffThenHandle(conn net.Conn) {
+	// Set up our observation of the duration of this function.
+	connectionType := "tcp" // This type may change. Don't close over its value until after the sniffing procedure.
+	startTime := time.Now()
+	defer func() {
+		endTime := time.Now()
+		metrics.TestDuration.WithLabelValues("legacy", connectionType).Observe(endTime.Sub(startTime).Seconds())
+	}()
 	// Peek at the first three bytes. If they are "GET", then this is an HTTP
 	// conversation and should be forwarded to the HTTP server.
 	input := bufio.NewReader(conn)
@@ -152,6 +164,7 @@ func (s *BasicServer) sniffThenHandle(conn net.Conn) {
 		// introduce overhead for the s2c and c2s tests, because in those tests the
 		// HTTP server itself opens the testing port, and that server will not use
 		// this TCP proxy.
+		connectionType = "forwarded_ws"
 		fwd, err := net.Dial("tcp", s.ForwardingAddr)
 		if err != nil {
 			log.Println("Could not forward connection", err)
@@ -212,7 +225,9 @@ func (s *BasicServer) ListenAndServeRawAsync(ctx context.Context, addr string) e
 				log.Println("Failed to accept connection:", err)
 				continue
 			}
-			go s.sniffThenHandle(conn)
+			go func() {
+				s.sniffThenHandle(conn)
+			}()
 		}
 	}()
 	return nil

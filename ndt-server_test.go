@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m-lab/go/prometheusx"
+
 	"github.com/m-lab/go/osx"
 	"github.com/m-lab/go/rtx"
 
@@ -95,21 +97,28 @@ func Test_ContextCancelsMain(t *testing.T) {
 
 	// Set up the global context for main()
 	ctx, cancel = context.WithCancel(context.Background())
+	before := runtime.NumGoroutine()
 
 	// Run main, but cancel it very soon after starting.
 	go func() {
 		time.Sleep(1 * time.Second)
 		cancel()
 	}()
-	before := runtime.NumGoroutine()
 	// If this doesn't run forever, then canceling the context causes main to exit.
 	main()
+
+	// A sleep has been added here to allow all completed goroutines to exit.
 	time.Sleep(100 * time.Millisecond)
+
 	// Make sure main() doesn't leak goroutines.
 	after := runtime.NumGoroutine()
 	if before != after {
 		t.Errorf("After running NumGoroutines changed: %d to %d", before, after)
 	}
+}
+
+func TestMetrics(t *testing.T) {
+	prometheusx.LintMetrics(t)
 }
 
 func Test_MainIntegrationTest(t *testing.T) {
