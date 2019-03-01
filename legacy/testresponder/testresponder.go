@@ -2,12 +2,14 @@ package testresponder
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/tcplistener"
 )
 
@@ -16,10 +18,26 @@ const (
 	Ready = float64(-1)
 )
 
+// ServerType indicates what type of NDT test the particular server is
+// performing. There are extant active clients for each of these protocol
+// variations.
+type ServerType int
+
+const (
+	// RawNoJSON NDT tests correspond to the code integrated into the uTorrent client.
+	RawNoJSON = ServerType(iota)
+	// RawJSON NDT tests correspond to code that integrated web100clt anytime after 2016.
+	RawJSON
+	// WS NDT tests take place over unencrypted websockets.
+	WS
+	// WSS NDT tests take place over encrypted websockets.
+	WSS
+)
+
 // Config expresses the configuration of the server, and whether to use TLS or not.
 type Config struct {
 	KeyFile, CertFile string
-	TLS               bool
+	ServerType        ServerType
 }
 
 // TestResponder coordinates synchronization between the main control loop and subtests.
@@ -60,7 +78,7 @@ func listenRandom() (net.Listener, int, error) {
 
 // StartAsync allocates a new TLS HTTP server listening on a random port. The
 // server can be stopped again using TestResponder.Close().
-func (tr *TestResponder) StartAsync(mux *http.ServeMux, msg string) error {
+func (tr *TestResponder) StartAsync(mux *http.ServeMux, rawTest func(protocol.Connection), msg string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	tr.Ctx = ctx
 	tr.Cancel = cancel
@@ -76,15 +94,29 @@ func (tr *TestResponder) StartAsync(mux *http.ServeMux, msg string) error {
 	go func() {
 		log.Printf("%s: Serving for test on %s", msg, ln.Addr())
 		var err error
-		if tr.Config.TLS {
+		switch tr.Config.ServerType {
+		case WSS:
 			err = tr.S.ServeTLS(ln, tr.Config.CertFile, tr.Config.KeyFile)
-		} else {
+		case WS:
 			err = tr.S.Serve(ln)
+		case RawJSON:
+			err = tr.serveRaw(ln, rawTest)
+		default:
+			err = errors.New("Can't start server")
 		}
 		if err != nil && err != http.ErrServerClosed {
 			log.Printf("ERROR: %s Starting server: %s", msg, err)
 		}
 	}()
+	return nil
+}
+
+func (tr *TestResponder) serveRaw(ln net.Listener, fn func(protocol.Connection)) error {
+	conn, err := ln.Accept()
+	if err != nil {
+		return err
+	}
+	fn(protocol.AdaptNetConn(conn, conn))
 	return nil
 }
 
@@ -94,15 +126,16 @@ func (tr *TestResponder) Close() {
 	if tr.S != nil {
 		// Shutdown the server for the test.
 		tr.S.Close()
+		tr.S = nil
 	}
 	if tr.Ln != nil {
 		// Shutdown the socket listener.
 		tr.Ln.Close()
+		tr.Ln = nil
 	}
 	if tr.Cancel != nil {
 		// Cancel the test responder context.
 		tr.Cancel()
+		tr.Cancel = nil
 	}
-	// Close channel for communication between the control routine and test routine.
-	close(tr.Response)
 }

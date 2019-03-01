@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script to test ndt-server with the correct `go get` flags.  This script
-# should be run inside a container.
+# is designed to run inside a container.
 set -ex
 
 # Test the NDT binary
