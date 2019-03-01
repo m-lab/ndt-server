@@ -150,6 +150,12 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// data to explicitly specify this fact.
 		ignoreData bool
 	}{
+		// Before we can throw out the C NDT codebase:
+		// TODO(https://github.com/m-lab/ndt-server/issues/65)
+		//  /bin/web100clt-without-json-support --disablemid --disablesfw
+		// TODO(https://github.com/m-lab/ndt-server/issues/66)
+		//  /bin/web100clt-with-json-support    # No tests disabled.
+		//  /bin/web100clt-without-json-support # No tests disabled.
 		// Test legacy raw JSON clients
 		{
 			name:       "Connect with web100clt (with JSON)",

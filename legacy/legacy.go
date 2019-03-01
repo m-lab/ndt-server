@@ -164,6 +164,10 @@ func (s *BasicServer) sniffThenHandle(conn net.Conn) {
 		// introduce overhead for the s2c and c2s tests, because in those tests the
 		// HTTP server itself opens the testing port, and that server will not use
 		// this TCP proxy.
+		//
+		// We must forward instead of doing an HTTP redirect because existing deployed
+		// clients don't support redirects, e.g.
+		//    https://github.com/websockets/ws/issues/812
 		connectionType = "forwarded_ws"
 		fwd, err := net.Dial("tcp", s.ForwardingAddr)
 		if err != nil {
