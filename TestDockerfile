@@ -38,11 +38,10 @@ COPY --from=ndtrawnojson /ndt/src/web100clt /bin/web100clt-without-json-support
 RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
 RUN apt-get update && apt-get install -y nodejs libjansson4 libssl1.1 libssl1.0
 ENV GOPATH=/go
-RUN go get -v gopkg.in/m-lab/pipe.v3
-RUN go get github.com/m-lab/ndt-server/cmd/ndt-cloud-client
-RUN go get github.com/mattn/goveralls
-RUN rm -Rf /go/src/github.com/m-lab/ndt-server
 ADD . /go/src/github.com/m-lab/ndt-server
+RUN go get -v gopkg.in/m-lab/pipe.v3
+RUN go get github.com/m-lab/ndt-server/cmd/ndt-client
+RUN go get github.com/mattn/goveralls
 WORKDIR /go/src/github.com/m-lab/ndt-server/testdata
 RUN npm install .
 WORKDIR /go/src/github.com/m-lab/ndt-server
