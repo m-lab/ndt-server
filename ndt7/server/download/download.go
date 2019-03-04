@@ -82,12 +82,9 @@ func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 // |fp| and stores them into the |measurement| object as well as into the
 // |resultfp| file. Returns an error on failure and nil in case of success.
 func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.File, resultfp *results.File) error {
-	bw, rtt, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
+	bbrinfo, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
 	if err == nil {
-		measurement.BBRInfo = &model.BBRInfo{
-			MaxBandwidth: bw,
-			MinRTT:       rtt,
-		}
+		measurement.BBRInfo = &bbrinfo
 	}
 	metrics, err := tcpinfox.GetTCPInfo(sockfp)
 	if err == nil {
