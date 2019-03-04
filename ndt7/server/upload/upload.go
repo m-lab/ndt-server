@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/go/iox"
+	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
@@ -90,14 +90,14 @@ func measuringLoop(ctx context.Context, request *http.Request,
 		return // error printed already
 	}
 
-	defer iox.ErrorLoggingCloser(resultfp).Close()
+	defer warnonerror.Close(resultfp, "Warning: ignored error")
 
 	sockfp, err := getConnFile(conn)
 	if err != nil {
 		return // error printed already
 	}
 
-	defer iox.ErrorLoggingCloser(sockfp).Close()
+	defer warnonerror.Close(sockfp, "Warning: ignored error")
 	t0 := time.Now()
 	ticker := time.NewTicker(spec.MinMeasurementInterval)
 	for {
@@ -151,7 +151,7 @@ func (ul Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	defer iox.ErrorLoggingCloser(conn).Close()
+	defer warnonerror.Close(conn, "Warning: ignoring error")
 
 	// Read limit is set to the smallest allowed payload size.
 	conn.SetReadLimit(spec.MinMaxMessageSize)
