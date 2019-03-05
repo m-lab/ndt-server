@@ -60,7 +60,10 @@ func getMaxBandwidthAndMinRTT(fp *os.File) (model.BBRInfo, error) {
 		return metrics, syscall.EOVERFLOW
 	}
 	maxbw *= 8 // bytes/s to bits/s
-	metrics.MaxBandwidth = float64(maxbw)
+	if maxbw > math.MaxInt64 {
+		return metrics, syscall.EOVERFLOW
+	}
+	metrics.MaxBandwidth = int64(maxbw)  // Java has no uint64
 	metrics.MinRTT = float64(bbrip.bbr_min_rtt)
 	metrics.MinRTT /= 1000.0 // microseconds to milliseconds
 	return metrics, nil
