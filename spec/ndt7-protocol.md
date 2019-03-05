@@ -156,7 +156,7 @@ Where:
     - `num_bytes` (a `int64`) is the number of bytes sent (or received) since
       the beginning of the specific subtest. Note that this counter tracks the
       amount of data sent at application level. It does not account for the
-      protocol overheaded of WebSockets, TCP, UDP, IP, and link layer;
+      protocol overheaded of WebSockets, TLS, TCP, IP, and link layer;
 
 - `bbr_info` is an _optional_ JSON object only included in the measurement
   when it is possible to access `TCP_CC_INFO` stats for BBR:
