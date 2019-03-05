@@ -178,6 +178,12 @@ Where:
 
     - `tcp_info.smoothed_rtt` (a `float64`) is the smoothed RTT in milliseconds.
 
+Note that JSON and JavaScript actually define integers as `int53` but existing
+implementations will likely round bigger (or smaller) numbers to the nearest
+`float64` value. A pedantic implementation MAY want to be overly defensive and
+make sure that it does not mit values that a `int53` cannot represent. The
+proper action to take in this case is currently unspecified.
+
 # Reference implementation
 
 The reference implementation is [github.com/m-lab/ndt-server](
