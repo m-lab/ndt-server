@@ -75,15 +75,23 @@ WebSocket messages, binary WebSocket messages carrying a random payload;
 the receiver (i.e. the client during a download subtest) MUST discard
 these messages without processing them.
 
-As far as textual and binary messages are concerned, ndt7 subtests are
+As far as binary messages are concerned, ndt7 subtests are strictly
 half duplex. During the download, the client MUST NOT send any binary
-or textual message to the server. During the upload, the server MUST NOT
-send any binary or textual message to the client.
+message to the server. During the upload, the server MUST NOT send
+any binary message to the client. If a party receives a binary message
+when that is not expected, it MUST close the connection.
 
-Control messages, on the other hand, are always allowed. Ping messages,
-specifically, SHOULD NOT be sent more frequently than one every 250
-millisecond. A party receiving too frequent ping messages MAY decide
-to close the connection.
+All other messages are permitted. Implementations should be prepared
+to receive such messages during any subtest. Processing these messages
+isn't mandatory and an implementation MAY choose to ignore them. An
+implementation SHOULD NOT send this kind of messages more frequently
+than every 250 millisecond. An implementation MAY close the connection
+if receiving such messages too frequently. The reason why we allow
+this kind of messages is so that the server could sent to the client
+download speed measurements during the upload test. This provides
+clients that do not have BBR support with a reasonably good estimation
+of the real upload speed, which is certainly more informative and
+stable than any application level sender side estimation.
 
 The expected transfer time of each subtest is ten seconds (unless BBR
 is used, in which case it may be shorter, as explained below). The sender
