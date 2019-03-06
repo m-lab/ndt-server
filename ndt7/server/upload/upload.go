@@ -190,7 +190,7 @@ func (ul Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 				if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
 					logging.Logger.WithError(err)
 				}
-				break
+				return
 			}
 
 			if mt == websocket.TextMessage {
@@ -198,7 +198,7 @@ func (ul Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 				err := json.Unmarshal(message, &mdata)
 				if err != nil {
 					logging.Logger.Errorf("Unable to unmarshal JSON message: %s", message)
-					break
+					return
 				}
 			}
 		}
