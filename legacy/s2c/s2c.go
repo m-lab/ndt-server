@@ -72,13 +72,13 @@ func (r *Responder) performTest(ws protocol.MeasuredConnection) {
 			r.Cancel()
 			return
 		}
-		data, err := ws.StopMeasuring()
+		info, err := ws.StopMeasuring()
 		if err != nil {
 			r.Cancel()
 			return
 		}
-		data.BytesPerSecond = float64(totalBytes) / float64(time.Since(startTime)/time.Second)
-		done <- data
+		info.BytesPerSecond = float64(totalBytes) / float64(time.Since(startTime)/time.Second)
+		done <- info
 	}()
 
 	log.Println("S2C: Waiting for test to complete or timeout")
@@ -87,9 +87,9 @@ func (r *Responder) performTest(ws protocol.MeasuredConnection) {
 		log.Println("S2C: Context Done!", r.Ctx.Err())
 		// Return zero on error.
 		r.Response <- nil
-	case data := <-done:
-		log.Println("S2C: Ran test and measured a download speed of", data.BytesPerSecond)
-		r.Response <- data
+	case info := <-done:
+		log.Println("S2C: Ran test and measured a download speed of", info.BytesPerSecond)
+		r.Response <- info
 	}
 	<-r.Response // Wait to close until we are told to close.
 	ws.Close()
