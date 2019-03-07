@@ -11,13 +11,18 @@ import (
 	"github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/testresponder"
+	"github.com/m-lab/ndt-server/legacy/web100"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// ready should be a constant, but const initializers may not be nil in Go.
+var ready *web100.Metrics
+
 // Responder is a response for the s2c test
 type Responder struct {
 	testresponder.TestResponder
+	Response chan *web100.Metrics
 }
 
 // Result is the result object returned to S2C clients as JSON.
@@ -52,12 +57,13 @@ func (r *Responder) performTest(ws protocol.Connection) {
 	}
 
 	// Signal control channel that we are about to start the test.
-	r.Response <- testresponder.Ready
+	r.Response <- ready
 
 	// Create ticker to enforce timeout on
-	done := make(chan float64)
+	done := make(chan *web100.Metrics)
 
 	go func() {
+		ws.StartMeasuring(r.Ctx)
 		startTime := time.Now()
 		endTime := startTime.Add(10 * time.Second)
 		totalBytes, err := ws.FillUntil(endTime, dataToSend)
@@ -66,7 +72,13 @@ func (r *Responder) performTest(ws protocol.Connection) {
 			r.Cancel()
 			return
 		}
-		done <- float64(totalBytes) / float64(time.Since(startTime)/time.Second)
+		data, err := ws.StopMeasuring()
+		if err != nil {
+			r.Cancel()
+			return
+		}
+		data.BytesPerSecond = float64(totalBytes) / float64(time.Since(startTime)/time.Second)
+		done <- data
 	}()
 
 	log.Println("S2C: Waiting for test to complete or timeout")
@@ -74,10 +86,10 @@ func (r *Responder) performTest(ws protocol.Connection) {
 	case <-r.Ctx.Done():
 		log.Println("S2C: Context Done!", r.Ctx.Err())
 		// Return zero on error.
-		r.Response <- 0
-	case bytesPerSecond := <-done:
-		log.Println("S2C: Ran test and measured a download speed of", bytesPerSecond)
-		r.Response <- bytesPerSecond
+		r.Response <- nil
+	case data := <-done:
+		log.Println("S2C: Ran test and measured a download speed of", data.BytesPerSecond)
+		r.Response <- data
 	}
 	<-r.Response // Wait to close until we are told to close.
 	ws.Close()
@@ -89,14 +101,19 @@ func (r *Responder) runControlChannel(ctx context.Context, cancel context.Cancel
 	protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(r.Port), ws)
 	// Wait for the client to connect to the test port
 	s2cReady := <-r.Response
-	if s2cReady != testresponder.Ready {
+	if s2cReady != ready {
 		log.Println("ERROR S2C: Bad value received on the s2c channel", s2cReady)
 		cancel()
 		return
 	}
 	protocol.SendJSONMessage(protocol.TestStart, "", ws)
 	// Wait for the 10 seconds download test to be complete.
-	s2cBytesPerSecond := <-r.Response
+	info := <-r.Response
+	if info == nil {
+		cancel()
+		return
+	}
+	s2cBytesPerSecond := info.BytesPerSecond
 	s2cKbps := 8 * s2cBytesPerSecond / 1000.0
 
 	// Send additional download results to the client.
@@ -120,15 +137,7 @@ func (r *Responder) runControlChannel(ctx context.Context, cancel context.Cancel
 	}
 	// Send the web100vars (TODO: make these TCP_INFO vars)
 	log.Println("S2C: The client sent us:", clientRateMsg.Msg)
-	requiredWeb100Vars := []string{"MaxRTT", "MinRTT", "AckPktsIn", "CountRTT",
-		"CongestionSignals", "CurRTO", "CurMSS", "DataBytesOut", "DupAcksIn",
-		"MaxCwnd", "MaxRwinRcvd", "PktsOut", "PktsRetrans", "RcvWinScale",
-		"Sndbuf", "SndLimTimeCwnd", "SndLimTimeRwin", "SndLimTimeSender",
-		"SndWinScale", "SumRTT", "Timeouts"}
-
-	for _, web100Var := range requiredWeb100Vars {
-		protocol.SendJSONMessage(protocol.TestMsg, web100Var+": 0\n", ws)
-	}
+	protocol.SendMetrics(info, ws)
 	protocol.SendJSONMessage(protocol.TestFinalize, "", ws)
 	close(r.Response)
 	clientRate, err := strconv.ParseFloat(clientRateMsg.Msg, 64)
@@ -148,7 +157,9 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 	defer cancel()
 
 	// Create a testResponder instance.
-	responder := &Responder{}
+	responder := &Responder{
+		Response: make(chan *web100.Metrics),
+	}
 	responder.Config = config
 
 	// Create a TLS server for running the S2C test.

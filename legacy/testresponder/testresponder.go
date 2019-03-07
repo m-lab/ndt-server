@@ -13,11 +13,6 @@ import (
 	"github.com/m-lab/ndt-server/legacy/tcplistener"
 )
 
-// Message constants for use in their respective channels
-const (
-	Ready = float64(-1)
-)
-
 // ServerType indicates what type of NDT test the particular server is
 // performing. There are extant active clients for each of these protocol
 // variations.
@@ -42,13 +37,12 @@ type Config struct {
 
 // TestResponder coordinates synchronization between the main control loop and subtests.
 type TestResponder struct {
-	Response chan float64
-	Port     int
-	Ln       net.Listener
-	S        *http.Server
-	Ctx      context.Context
-	Cancel   context.CancelFunc
-	Config   *Config
+	Port   int
+	Ln     net.Listener
+	S      *http.Server
+	Ctx    context.Context
+	Cancel context.CancelFunc
+	Config *Config
 }
 
 // MakeNdtUpgrader creates a websocket Upgrade for the NDT legacy
@@ -82,7 +76,6 @@ func (tr *TestResponder) StartAsync(mux *http.ServeMux, rawTest func(protocol.Co
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	tr.Ctx = ctx
 	tr.Cancel = cancel
-	tr.Response = make(chan float64)
 	ln, port, err := listenRandom()
 	if err != nil {
 		log.Println("ERROR: Failed to listen on any port:", err)

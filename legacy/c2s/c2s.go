@@ -15,9 +15,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+const (
+	ready = float64(-1)
+)
+
 // Responder responds to c2s tests.
 type Responder struct {
 	testresponder.TestResponder
+	Response chan float64
 }
 
 // TestServer performs the NDT c2s test.
@@ -34,7 +39,7 @@ func (tr *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (tr *Responder) performTest(ws protocol.Connection) {
-	tr.Response <- testresponder.Ready
+	tr.Response <- ready
 	bytesPerSecond := tr.recvC2SUntil(ws)
 	tr.Response <- bytesPerSecond
 	go func() {
@@ -82,7 +87,9 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 	defer cancel()
 
 	// Create a testResponder instance.
-	testResponder := &Responder{}
+	testResponder := &Responder{
+		Response: make(chan float64),
+	}
 	testResponder.Config = config
 
 	// Create a TLS server for running the C2S test.
@@ -103,7 +110,7 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 		// Send the server port to the client.
 		protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(testResponder.Port), ws)
 		c2sReady := <-testResponder.Response
-		if c2sReady != testresponder.Ready {
+		if c2sReady != ready {
 			log.Println("ERROR C2S: Bad value received on the c2s channel", c2sReady)
 			cancel()
 			return
