@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"reflect"
 	"time"
 
@@ -83,21 +84,53 @@ type Connection interface {
 	DrainUntil(t time.Time) (bytesRead int64, err error)
 	FillUntil(t time.Time, buffer []byte) (bytesWritten int64, err error)
 	Close() error
+}
+
+// Measurable things can be measured over a given timeframe.
+type Measurable interface {
 	StartMeasuring(ctx context.Context)
 	StopMeasuring() (*web100.Metrics, error)
+}
+
+// MeasuredConnection is a connection which can also be measured.
+type MeasuredConnection interface {
+	Connection
+	Measurable
+}
+
+// The measurer struct is a hack to ensure that we only have to write the
+// complicated measurement code at most once.
+type measurer struct {
+	measurements             chan *web100.Metrics
+	cancelMeasurementContext context.CancelFunc
+}
+
+func (m *measurer) StartMeasuring(ctx context.Context, fd *os.File) {
+	m.measurements = make(chan *web100.Metrics)
+	var newctx context.Context
+	newctx, m.cancelMeasurementContext = context.WithCancel(ctx)
+	go web100.MeasureViaPolling(newctx, fd, m.measurements)
+}
+
+func (m *measurer) StopMeasuring() (*web100.Metrics, error) {
+	m.cancelMeasurementContext()
+	info, ok := <-m.measurements
+	if !ok {
+		return nil, errors.New("No data")
+	}
+	return info, nil
 }
 
 // wsConnection wraps a websocket connection to allow it to be used as a
 // Connection.
 type wsConnection struct {
 	*websocket.Conn
-	measurements             chan *web100.Metrics
-	cancelMeasurementContext context.CancelFunc
+	*measurer
 }
 
-// AdaptWsConn turns a websocket Connection into a protcol.Connection.
-func AdaptWsConn(ws *websocket.Conn) Connection {
-	return &wsConnection{Conn: ws}
+// AdaptWsConn turns a websocket Connection into a struct which implements both Measurer and Connection
+func AdaptWsConn(ws *websocket.Conn) MeasuredConnection {
+	return &wsConnection{Conn: ws, measurer: &measurer{}}
 }
 
 func (ws *wsConnection) DrainUntil(t time.Time) (bytesRead int64, err error) {
@@ -127,19 +160,7 @@ func (ws *wsConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64
 }
 
 func (ws *wsConnection) StartMeasuring(ctx context.Context) {
-	ws.measurements = make(chan *web100.Metrics)
-	var newctx context.Context
-	newctx, ws.cancelMeasurementContext = context.WithCancel(ctx)
-	go web100.MeasureViaPolling(newctx, fdcache.GetAndForgetFile(ws.UnderlyingConn()), ws.measurements)
-}
-
-func (ws *wsConnection) StopMeasuring() (*web100.Metrics, error) {
-	ws.cancelMeasurementContext()
-	info, ok := <-ws.measurements
-	if !ok {
-		return nil, errors.New("No data")
-	}
-	return info, nil
+	ws.measurer.StartMeasuring(ctx, fdcache.GetAndForgetFile(ws.UnderlyingConn()))
 }
 
 // netConnection is a utility struct that allows us to use OS sockets and
@@ -147,9 +168,8 @@ func (ws *wsConnection) StopMeasuring() (*web100.Metrics, error) {
 // because we want to allow the input channel to be buffered.
 type netConnection struct {
 	net.Conn
-	input                    io.Reader
-	measurements             chan *web100.Metrics
-	cancelMeasurementContext context.CancelFunc
+	*measurer
+	input io.Reader
 }
 
 func (nc *netConnection) ReadMessage() (int, []byte, error) {
@@ -194,24 +214,12 @@ func (nc *netConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int6
 }
 
 func (nc *netConnection) StartMeasuring(ctx context.Context) {
-	nc.measurements = make(chan *web100.Metrics)
-	var newctx context.Context
-	newctx, nc.cancelMeasurementContext = context.WithCancel(ctx)
-	go web100.MeasureViaPolling(newctx, fdcache.GetAndForgetFile(nc.Conn), nc.measurements)
+	nc.measurer.StartMeasuring(ctx, fdcache.GetAndForgetFile(nc))
 }
 
-func (nc *netConnection) StopMeasuring() (*web100.Metrics, error) {
-	nc.cancelMeasurementContext()
-	info, ok := <-nc.measurements
-	if !ok {
-		return nil, errors.New("No data")
-	}
-	return info, nil
-}
-
-// AdaptNetConn turns a non-WS-based TCP connection into a protocol.Connection.
-func AdaptNetConn(conn net.Conn, input io.Reader) Connection {
-	return &netConnection{Conn: conn, input: input}
+// AdaptNetConn turns a non-WS-based TCP connection into a protocol.MeasuredConnection.
+func AdaptNetConn(conn net.Conn, input io.Reader) MeasuredConnection {
+	return &netConnection{Conn: conn, measurer: &measurer{}, input: input}
 }
 
 // ReadNDTMessage reads a single NDT message out of the connection.

@@ -38,7 +38,7 @@ func (tr *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
 	tr.performTest(ws)
 }
 
-func (tr *Responder) performTest(ws protocol.Connection) {
+func (tr *Responder) performTest(ws protocol.MeasuredConnection) {
 	tr.Response <- ready
 	bytesPerSecond := tr.recvC2SUntil(ws)
 	tr.Response <- bytesPerSecond

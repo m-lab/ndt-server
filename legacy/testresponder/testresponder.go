@@ -72,7 +72,7 @@ func listenRandom() (net.Listener, int, error) {
 
 // StartAsync allocates a new TLS HTTP server listening on a random port. The
 // server can be stopped again using TestResponder.Close().
-func (tr *TestResponder) StartAsync(mux *http.ServeMux, rawTest func(protocol.Connection), msg string) error {
+func (tr *TestResponder) StartAsync(mux *http.ServeMux, rawTest func(protocol.MeasuredConnection), msg string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	tr.Ctx = ctx
 	tr.Cancel = cancel
@@ -104,7 +104,7 @@ func (tr *TestResponder) StartAsync(mux *http.ServeMux, rawTest func(protocol.Co
 	return nil
 }
 
-func (tr *TestResponder) serveRaw(ln net.Listener, fn func(protocol.Connection)) error {
+func (tr *TestResponder) serveRaw(ln net.Listener, fn func(protocol.MeasuredConnection)) error {
 	conn, err := ln.Accept()
 	if err != nil {
 		return err

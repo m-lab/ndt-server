@@ -50,7 +50,7 @@ func (r *Responder) websocketHandler(w http.ResponseWriter, req *http.Request) {
 	r.performTest(ws)
 }
 
-func (r *Responder) performTest(ws protocol.Connection) {
+func (r *Responder) performTest(ws protocol.MeasuredConnection) {
 	dataToSend := make([]byte, 8192)
 	for i := range dataToSend {
 		dataToSend[i] = byte(((i * 101) % (122 - 33)) + 33)
