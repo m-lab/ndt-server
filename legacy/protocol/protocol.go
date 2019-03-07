@@ -1,13 +1,20 @@
 package protocol
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"reflect"
 	"time"
 
+	"github.com/m-lab/ndt-server/fdcache"
+
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-server/legacy/web100"
 )
 
 // MessageType is the full set opf NDT protocol messages we understand.
@@ -79,15 +86,51 @@ type Connection interface {
 	Close() error
 }
 
+// Measurable things can be measured over a given timeframe.
+type Measurable interface {
+	StartMeasuring(ctx context.Context)
+	StopMeasuring() (*web100.Metrics, error)
+}
+
+// MeasuredConnection is a connection which can also be measured.
+type MeasuredConnection interface {
+	Connection
+	Measurable
+}
+
+// The measurer struct is a hack to ensure that we only have to write the
+// complicated measurement code at most once.
+type measurer struct {
+	measurements             chan *web100.Metrics
+	cancelMeasurementContext context.CancelFunc
+}
+
+func (m *measurer) StartMeasuring(ctx context.Context, fd *os.File) {
+	m.measurements = make(chan *web100.Metrics)
+	var newctx context.Context
+	newctx, m.cancelMeasurementContext = context.WithCancel(ctx)
+	go web100.MeasureViaPolling(newctx, fd, m.measurements)
+}
+
+func (m *measurer) StopMeasuring() (*web100.Metrics, error) {
+	m.cancelMeasurementContext()
+	info, ok := <-m.measurements
+	if !ok {
+		return nil, errors.New("No data")
+	}
+	return info, nil
+}
+
 // wsConnection wraps a websocket connection to allow it to be used as a
 // Connection.
 type wsConnection struct {
 	*websocket.Conn
+	*measurer
 }
 
-// AdaptWsConn turns a websocket Connection into a protcol.Connection.
-func AdaptWsConn(ws *websocket.Conn) Connection {
-	return &wsConnection{ws}
+// AdaptWsConn turns a websocket Connection into a struct which implements both Measurer and Connection
+func AdaptWsConn(ws *websocket.Conn) MeasuredConnection {
+	return &wsConnection{Conn: ws, measurer: &measurer{}}
 }
 
 func (ws *wsConnection) DrainUntil(t time.Time) (bytesRead int64, err error) {
@@ -116,11 +159,16 @@ func (ws *wsConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64
 	return bytesWritten, nil
 }
 
+func (ws *wsConnection) StartMeasuring(ctx context.Context) {
+	ws.measurer.StartMeasuring(ctx, fdcache.GetAndForgetFile(ws.UnderlyingConn()))
+}
+
 // netConnection is a utility struct that allows us to use OS sockets and
 // Websockets using the same set of methods. Its second element is a Reader
 // because we want to allow the input channel to be buffered.
 type netConnection struct {
 	net.Conn
+	*measurer
 	input io.Reader
 }
 
@@ -165,9 +213,13 @@ func (nc *netConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int6
 	return bytesWritten, nil
 }
 
-// AdaptNetConn turns a non-WS-based TCP connection into a protocol.Connection.
-func AdaptNetConn(conn net.Conn, input io.Reader) Connection {
-	return &netConnection{conn, input}
+func (nc *netConnection) StartMeasuring(ctx context.Context) {
+	nc.measurer.StartMeasuring(ctx, fdcache.GetAndForgetFile(nc))
+}
+
+// AdaptNetConn turns a non-WS-based TCP connection into a protocol.MeasuredConnection.
+func AdaptNetConn(conn net.Conn, input io.Reader) MeasuredConnection {
+	return &netConnection{Conn: conn, measurer: &measurer{}, input: input}
 }
 
 // ReadNDTMessage reads a single NDT message out of the connection.
@@ -233,4 +285,19 @@ func ReceiveJSONMessage(ws Connection, expectedType MessageType) (*JSONMessage, 
 func SendJSONMessage(msgType MessageType, msg string, ws Connection) error {
 	message := &JSONMessage{Msg: msg}
 	return WriteNDTMessage(ws, msgType, message)
+}
+
+// SendMetrics sends all the required properties out along the NDT control channel.
+func SendMetrics(metrics *web100.Metrics, ws Connection) error {
+	v := reflect.ValueOf(*metrics)
+	t := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		name := t.Field(i).Name
+		msg := fmt.Sprintf("%s: %v\n", name, v.Field(i).Interface())
+		err := SendJSONMessage(TestMsg, msg, ws)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

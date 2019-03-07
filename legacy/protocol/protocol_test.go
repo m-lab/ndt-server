@@ -60,9 +60,10 @@ func Test_netConnReadJSONMessage(t *testing.T) {
 		}(m)
 
 		// Ensure that the message was received and parsed properly.
-		conn, err := ln.Accept()
+		c, err := ln.Accept()
 		rtx.Must(err, "Could not accept connection")
-		msg, err := protocol.ReceiveJSONMessage(protocol.AdaptNetConn(conn, conn), m.kind)
+		conn := protocol.AdaptNetConn(c, c)
+		msg, err := protocol.ReceiveJSONMessage(conn, m.kind)
 		rtx.Must(err, "Could not read JSON message")
 		if *msg != m.msg {
 			t.Errorf("%v != %v", *msg, m.msg)
