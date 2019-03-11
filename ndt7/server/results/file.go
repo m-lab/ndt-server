@@ -30,7 +30,7 @@ func newFile(datadir, what, uuid string) (*File, error) {
 	if err != nil {
 		return nil, err
 	}
-	name := dir + "/ndt7-" + timestamp.Format("20060102T150405.000000000Z") + "." + uuid + ".jsonl.gz"
+	name := dir + "/ndt7-" + what + "-" + timestamp.Format("20060102T150405.000000000Z") + "." + uuid + ".jsonl.gz"
 	// My assumption here is that we have nanosecond precision and hence it's
 	// unlikely to have conflicts. If I'm wrong, O_EXCL will let us know.
 	fp, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
