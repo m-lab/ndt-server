@@ -4,6 +4,7 @@ package receiver
 import (
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
+	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
 // Start starts a goroutine that reads counter-flow messages sent by advanced
@@ -25,6 +26,7 @@ func Start(conn *websocket.Conn, in <-chan error) <-chan error {
 		}()
 		defer logging.Logger.Debug("Stop reading counter-flow messages")
 		logging.Logger.Debug("Start reading counter-flow messages")
+		conn.SetReadLimit(spec.MinMaxMessageSize)
 		for {
 			// We may want to continue reading the connection even after the
 			// upstream channel is closed, because of upcoming counter-flow

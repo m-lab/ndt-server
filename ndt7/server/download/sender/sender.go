@@ -8,7 +8,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
-	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
 // makePreparedMessage generates a prepared message that should be sent
@@ -58,12 +57,10 @@ func Start(conn *websocket.Conn, measurements <-chan model.Measurement) <-chan e
 		}
 		logging.Logger.Debug("Start sending data to client")
 		defer logging.Logger.Debug("Stop sending data to client")
-		conn.SetReadLimit(spec.MinMaxMessageSize)
 		for {
 			select {
 			case m, ok := <-measurements:
-				if !ok {
-					// This means that the previous step has terminated
+				if !ok { // This means that the previous step has terminated
 					msg := websocket.FormatCloseMessage(
 						websocket.CloseNormalClosure, "Done sending")
 					out <- conn.WriteControl(websocket.CloseMessage, msg, time.Time{})
@@ -80,7 +77,8 @@ func Start(conn *websocket.Conn, measurements <-chan model.Measurement) <-chan e
 				}
 			}
 			// We MUST NOT block on the output channel but we MUST make sure that
-			// the downstream stage continues reading until we're done.
+			// the downstream stage continues reading until we're done, and possibly
+			// also for some time after we are done.
 			select {
 			case out <- nil:
 			default:
