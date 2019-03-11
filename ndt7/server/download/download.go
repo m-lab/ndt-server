@@ -56,10 +56,12 @@ func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(request.Context(), defaultDuration)
 	defer cancel()
-	err = sender.Start(conn, measurer.Start(ctx, request, conn, dl.DataDir))
-	if err != nil {
-		logging.Logger.WithError(err).Warn("the download pipeline failed")
-		return
+	pipech := sender.Start(conn, measurer.Start(ctx, request, conn, dl.DataDir))
+	for err = range pipech {
+		if err != nil {
+			logging.Logger.WithError(err).Warn("the download pipeline failed")
+			return
+		}
 	}
 	err = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
 			websocket.CloseNormalClosure, ""), time.Now().Add(defaultTimeout))
