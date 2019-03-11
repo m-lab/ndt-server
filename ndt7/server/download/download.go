@@ -8,14 +8,12 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
+	"github.com/m-lab/ndt-server/ndt7/server/closer"
 	"github.com/m-lab/ndt-server/ndt7/server/download/measurer"
 	"github.com/m-lab/ndt-server/ndt7/server/download/receiver"
 	"github.com/m-lab/ndt-server/ndt7/server/download/sender"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
-
-// defaultTimeout is the default value of the I/O timeout.
-const defaultTimeout = 7 * time.Second
 
 // defaultDuration is the default duration of a subtest in nanoseconds.
 const defaultDuration = 10 * time.Second
@@ -54,21 +52,12 @@ func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	// and close(2), we'll end up keeping sockets that caused an error in the
 	// code above (e.g. because the handshake was not okay) alive for the time
 	// in which the corresponding *os.File is kept in cache.
-	defer conn.Close()
 	ctx, cancel := context.WithTimeout(request.Context(), defaultDuration)
 	defer cancel()
-	pipech := receiver.Start(conn, sender.Start(
-		conn, measurer.Start(ctx, request, conn, dl.DataDir)))
-	for err = range pipech {
-		if err != nil {
-			logging.Logger.WithError(err).Warn("the download pipeline failed")
-			return
-		}
-	}
-	err = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
-			websocket.CloseNormalClosure, ""), time.Now().Add(defaultTimeout))
+	err = closer.Run(conn, receiver.Start(conn, sender.Start(conn,
+		measurer.Start(ctx, request, conn, dl.DataDir))))
 	if err != nil {
-		logging.Logger.WithError(err).Warn("cannot send the CLOSE message")
+		logging.Logger.WithError(err).Warn("the download pipeline failed")
 		return
 	}
 }

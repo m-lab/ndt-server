@@ -66,7 +66,11 @@ func Start(conn *websocket.Conn, measurements <-chan model.Measurement) <-chan e
 			select {
 			case m, ok := <-measurements:
 				if !ok {
-					return // the measurer told us it's time to stop running
+					// This means that the previous step has terminated
+					msg := websocket.FormatCloseMessage(
+						websocket.CloseNormalClosure, "Done sending")
+					out <- conn.WriteControl(websocket.CloseMessage, msg, time.Time{})
+					return
 				}
 				conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
 				if err := conn.WriteJSON(m); err != nil {
