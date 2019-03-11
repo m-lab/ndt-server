@@ -32,13 +32,9 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 // channel, also in case it leaves early because of error. The default
 // behaviour is to continue running as long as there are measurements coming
 // in. That it, it's the goroutine writing on the measurements channel that
-// decides when we should stop running.
-//
-// In addition, this pipeline stage will also posts nonblocking liveness
-// updates on the output channel. The purpose of such updates is to inform
-// the counter-flow messages reader that it should continue reading. This
-// downstream pipeline stage is supposed to continue until it sees an error
-// coming from us, or until the output channel is closed.
+// decides when we should stop running. In case of failure, this goroutine
+// will post an error on the returned channel. Otherwise, it will just close
+// the channel when it's leaving.
 func Start(conn *websocket.Conn, measurements <-chan model.Measurement) <-chan error {
 	out := make(chan error)
 	go func() {
@@ -75,13 +71,6 @@ func Start(conn *websocket.Conn, measurements <-chan model.Measurement) <-chan e
 					out <- err
 					return
 				}
-			}
-			// We MUST NOT block on the output channel but we MUST make sure that
-			// the downstream stage continues reading until we're done, and possibly
-			// also for some time after we are done.
-			select {
-			case out <- nil:
-			default:
 			}
 		}
 	}()
