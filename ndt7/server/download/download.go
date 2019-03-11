@@ -3,13 +3,13 @@ package download
 
 import (
 	"context"
-	"math/rand"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/server/download/measurer"
+	"github.com/m-lab/ndt-server/ndt7/server/download/sender"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
@@ -33,22 +33,6 @@ func warnAndClose(writer http.ResponseWriter, message string) {
 	writer.WriteHeader(http.StatusBadRequest)
 }
 
-// makePreparedMessage generates a prepared message that should be sent
-// over the network for generating network load.
-func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
-	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	data := make([]byte, size)
-	// This is not the fastest algorithm to generate a random string, yet it
-	// is most likely good enough for our purposes. See [1] for a comprehensive
-	// discussion regarding how to generate a random string in Golang.
-	//
-	// .. [1] https://stackoverflow.com/a/31832326/4354461
-	for i := range data {
-		data[i] = letterBytes[rand.Intn(len(letterBytes))]
-	}
-	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
-}
-
 // Handle handles the download subtest.
 func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	logging.Logger.Debug("Upgrading to WebSockets")
@@ -70,47 +54,17 @@ func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	// code above (e.g. because the handshake was not okay) alive for the time
 	// in which the corresponding *os.File is kept in cache.
 	defer conn.Close()
-	logging.Logger.Debug("Generating random buffer")
-	const bulkMessageSize = 1 << 13
-	preparedMessage, err := makePreparedMessage(bulkMessageSize)
+	ctx, cancel := context.WithCancel(request.Context())
+	defer cancel()
+	err = sender.Start(conn, measurer.Start(ctx, request, conn, dl.DataDir))
 	if err != nil {
-		logging.Logger.WithError(err).Warn("Cannot prepare message")
+		logging.Logger.WithError(err).Warn("the download pipeline failed")
 		return
 	}
-	ctx, cancel := context.WithCancel(request.Context())
-	measurements := measurer.Start(ctx, request, conn, dl.DataDir)
-	logging.Logger.Debug("Start sending data to client")
-	conn.SetReadLimit(spec.MinMaxMessageSize)
-	// make sure we cleanup resources when we leave
-	defer func() {
-		logging.Logger.Debug("Closing the WebSocket connection")
-		conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
+	err = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(
 			websocket.CloseNormalClosure, ""), time.Now().Add(defaultTimeout))
-		// We could leave the context because the measuring goroutine thinks we're
-		// done or because there has been a socket error. In the latter case, it is
-		// important to synchronise with the goroutine and wait for it to exit.
-		cancel()
-		for range measurements {
-			// NOTHING
-		}
-	}()
-	for {
-		select {
-		case m, ok := <-measurements:
-			if !ok {
-				return // the goroutine told us it's time to stop running
-			}
-			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
-			if err := conn.WriteJSON(m); err != nil {
-				logging.Logger.WithError(err).Warn("Cannot send measurement message")
-				return
-			}
-		default:
-			conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
-			if err := conn.WritePreparedMessage(preparedMessage); err != nil {
-				logging.Logger.WithError(err).Warn("Cannot send prepared message")
-				return
-			}
-		}
+	if err != nil {
+		logging.Logger.WithError(err).Warn("cannot send the CLOSE message")
+		return
 	}
 }
