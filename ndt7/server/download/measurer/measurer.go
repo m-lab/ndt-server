@@ -18,9 +18,6 @@ import (
 	"github.com/m-lab/ndt-server/tcpinfox"
 )
 
-// defaultDuration is the default duration of a subtest in nanoseconds.
-const defaultDuration = 10 * time.Second
-
 // getConnFileAndPossiblyEnableBBR returns the connection to be used to
 // gather low level stats and possibly enables BBR. It returns a file to
 // use to gather BBR/TCP_INFO stats on success, an error on failure.
@@ -92,13 +89,10 @@ func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.C
 	for {
 		select {
 		case <-ctx.Done():
+			logging.Logger.Debug("Interrupted by context")
 			return
 		case now := <-ticker.C:
 			elapsed := now.Sub(t0)
-			if elapsed > defaultDuration {
-				logging.Logger.Debug("Download run for enough time")
-				return
-			}
 			measurement := model.Measurement{
 				Elapsed: elapsed.Seconds(),
 			}

@@ -54,7 +54,7 @@ func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	// code above (e.g. because the handshake was not okay) alive for the time
 	// in which the corresponding *os.File is kept in cache.
 	defer conn.Close()
-	ctx, cancel := context.WithCancel(request.Context())
+	ctx, cancel := context.WithTimeout(request.Context(), defaultDuration)
 	defer cancel()
 	err = sender.Start(conn, measurer.Start(ctx, request, conn, dl.DataDir))
 	if err != nil {
