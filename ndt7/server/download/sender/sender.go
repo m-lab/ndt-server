@@ -11,9 +11,6 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
-// defaultTimeout is the default value of the I/O timeout.
-const defaultTimeout = 7 * time.Second
-
 // makePreparedMessage generates a prepared message that should be sent
 // over the network for generating network load.
 func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
@@ -72,13 +69,11 @@ func Start(conn *websocket.Conn, measurements <-chan model.Measurement) <-chan e
 					out <- conn.WriteControl(websocket.CloseMessage, msg, time.Time{})
 					return
 				}
-				conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
 				if err := conn.WriteJSON(m); err != nil {
 					out <- err
 					return
 				}
 			default:
-				conn.SetWriteDeadline(time.Now().Add(defaultTimeout))
 				if err := conn.WritePreparedMessage(preparedMessage); err != nil {
 					out <- err
 					return
