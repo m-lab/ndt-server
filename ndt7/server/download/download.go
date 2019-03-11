@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/server/download/measurer"
+	"github.com/m-lab/ndt-server/ndt7/server/download/receiver"
 	"github.com/m-lab/ndt-server/ndt7/server/download/sender"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
@@ -56,7 +57,8 @@ func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(request.Context(), defaultDuration)
 	defer cancel()
-	pipech := sender.Start(conn, measurer.Start(ctx, request, conn, dl.DataDir))
+	pipech := receiver.Start(conn, sender.Start(
+		conn, measurer.Start(ctx, request, conn, dl.DataDir)))
 	for err = range pipech {
 		if err != nil {
 			logging.Logger.WithError(err).Warn("the download pipeline failed")
