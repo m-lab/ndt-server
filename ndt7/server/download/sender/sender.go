@@ -8,10 +8,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
+	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
-// makePreparedMessage generates a prepared message that should be sent
-// over the network for generating network load.
 func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	data := make([]byte, size)
@@ -26,53 +25,68 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 }
 
-// Start is a pipeline stage that continuously sends binary messages to the
-// client using conn and intermixes such messages with measurements coming
-// from the measurement channel. This function fully drains the measurement
-// channel, also in case it leaves early because of error. The default
-// behaviour is to continue running as long as there are measurements coming
-// in. That it, it's the goroutine writing on the measurements channel that
-// decides when we should stop running. In case of failure, this goroutine
-// will post an error on the returned channel. Otherwise, it will just close
-// the channel when it's leaving.
-func Start(conn *websocket.Conn, measurements <-chan model.Measurement) <-chan error {
-	out := make(chan error)
-	go func() {
-		defer close(out)
-		defer func() {
-			for range measurements {
-				// make sure we drain the channel
-			}
-		}()
-		logging.Logger.Debug("Generating random buffer")
-		const bulkMessageSize = 1 << 13
-		preparedMessage, err := makePreparedMessage(bulkMessageSize)
-		if err != nil {
-			out <- err
-			return
-		}
-		logging.Logger.Debug("Start sending data to client")
-		defer logging.Logger.Debug("Stop sending data to client")
-		for {
-			select {
-			case m, ok := <-measurements:
-				if !ok { // This means that the previous step has terminated
-					msg := websocket.FormatCloseMessage(
-						websocket.CloseNormalClosure, "Done sending")
-					out <- conn.WriteControl(websocket.CloseMessage, msg, time.Time{})
-					return
-				}
-				if err := conn.WriteJSON(m); err != nil {
-					out <- err
-					return
-				}
-			default:
-				if err := conn.WritePreparedMessage(preparedMessage); err != nil {
-					out <- err
-					return
-				}
-			}
+func startclosing(conn *websocket.Conn) {
+	msg := websocket.FormatCloseMessage(
+		websocket.CloseNormalClosure, "Done sending")
+	d := time.Now().Add(spec.DefaultRuntime) // Liveness!
+	err := conn.WriteControl(websocket.CloseMessage, msg, d)
+	if err != nil {
+		logging.Logger.WithError(err).Warn("sender: conn.WriteControl failed")
+		return
+	}
+	logging.Logger.Debug("sender: sending Close message")
+}
+
+func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.Measurement) {
+	logging.Logger.Debug("sender: start")
+	defer logging.Logger.Debug("sender: stop")
+	defer close(dst)
+	defer func() {
+		for range src {
+			// make sure we drain the channel
 		}
 	}()
-	return out
+	logging.Logger.Debug("sender: enerating random buffer")
+	const bulkMessageSize = 1 << 13
+	preparedMessage, err := makePreparedMessage(bulkMessageSize)
+	if err != nil {
+		logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
+		return
+	}
+	for {
+		select {
+		case m, ok := <-src:
+			if !ok { // This means that the previous step has terminated
+				startclosing(conn)
+				return
+			}
+			conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
+			if err := conn.WriteJSON(m); err != nil {
+				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
+				return
+			}
+			dst <- m // Liveness: this is blocking
+		default:
+			conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
+			if err := conn.WritePreparedMessage(preparedMessage); err != nil {
+				logging.Logger.WithError(err).Warn(
+					"sender: conn.WritePreparedMessage failed",
+				)
+				return
+			}
+		}
+	}
+}
+
+// Start starts the sender in a background goroutine. The sender will send
+// binary messages and measurement messages coming from |src|. Such messages
+// will also be emitted to the returned channel.
+//
+// Liveness guarantee: the sender will not be stuck sending for more then
+// the DefaultRuntime of the subtest, provided that the consumer will
+// continue reading from the returned channel.
+func Start(conn *websocket.Conn, src <-chan model.Measurement) <-chan model.Measurement {
+	dst := make(chan model.Measurement)
+	go loop(conn, src, dst)
+	return dst
 }

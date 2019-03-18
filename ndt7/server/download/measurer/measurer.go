@@ -4,7 +4,6 @@ package measurer
 import (
 	"context"
 	"errors"
-	"net/http"
 	"os"
 	"time"
 
@@ -13,15 +12,11 @@ import (
 	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
-	"github.com/m-lab/ndt-server/ndt7/server/results"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/tcpinfox"
 )
 
-// getConnFileAndPossiblyEnableBBR returns the connection to be used to
-// gather low level stats and possibly enables BBR. It returns a file to
-// use to gather BBR/TCP_INFO stats on success, an error on failure.
-func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
+func getSocketAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 	fp := fdcache.GetAndForgetFile(conn.UnderlyingConn())
 	// Implementation note: in theory fp SHOULD always be non-nil because
 	// now we always register the fp bound to a net.TCPConn. However, in
@@ -29,9 +24,7 @@ func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 	// remove the fp BEFORE we can steal it. In case we cannot get a file
 	// we just abort the test, as this should not happen (TM).
 	if fp == nil {
-		err := errors.New("cannot get file bound to websocket conn")
-		logging.Logger.WithError(err).Warn("Cannot enable BBR")
-		return nil, err
+		return nil, errors.New("cannot get file bound to websocket conn")
 	}
 	err := bbr.Enable(fp)
 	if err != nil {
@@ -41,10 +34,7 @@ func getConnFileAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 	return fp, nil
 }
 
-// gatherAndSaveTCPInfoAndBBRInfo gathers TCP info and BBR measurements from
-// |fp| and stores them into the |measurement| object as well as into the
-// |resultfp| file. Returns an error on failure and nil in case of success.
-func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.File, resultfp *results.File) error {
+func measure(measurement *model.Measurement, sockfp *os.File) {
 	bbrinfo, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
 	if err == nil {
 		measurement.BBRInfo = &bbrinfo
@@ -53,62 +43,47 @@ func gatherAndSaveTCPInfoAndBBRInfo(measurement *model.Measurement, sockfp *os.F
 	if err == nil {
 		measurement.TCPInfo = &metrics
 	}
-	if err := resultfp.WriteMeasurement(*measurement, "server"); err != nil {
-		logging.Logger.WithError(err).Warn("Cannot save measurement on disk")
-		return err
-	}
-	return nil
 }
 
-// This is the loop that runs the measurements in a goroutine. This function
-// exits when (1) a fatal error occurs or (2) the maximum elapsed time for the
-// download test expires. Because this function has access to BBR stats (if BBR
-// is available), then that's the right place to stop the test early. The rest
-// of the download code is supposed to stop downloading when this function will
-// signal that we're done by closing the channel. This function will not tell
-// the test of the downloader whether an error occurred because closing it will
-// log any error and closing the channel provides already enough bits of info
-// to synchronize this part of the downloader with the rest. The context param
-// will be used by the outer loop to tell us when we need to stop early.
-func measuringLoop(ctx context.Context, request *http.Request, conn *websocket.Conn, dataDir string, dst chan model.Measurement) {
-	logging.Logger.Debug("Starting measurement loop")
-	defer logging.Logger.Debug("Stopping measurement loop") // say goodbye properly
+func loop(ctx context.Context, conn *websocket.Conn, dst chan<- model.Measurement) {
+	logging.Logger.Debug("measurer: start")
+	defer logging.Logger.Debug("measurer: stop")
 	defer close(dst)
-	resultfp, err := results.OpenFor(request, conn, dataDir, "download")
+	measurerctx, cancel := context.WithTimeout(ctx, spec.DefaultRuntime)
+	defer cancel()
+	sockfp, err := getSocketAndPossiblyEnableBBR(conn)
 	if err != nil {
-		return // error already printed
-	}
-	defer resultfp.Close()
-	sockfp, err := getConnFileAndPossiblyEnableBBR(conn)
-	if err != nil {
-		return // error already printed
+		logging.Logger.WithError(err).Warn("getSocketAndPossiblyEnableBBR failed")
+		return
 	}
 	defer sockfp.Close()
 	t0 := time.Now()
 	ticker := time.NewTicker(spec.MinMeasurementInterval)
+	defer ticker.Stop()
 	for {
 		select {
-		case <-ctx.Done():
-			logging.Logger.Debug("Interrupted by context")
+		case <-measurerctx.Done(): // Liveness!
+			logging.Logger.Debug("measurer: context done")
 			return
 		case now := <-ticker.C:
 			elapsed := now.Sub(t0)
 			measurement := model.Measurement{
 				Elapsed: elapsed.Seconds(),
 			}
-			err = gatherAndSaveTCPInfoAndBBRInfo(&measurement, sockfp, resultfp)
-			if err != nil {
-				return // error already printed
-			}
-			dst <- measurement
+			measure(&measurement, sockfp)
+			dst <- measurement // Liveness: this is blocking
 		}
 	}
 }
 
-// Start starts the measurement loop. This runs in a separate goroutine
-// and emits Measurement events on the returned channel.
-func Start(ctx context.Context, request *http.Request, conn *websocket.Conn, dataDir string) chan model.Measurement {
+// Start runs the measurement loop in a background goroutine and emits
+// the measurements on the returned channel.
+//
+// Liveness guarantee: the measurer will always terminate after
+// a timeout of DefaultRuntime seconds, provided that the consumer
+// continues reading from the returned channel.
+func Start(ctx context.Context, conn *websocket.Conn) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
-	go measuringLoop(ctx, request, conn, dataDir, dst)
+	go loop(ctx, conn, dst)
 	return dst
 }
