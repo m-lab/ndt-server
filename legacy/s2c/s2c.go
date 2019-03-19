@@ -62,7 +62,7 @@ func (r *Responder) performTest(ws protocol.MeasuredConnection) {
 	// Create ticker to enforce timeout on
 	done := make(chan *web100.Metrics)
 
-	go func(r *Responder, ws protocol.MeasuredConnection) {
+	go func(r *Responder, ws protocol.MeasuredConnection, done chan<- *web100.Metrics) {
 		ws.StartMeasuring(r.Ctx)
 		startTime := time.Now()
 		endTime := startTime.Add(10 * time.Second)
@@ -79,7 +79,7 @@ func (r *Responder) performTest(ws protocol.MeasuredConnection) {
 		}
 		info.BytesPerSecond = float64(totalBytes) / float64(time.Since(startTime)/time.Second)
 		done <- info
-	}(r, ws)
+	}(r, ws, done)
 
 	log.Println("S2C: Waiting for test to complete or timeout")
 	select {
