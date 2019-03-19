@@ -63,7 +63,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m-lab/go/uuid"
+	"github.com/m-lab/uuid"
 )
 
 // connKey is the key associated to a TCP connection.
