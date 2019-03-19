@@ -169,7 +169,9 @@ func main() {
 				metrics.CurrentTests.With(ndt7Label),
 				promhttp.InstrumentHandlerDuration(
 					metrics.TestDuration.MustCurryWith(ndt7Label),
-					&download.Handler{})))
+					&download.Handler{
+						DataDir: *dataDir,
+					})))
 		ndt7Server := &http.Server{
 			Addr:    *ndt7Port,
 			Handler: logging.MakeAccessLogHandler(ndt7Mux),
