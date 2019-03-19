@@ -37,7 +37,7 @@ func loop(ctx context.Context, conn *websocket.Conn, dst chan<- model.Measuremen
 			return
 		}
 		if mtype != websocket.TextMessage {
-			logging.Logger.WithError(err).Warn("receiver: got non-Text message")
+			logging.Logger.Warn("receiver: got non-Text message")
 			return
 		}
 		var measurement model.Measurement
