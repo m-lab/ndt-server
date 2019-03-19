@@ -62,7 +62,7 @@ func (tr *Responder) recvC2SUntil(ws protocol.Connection) float64 {
 		endTime := startTime.Add(10 * time.Second)
 		totalBytes, err := ws.DrainUntil(endTime)
 		if err != nil {
-			tr.Cancel()
+			tr.Close()
 			return
 		}
 		bytesPerSecond := float64(totalBytes) / float64(time.Since(startTime)/time.Second)
