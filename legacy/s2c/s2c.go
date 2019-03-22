@@ -69,12 +69,12 @@ func (r *Responder) performTest(ws protocol.MeasuredConnection) {
 		totalBytes, err := ws.FillUntil(endTime, dataToSend)
 		if err != nil {
 			log.Println("ERROR S2C: sending message", err)
-			r.Cancel()
+			r.Close()
 			return
 		}
 		info, err := ws.StopMeasuring()
 		if err != nil {
-			r.Cancel()
+			r.Close()
 			return
 		}
 		info.BytesPerSecond = float64(totalBytes) / float64(time.Since(startTime)/time.Second)
