@@ -156,7 +156,7 @@ func (s *BasicServer) sniffThenHandle(conn net.Conn) {
 	input := bufio.NewReader(conn)
 	lead, err := input.Peek(3)
 	if err != nil {
-		log.Println("Could not handle connection", conn)
+		log.Println("Could not handle connection", conn, "due to", err)
 		return
 	}
 	if string(lead) == "GET" {
