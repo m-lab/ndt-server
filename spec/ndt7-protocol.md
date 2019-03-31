@@ -75,15 +75,23 @@ WebSocket messages, binary WebSocket messages carrying a random payload;
 the receiver (i.e. the client during a download subtest) MUST discard
 these messages without processing them.
 
-As far as textual and binary messages are concerned, ndt7 subtests are
+As far as binary messages are concerned, ndt7 subtests are strictly
 half duplex. During the download, the client MUST NOT send any binary
-or textual message to the server. During the upload, the server MUST NOT
-send any binary or textual message to the client.
+message to the server. During the upload, the server MUST NOT send
+any binary message to the client. If a party receives a binary message
+when that is not expected, it MUST close the connection.
 
-Control messages, on the other hand, are always allowed. Ping messages,
-specifically, SHOULD NOT be sent more frequently than one every 250
-millisecond. A party receiving too frequent ping messages MAY decide
-to close the connection.
+All other messages are permitted. Implementations should be prepared
+to receive such messages during any subtest. Processing these messages
+isn't mandatory and an implementation MAY choose to ignore them. An
+implementation SHOULD NOT send this kind of messages more frequently
+than every 250 millisecond. An implementation MAY close the connection
+if receiving such messages too frequently. The reason why we allow
+this kind of messages is so that the server could sent to the client
+download speed measurements during the upload test. This provides
+clients that do not have BBR support with a reasonably good estimation
+of the real upload speed, which is certainly more informative and
+stable than any application level sender side estimation.
 
 The expected transfer time of each subtest is ten seconds (unless BBR
 is used, in which case it may be shorter, as explained below). The sender
@@ -156,7 +164,7 @@ Where:
     - `num_bytes` (a `int64`) is the number of bytes sent (or received) since
       the beginning of the specific subtest. Note that this counter tracks the
       amount of data sent at application level. It does not account for the
-      protocol overheaded of WebSockets, TCP, UDP, IP, and link layer;
+      protocol overheaded of WebSockets, TLS, TCP, IP, and link layer;
 
 - `bbr_info` is an _optional_ JSON object only included in the measurement
   when it is possible to access `TCP_CC_INFO` stats for BBR:
@@ -177,6 +185,12 @@ Where:
     - `tcp_info.rtt_var` (a `float64`) is RTT variance in milliseconds;
 
     - `tcp_info.smoothed_rtt` (a `float64`) is the smoothed RTT in milliseconds.
+
+Note that JSON and JavaScript actually define integers as `int53` but existing
+implementations will likely round bigger (or smaller) numbers to the nearest
+`float64` value. A pedantic implementation MAY want to be overly defensive and
+make sure that it does not mit values that a `int53` cannot represent. The
+proper action to take in this case is currently unspecified.
 
 # Reference implementation
 

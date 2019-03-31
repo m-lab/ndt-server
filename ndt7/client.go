@@ -64,8 +64,12 @@ func (cl Client) Download() error {
 		conn.SetReadDeadline(time.Now().Add(defaultTimeout))
 		mtype, mdata, err := conn.ReadMessage()
 		if err != nil {
+			// Implementation note: "Expecting clients to `stick around` for no
+			// benefit other than RFC-compliance is a losing proposition" (-pboothe).
+			// See also <https://en.wikipedia.org/wiki/Byzantine_fault>.
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-				return err
+				log.WithError(err).Warn("did not receive a normal websocket closure")
+				// FALLTHROUGH
 			}
 			break
 		}

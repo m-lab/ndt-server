@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m-lab/go/prometheusx"
+
 	"github.com/m-lab/go/osx"
 	"github.com/m-lab/go/rtx"
 
@@ -67,12 +69,13 @@ func setupMain() func() {
 		"Failed to generate server key and certs")
 
 	// Set up the command-line args via environment variables:
-	ports := getOpenPorts(4)
+	ports := getOpenPorts(5)
 	for _, ev := range []struct{ key, value string }{
 		{"METRICS_PORT", ports[0]},
 		{"NDT7_PORT", ports[1]},
 		{"LEGACY_PORT", ports[2]},
-		{"LEGACY_TLS_PORT", ports[3]},
+		{"LEGACY_WS_PORT", ports[3]},
+		{"LEGACY_WSS_PORT", ports[4]},
 		{"CERT", certFile},
 		{"KEY", keyFile},
 		{"DATADIR", dir},
@@ -94,16 +97,19 @@ func Test_ContextCancelsMain(t *testing.T) {
 
 	// Set up the global context for main()
 	ctx, cancel = context.WithCancel(context.Background())
+	before := runtime.NumGoroutine()
 
 	// Run main, but cancel it very soon after starting.
 	go func() {
 		time.Sleep(1 * time.Second)
 		cancel()
 	}()
-	before := runtime.NumGoroutine()
 	// If this doesn't run forever, then canceling the context causes main to exit.
 	main()
+
+	// A sleep has been added here to allow all completed goroutines to exit.
 	time.Sleep(100 * time.Millisecond)
+
 	// Make sure main() doesn't leak goroutines.
 	after := runtime.NumGoroutine()
 	if before != after {
@@ -111,7 +117,14 @@ func Test_ContextCancelsMain(t *testing.T) {
 	}
 }
 
+func TestMetrics(t *testing.T) {
+	prometheusx.LintMetrics(t)
+}
+
 func Test_MainIntegrationTest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Integration tests take too long")
+	}
 	// Set up certs and the environment vars for the commandline.
 	cleanup := setupMain()
 	defer cleanup()
@@ -121,8 +134,9 @@ func Test_MainIntegrationTest(t *testing.T) {
 	defer cancel()
 
 	// Get the ports but remove the leading ":"
-	wsPort := os.Getenv("LEGACY_PORT")[1:]
-	wssPort := os.Getenv("LEGACY_TLS_PORT")[1:]
+	legacyPort := os.Getenv("LEGACY_PORT")[1:]
+	wsPort := os.Getenv("LEGACY_WS_PORT")[1:]
+	wssPort := os.Getenv("LEGACY_WSS_PORT")[1:]
 	ndt7Port := os.Getenv("NDT7_PORT")[1:]
 
 	// Get the datadir
@@ -136,28 +150,47 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// data to explicitly specify this fact.
 		ignoreData bool
 	}{
-		// Test legacy clients
+		// Before we can throw out the C NDT codebase:
+		// TODO(https://github.com/m-lab/ndt-server/issues/65)
+		//  /bin/web100clt-without-json-support --disablemid --disablesfw
+		// TODO(https://github.com/m-lab/ndt-server/issues/66)
+		//  /bin/web100clt-with-json-support    # No tests disabled.
+		//  /bin/web100clt-without-json-support # No tests disabled.
+		// Test legacy raw JSON clients
+		{
+			name:       "Connect with web100clt (with JSON)",
+			cmd:        "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyPort + " --disablemid --disablesfw",
+			ignoreData: true,
+		},
+		// Test legacy WS clients connecting to the raw port
+		{
+			name: "Connect legacy WS (upload and download) to RAW port",
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
+				" --port=" + legacyPort + " --protocol=ws --tests=22",
+			ignoreData: true,
+		},
 		{
 			name: "Connect legacy WS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=16",
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
+				" --port=" + legacyPort + " --protocol=ws --tests=16",
 			ignoreData: true,
 		},
 		{
 			name: "Upload legacy WS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=18",
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
+				" --port=" + legacyPort + " --protocol=ws --tests=18",
 			ignoreData: true,
 		},
 		{
 			name: "Download legacy WS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=20",
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
+				" --port=" + legacyPort + " --protocol=ws --tests=20",
 			ignoreData: true,
 		},
+		// Test legacy WS clients connected to the HTTP port
 		{
 			name: "Upload & Download legacy WS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsPort + " --protocol=ws --tests=22",
 			ignoreData: true,
 		},
@@ -166,7 +199,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 			// This causes the server to wait for a test that never comes. After the
 			// timeout, the server should have cleaned up all outstanding goroutines.
 			name: "Upload & Download legacy WS with S2C Timeout",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsPort +
 				" --protocol=ws --abort-c2s-early --tests=22 & " +
 				"sleep 25",
@@ -175,19 +208,19 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// Test WSS clients with the legacy protocol.
 		{
 			name: "Upload legacy WSS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=18",
 			ignoreData: true,
 		},
 		{
 			name: "Download legacy WSS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=20",
 			ignoreData: true,
 		},
 		{
 			name: "Upload & Download legacy WSS",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=22",
 			ignoreData: true,
 		},
@@ -196,7 +229,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 			// This causes the server to wait for a test that never comes. After the
 			// timeout, the server should have cleaned up all outstanding goroutines.
 			name: "Upload & Download legacy WSS with S2C Timeout",
-			cmd: "node ./testdata/unittest_client.js --server=localhost " +
+			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort +
 				" --protocol=wss --acceptinvalidcerts --abort-c2s-early --tests=22 & " +
 				"sleep 25",
@@ -205,7 +238,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// Test NDT7 clients
 		{
 			name: "Test the ndt7 protocol",
-			cmd:  "ndt-cloud-client -skip-tls-verify -port " + ndt7Port,
+			cmd:  "timeout 45s ndt-client -skip-tls-verify -port " + ndt7Port,
 			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
 			ignoreData: true,
 		},
@@ -214,7 +247,6 @@ func Test_MainIntegrationTest(t *testing.T) {
 	go main()
 	time.Sleep(1 * time.Second) // Give main a little time to grab all the ports and start listening.
 
-	before := runtime.NumGoroutine()
 	wg := sync.WaitGroup{}
 	// Run every test in parallel (the server must handle parallel tests just fine)
 	for _, testCmd := range tests {
@@ -224,33 +256,18 @@ func Test_MainIntegrationTest(t *testing.T) {
 			preFileCount := countFiles(dataDir)
 			stdout, stderr, err := pipe.DividedOutput(pipe.Script(name, pipe.System(cmd)))
 			if err != nil {
-				t.Errorf("ERROR Command: %s\nStdout: %s\nStderr: %s\n",
-					cmd, string(stdout), string(stderr))
+				t.Fatalf("ERROR %s (Command: %s)\nStdout: %s\nStderr: %s\n",
+					name, cmd, string(stdout), string(stderr))
 			}
 			postFileCount := countFiles(dataDir)
 			if !ignoreData {
 				// Verify that at least one data file was produced while the test ran.
 				if postFileCount <= preFileCount {
-					t.Error("No files produced. Before test:", preFileCount, "files. After test:", postFileCount, "files.")
+					t.Fatal("No files produced. Before test:", preFileCount, "files. After test:", postFileCount, "files.")
 				}
 			}
-
+			t.Logf("%s (command=%q) has completed successfully", name, cmd)
 		}(testCmd.name, testCmd.cmd, testCmd.ignoreData)
 	}
 	wg.Wait()
-	// wg.Wait() waits until wg.Done() has been called the right number of times.
-	// But wg.Done() is called by a goroutine as it exits, so if we proceed
-	// immediately we might spuriously measure that there are too many goroutines
-	// just because the wg.Done() call caused an immediate resumption in the main
-	// test thread before the goroutine exit had completed. time.Sleep() deals with
-	// this race condition by giving all goroutines more than enough time to finish
-	// exiting.
-	time.Sleep(100 * time.Millisecond)
-	after := runtime.NumGoroutine()
-	if before != after {
-		stack := make([]byte, 10000)
-		runtime.Stack(stack, true)
-		t.Errorf("After running NumGoroutines changed: %d to %d. Stacke: %s", before, after, string(stack))
-
-	}
 }

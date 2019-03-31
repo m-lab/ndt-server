@@ -1,10 +1,20 @@
 package protocol
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net"
+	"os"
+	"reflect"
+	"time"
+
+	"github.com/m-lab/ndt-server/fdcache"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-server/legacy/web100"
 )
 
 // MessageType is the full set opf NDT protocol messages we understand.
@@ -35,22 +45,191 @@ const (
 	MsgExtendedLogin = MessageType(11)
 )
 
-// Connection is a general system over which we might be able to read an NDT message.
-// It contains a subset of the methods of websocket.Conn, in order to allow non-websocket-based NDT tests in support of legacy clients.
-// Every websocket.Conn already implements Connection.
+func (m MessageType) String() string {
+	switch m {
+	case SrvQueue:
+		return "SrvQueue"
+	case MsgLogin:
+		return "MsgLogin"
+	case TestPrepare:
+		return "TestPrepare"
+	case TestStart:
+		return "TestStart"
+	case TestMsg:
+		return "TestMsg"
+	case TestFinalize:
+		return "TestFinalize"
+	case MsgError:
+		return "MsgError"
+	case MsgResults:
+		return "MsgResults"
+	case MsgLogout:
+		return "MsgLogout"
+	case MsgWaiting:
+		return "MsgWaiting"
+	case MsgExtendedLogin:
+		return "MsgExtendedLogin"
+	default:
+		return fmt.Sprintf("UnknownMessage(0x%X)", byte(m))
+	}
+}
+
+// Connection is a general system over which we might be able to read an NDT
+// message. It contains a subset of the methods of websocket.Conn, in order to
+// allow non-websocket-based NDT tests in support of legacy clients, along with
+// the new methods "DrainUntil" and "FillUntil".
 type Connection interface {
 	ReadMessage() (_ int, p []byte, err error) // The first value in the returned tuple should be ignored. It is included in the API for websocket.Conn compatibility.
 	WriteMessage(messageType int, data []byte) error
+	DrainUntil(t time.Time) (bytesRead int64, err error)
+	FillUntil(t time.Time, buffer []byte) (bytesWritten int64, err error)
+	Close() error
 }
 
-// ReadMessage reads a single NDT message out of the connection.
-func ReadMessage(ws Connection, expectedType MessageType) ([]byte, error) {
+// Measurable things can be measured over a given timeframe.
+type Measurable interface {
+	StartMeasuring(ctx context.Context)
+	StopMeasuring() (*web100.Metrics, error)
+}
+
+// MeasuredConnection is a connection which can also be measured.
+type MeasuredConnection interface {
+	Connection
+	Measurable
+}
+
+// The measurer struct is a hack to ensure that we only have to write the
+// complicated measurement code at most once.
+type measurer struct {
+	measurements             chan *web100.Metrics
+	cancelMeasurementContext context.CancelFunc
+}
+
+func (m *measurer) StartMeasuring(ctx context.Context, fd *os.File) {
+	m.measurements = make(chan *web100.Metrics)
+	var newctx context.Context
+	newctx, m.cancelMeasurementContext = context.WithCancel(ctx)
+	go web100.MeasureViaPolling(newctx, fd, m.measurements)
+}
+
+func (m *measurer) StopMeasuring() (*web100.Metrics, error) {
+	m.cancelMeasurementContext()
+	info, ok := <-m.measurements
+	if !ok {
+		return nil, errors.New("No data")
+	}
+	return info, nil
+}
+
+// wsConnection wraps a websocket connection to allow it to be used as a
+// Connection.
+type wsConnection struct {
+	*websocket.Conn
+	*measurer
+}
+
+// AdaptWsConn turns a websocket Connection into a struct which implements both Measurer and Connection
+func AdaptWsConn(ws *websocket.Conn) MeasuredConnection {
+	return &wsConnection{Conn: ws, measurer: &measurer{}}
+}
+
+func (ws *wsConnection) DrainUntil(t time.Time) (bytesRead int64, err error) {
+	for time.Now().Before(t) {
+		_, buffer, err := ws.ReadMessage()
+		if err != nil {
+			return bytesRead, err
+		}
+		bytesRead += int64(len(buffer))
+	}
+	return bytesRead, nil
+}
+
+func (ws *wsConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64, err error) {
+	messageToSend, err := websocket.NewPreparedMessage(websocket.BinaryMessage, bytes)
+	if err != nil {
+		return 0, err
+	}
+	for time.Now().Before(t) {
+		err := ws.WritePreparedMessage(messageToSend)
+		if err != nil {
+			return bytesWritten, err
+		}
+		bytesWritten += int64(len(bytes))
+	}
+	return bytesWritten, nil
+}
+
+func (ws *wsConnection) StartMeasuring(ctx context.Context) {
+	ws.measurer.StartMeasuring(ctx, fdcache.GetAndForgetFile(ws.UnderlyingConn()))
+}
+
+// netConnection is a utility struct that allows us to use OS sockets and
+// Websockets using the same set of methods. Its second element is a Reader
+// because we want to allow the input channel to be buffered.
+type netConnection struct {
+	net.Conn
+	*measurer
+	input io.Reader
+}
+
+func (nc *netConnection) ReadMessage() (int, []byte, error) {
+	firstThree := make([]byte, 3)
+	_, err := nc.input.Read(firstThree)
+	if err != nil {
+		return 0, []byte{}, err
+	}
+	size := int64(firstThree[1])<<8 + int64(firstThree[2])
+	bytes := make([]byte, size)
+	_, err = nc.input.Read(bytes)
+	return 0, append(firstThree, bytes...), err
+}
+
+func (nc *netConnection) WriteMessage(_messageType int, data []byte) error {
+	// _messageType is ignored because it is meaningless for a net.Conn
+	_, err := nc.Write(data)
+	return err
+}
+
+func (nc *netConnection) DrainUntil(t time.Time) (bytesRead int64, err error) {
+	buff := make([]byte, 8192)
+	for time.Now().Before(t) {
+		n, err := nc.Read(buff)
+		if err != nil {
+			return bytesRead, err
+		}
+		bytesRead += int64(n)
+	}
+	return bytesRead, nil
+}
+
+func (nc *netConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64, err error) {
+	for time.Now().Before(t) {
+		n, err := nc.Write(bytes)
+		if err != nil {
+			return bytesWritten, err
+		}
+		bytesWritten += int64(n)
+	}
+	return bytesWritten, nil
+}
+
+func (nc *netConnection) StartMeasuring(ctx context.Context) {
+	nc.measurer.StartMeasuring(ctx, fdcache.GetAndForgetFile(nc))
+}
+
+// AdaptNetConn turns a non-WS-based TCP connection into a protocol.MeasuredConnection.
+func AdaptNetConn(conn net.Conn, input io.Reader) MeasuredConnection {
+	return &netConnection{Conn: conn, measurer: &measurer{}, input: input}
+}
+
+// ReadNDTMessage reads a single NDT message out of the connection.
+func ReadNDTMessage(ws Connection, expectedType MessageType) ([]byte, error) {
 	_, inbuff, err := ws.ReadMessage()
 	if err != nil {
 		return nil, err
 	}
 	if MessageType(inbuff[0]) != expectedType {
-		return nil, fmt.Errorf("Read wrong message type. Wanted 0x%x, got 0x%x", expectedType, inbuff[0])
+		return nil, fmt.Errorf("Read wrong message type. Wanted %q, got %q", expectedType, MessageType(inbuff[0]))
 	}
 	// Verify that the expected length matches the given data.
 	expectedLen := int(inbuff[1])<<8 + int(inbuff[2])
@@ -61,8 +240,8 @@ func ReadMessage(ws Connection, expectedType MessageType) ([]byte, error) {
 	return inbuff[3:], nil
 }
 
-// WriteMessage write a single NDT message to the connection.
-func WriteMessage(ws Connection, msgType MessageType, msg fmt.Stringer) error {
+// WriteNDTMessage write a single NDT message to the connection.
+func WriteNDTMessage(ws Connection, msgType MessageType, msg fmt.Stringer) error {
 	message := msg.String()
 	outbuff := make([]byte, 3+len(message))
 	outbuff[0] = byte(msgType)
@@ -91,7 +270,7 @@ func (n *JSONMessage) String() string {
 // ReceiveJSONMessage reads a single NDT message in JSON format.
 func ReceiveJSONMessage(ws Connection, expectedType MessageType) (*JSONMessage, error) {
 	message := &JSONMessage{}
-	jsonString, err := ReadMessage(ws, expectedType)
+	jsonString, err := ReadNDTMessage(ws, expectedType)
 	if err != nil {
 		return nil, err
 	}
@@ -105,5 +284,20 @@ func ReceiveJSONMessage(ws Connection, expectedType MessageType) (*JSONMessage, 
 // SendJSONMessage writes a single NDT message in JSON format.
 func SendJSONMessage(msgType MessageType, msg string, ws Connection) error {
 	message := &JSONMessage{Msg: msg}
-	return WriteMessage(ws, msgType, message)
+	return WriteNDTMessage(ws, msgType, message)
+}
+
+// SendMetrics sends all the required properties out along the NDT control channel.
+func SendMetrics(metrics *web100.Metrics, ws Connection) error {
+	v := reflect.ValueOf(*metrics)
+	t := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		name := t.Field(i).Name
+		msg := fmt.Sprintf("%s: %v\n", name, v.Field(i).Interface())
+		err := SendJSONMessage(TestMsg, msg, ws)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
