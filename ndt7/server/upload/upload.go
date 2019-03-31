@@ -2,22 +2,12 @@ package upload
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"net/http"
-	"os"
-	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/go/warnonerror"
-	"github.com/m-lab/ndt-server/fdcache"
-	"github.com/m-lab/ndt-server/logging"
-	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/server/results"
-	"github.com/m-lab/ndt-server/ndt7/spec"
-	"github.com/m-lab/ndt-server/tcpinfox"
 )
 
+/*
 const (
 	// defaultTimeout is the default value of the I/O timeout.
 	defaultTimeout = 7 * time.Second
@@ -192,7 +182,6 @@ func (ul Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 				}
 				return
 			}
-
 			if mt == websocket.TextMessage {
 				var mdata model.Measurement
 				err := json.Unmarshal(message, &mdata)
@@ -203,4 +192,8 @@ func (ul Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 			}
 		}
 	}
+}
+*/
+
+func Do(ctx context.Context, conn *websocket.Conn, resultsfp *results.File) {
 }

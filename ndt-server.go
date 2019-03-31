@@ -21,7 +21,7 @@ import (
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/metrics"
 	"github.com/m-lab/ndt-server/ndt7/server/listener"
-	"github.com/m-lab/ndt-server/ndt7/server/download"
+	"github.com/m-lab/ndt-server/ndt7/server/httphandler"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -159,6 +159,9 @@ func main() {
 		defer legacyWssServer.Close()
 
 		// The ndt7 listener serving up NDT7 tests, likely on standard ports.
+		ndt7handler := &httphandler.Handler{
+			DataDir: *dataDir,
+		}
 		ndt7Label := prometheus.Labels{"type": "ndt7"}
 		ndt7Mux := http.NewServeMux()
 		ndt7Mux.HandleFunc("/", defaultHandler)
@@ -169,9 +172,7 @@ func main() {
 				metrics.CurrentTests.With(ndt7Label),
 				promhttp.InstrumentHandlerDuration(
 					metrics.TestDuration.MustCurryWith(ndt7Label),
-					&download.Handler{
-						DataDir: *dataDir,
-					})))
+					ndt7handler)))
 		ndt7Server := &http.Server{
 			Addr:    *ndt7Port,
 			Handler: logging.MakeAccessLogHandler(ndt7Mux),
