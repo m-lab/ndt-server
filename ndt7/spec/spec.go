@@ -19,3 +19,9 @@ const MinMaxMessageSize = 1 << 17
 
 // MinMeasurementInterval is the minimum interval between measurements.
 const MinMeasurementInterval = 250 * time.Millisecond
+
+// DefaultRuntime is the default runtime of a subtest
+const DefaultRuntime = 10 * time.Second
+
+// MaxRuntime is the maximum runtime of a subtest
+const MaxRuntime = 15 * time.Second
