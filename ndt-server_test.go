@@ -13,9 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m-lab/go/prometheusx"
-
 	"github.com/m-lab/go/osx"
+	"github.com/m-lab/go/prometheusx/promtest"
 	"github.com/m-lab/go/rtx"
 
 	pipe "gopkg.in/m-lab/pipe.v3"
@@ -118,7 +117,7 @@ func Test_ContextCancelsMain(t *testing.T) {
 }
 
 func TestMetrics(t *testing.T) {
-	prometheusx.LintMetrics(t)
+	promtest.LintMetrics(t)
 }
 
 func Test_MainIntegrationTest(t *testing.T) {
