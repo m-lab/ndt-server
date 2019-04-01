@@ -7,7 +7,7 @@ TOPDIR=`cd $(dirname $0) && pwd -P`
 cd $TOPDIR
 VERSION=`git describe --tags`
 versionflags="-X github.com/m-lab/ndt-server/version.Version=$VERSION"
-go get -v                                                              \
+go get -v -t                                                           \
     -tags netgo                                                        \
     -ldflags "$versionflags -extldflags \"-static\""                   \
     .
