@@ -1,4 +1,4 @@
-package ndt7
+package client
 
 import (
 	"encoding/json"

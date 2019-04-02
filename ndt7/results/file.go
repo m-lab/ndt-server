@@ -10,6 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/fdcache"
+	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
 )
 
@@ -60,16 +61,19 @@ func OpenFor(request *http.Request, conn *websocket.Conn, datadir, what string) 
 	netConn := conn.UnderlyingConn()
 	id, err := fdcache.GetUUID(netConn)
 	if err != nil {
+		logging.Logger.WithError(err).Warn("fdcache.GetUUID failed")
 		return nil, err
 	}
 	initMetadata(&meta, conn.LocalAddr().String(), conn.RemoteAddr().String(), id,
 		request.URL.Query(), what)
 	resultfp, err := newFile(datadir, what, id)
 	if err != nil {
+		logging.Logger.WithError(err).Warn("newFile failed")
 		return nil, err
 	}
 	if err := resultfp.WriteMetadata(meta); err != nil {
 		resultfp.Close()
+		logging.Logger.WithError(err).Warn("resultfp.WriteMetadata failed")
 		return nil, err
 	}
 	return resultfp, nil

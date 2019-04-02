@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/apex/log"
-	"github.com/m-lab/ndt-server/ndt7"
+	"github.com/m-lab/ndt-server/cmd/ndt-client/client"
 )
 
 var hostname = flag.String("hostname", "localhost", "Host to connect to")
@@ -15,7 +15,7 @@ var skipTLSVerify = flag.Bool("skip-tls-verify", false, "Skip TLS verify")
 
 func main() {
 	flag.Parse()
-	clnt := ndt7.Client{}
+	clnt := client.Client{}
 	clnt.URL.Scheme = "wss"
 	clnt.URL.Host = *hostname + ":" + *port
 	if *skipTLSVerify {
