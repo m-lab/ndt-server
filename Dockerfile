@@ -1,6 +1,6 @@
 FROM golang:1.12-alpine as ndt-server-build
+RUN apk add --no-cache git gcc linux-headers musl-dev
 ADD . /go/src/github.com/m-lab/ndt-server
-RUN apk add git gcc linux-headers musl-dev
 RUN /go/src/github.com/m-lab/ndt-server/build.sh
 
 # Now copy the built image into the minimal base image
