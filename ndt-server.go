@@ -20,8 +20,8 @@ import (
 	"github.com/m-lab/ndt-server/legacy/testresponder"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/metrics"
-	"github.com/m-lab/ndt-server/ndt7/server/listener"
-	"github.com/m-lab/ndt-server/ndt7/server/download"
+	"github.com/m-lab/ndt-server/ndt7/listener"
+	"github.com/m-lab/ndt-server/ndt7/download"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 
 	"github.com/prometheus/client_golang/prometheus"

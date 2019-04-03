@@ -10,10 +10,10 @@ import (
 	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
-	"github.com/m-lab/ndt-server/ndt7/server/download/measurer"
-	"github.com/m-lab/ndt-server/ndt7/server/download/receiver"
-	"github.com/m-lab/ndt-server/ndt7/server/download/sender"
-	"github.com/m-lab/ndt-server/ndt7/server/results"
+	"github.com/m-lab/ndt-server/ndt7/download/measurer"
+	"github.com/m-lab/ndt-server/ndt7/download/receiver"
+	"github.com/m-lab/ndt-server/ndt7/download/sender"
+	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
@@ -66,16 +66,16 @@ func zip(senderch, receiverch <-chan model.Measurement) <-chan imsg {
 
 // Handle handles the download subtest.
 func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	logging.Logger.Debug("Upgrading to WebSockets")
+	logging.Logger.Debug("download: upgrading to WebSockets")
 	if request.Header.Get("Sec-WebSocket-Protocol") != spec.SecWebSocketProtocol {
-		warnAndClose(writer, "Missing Sec-WebSocket-Protocol in request")
+		warnAndClose(writer, "download: missing Sec-WebSocket-Protocol in request")
 		return
 	}
 	headers := http.Header{}
 	headers.Add("Sec-WebSocket-Protocol", spec.SecWebSocketProtocol)
 	conn, err := dl.Upgrader.Upgrade(writer, request, headers)
 	if err != nil {
-		warnAndClose(writer, "Cannnot UPGRADE to WebSocket")
+		warnAndClose(writer, "download: cannnot UPGRADE to WebSocket")
 		return
 	}
 	// TODO(bassosimone): an error before this point means that the *os.File
@@ -85,6 +85,7 @@ func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	// code above (e.g. because the handshake was not okay) alive for the time
 	// in which the corresponding *os.File is kept in cache.
 	defer warnonerror.Close(conn, "download: ignoring conn.Close result")
+	logging.Logger.Debug("download: opening results file")
 	resultfp, err := results.OpenFor(request, conn, dl.DataDir, "download")
 	if err != nil {
 		return // error already printed
