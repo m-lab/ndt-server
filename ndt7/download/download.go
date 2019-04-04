@@ -4,16 +4,15 @@ package download
 import (
 	"context"
 	"net/http"
-	"sync"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/logging"
-	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/download/measurer"
 	"github.com/m-lab/ndt-server/ndt7/download/receiver"
 	"github.com/m-lab/ndt-server/ndt7/download/sender"
 	"github.com/m-lab/ndt-server/ndt7/results"
+	"github.com/m-lab/ndt-server/ndt7/saver"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
@@ -27,41 +26,6 @@ func warnAndClose(writer http.ResponseWriter, message string) {
 	logging.Logger.Warn(message)
 	writer.Header().Set("Connection", "Close")
 	writer.WriteHeader(http.StatusBadRequest)
-}
-
-type imsg struct {
-	o string
-	m model.Measurement
-}
-
-func zip(senderch, receiverch <-chan model.Measurement) <-chan imsg {
-	// Implementation note: the follwing is the well known golang
-	// pattern for joining channels together
-	outch := make(chan imsg)
-	var wg sync.WaitGroup
-	wg.Add(2)
-	// sender; note that it provides a liveness guarantee
-	go func(out chan<- imsg) {
-		for m := range(senderch) {
-			out <- imsg{o: "server", m: m}
-		}
-		wg.Done()
-	}(outch)
-	// receiver; note that it provides a liveness guarantee
-	go func(out chan<- imsg) {
-		for m := range(receiverch) {
-			out <- imsg{o: "client", m: m}
-		}
-		wg.Done()
-	}(outch)
-	// closer; will always terminate because of above liveness guarantees
-	go func() {
-		logging.Logger.Debug("download: start waiting for sender and receiver")
-		defer logging.Logger.Debug("download: stop waiting for sender and receiver")
-		wg.Wait()
-		close(outch)
-	}()
-	return outch
 }
 
 // Handle handles the download subtest.
@@ -97,23 +61,5 @@ func (dl Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	defer cancel()
 	senderch := sender.Start(conn, measurer.Start(wholectx, conn))
 	receiverch := receiver.Start(wholectx, conn)
-	zipch := zip(senderch, receiverch)
-	defer func() {
-		logging.Logger.Debug("download: start draining zipch")
-		defer logging.Logger.Debug("download: stop draining zipch")
-		for range zipch {
-			// make sure we drain the channel if we leave the loop below early
-			// because we cannot save some results
-		}
-	}()
-	logging.Logger.Debug("download: start")
-	defer logging.Logger.Debug("download: stop")
-	for imsg := range zipch {
-		if err := resultfp.WriteMeasurement(imsg.m, imsg.o); err != nil {
-			logging.Logger.WithError(err).Warn(
-				"download: resultfp.WriteMeasurement failed",
-			)
-			break
-		}
-	}
+	saver.SaveAll(resultfp, senderch, receiverch)
 }
