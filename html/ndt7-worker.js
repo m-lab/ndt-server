@@ -15,7 +15,7 @@ importScripts('libndt7.js')
 onmessage = function (ev) {
   'use strict'
   const msg = ev.data
-  if (msg.key === 'download') {
+  if (msg.key === 'download' || msg.key === 'upload') {
     const settings = msg.value
     let clnt = libndt7.newClient(settings)
     for (const key in libndt7.events) {
@@ -28,7 +28,11 @@ onmessage = function (ev) {
         })
       }
     }
-    clnt.startDownload()
+    if (msg.key === 'download') {
+      clnt.startDownload()
+    } else {
+      clnt.startUpload()
+    }
   } else {
     postMessage({
       key: libndt7.events.error,

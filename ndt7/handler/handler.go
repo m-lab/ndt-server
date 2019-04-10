@@ -11,6 +11,7 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/download"
 	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/spec"
+	"github.com/m-lab/ndt-server/ndt7/upload"
 )
 
 // Handler handles ndt7 subtests.
@@ -74,4 +75,9 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 // Download handles the download subtest.
 func (h Handler) Download(writer http.ResponseWriter, request *http.Request) {
 	h.downloadOrUpload(writer, request, spec.SubtestDownload, download.Do)
+}
+
+// Upload handles the upload subtest.
+func (h Handler) Upload(writer http.ResponseWriter, request *http.Request) {
+	h.downloadOrUpload(writer, request, spec.SubtestUpload, upload.Do)
 }

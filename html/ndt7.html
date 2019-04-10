@@ -2,35 +2,51 @@
 <html lang='en'>
 <head>
   <script type='text/javascript' src='libndt7.js'></script>
+  <style>
+
+.row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.result {
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  font-size: 1000%;
+  align: center;
+}
+  </style>
   <meta charset='utf-8'>
-  <title>ndt7 Browser Client</title>
+  <title>ndt7 Speed Test</title>
 </head>
 <body>
-  <table>
-    <thead><tr>
-      <th>Elapsed (s)</th><th>MaxBandwidth (Mbit/s)</th><th>MinRTT (ms)</th>
-        <th>SmoothedRTT (ms)</th><th>RTTVar (ms)</th>
-    </tr><thead>
-    <tbody id='measurement'></tbody>
-  </table>
-  <table></table>
+  <div>
+    <div id='download' class='result row'>[Download]</div>
+    <div id='upload' class='result row'>[Upload]</div>
+  </div>
   <script type='text/javascript'>
     /* jshint esversion: 6, asi: true */
     /* exported Run */
     /* globals libndt7 */
 
-    function WithMeasurementDo(callable) {
-      const elem = document.getElementById('measurement')
+    function WithElementIdDo(elementId, callable) {
+      const elem = document.getElementById(elementId)
       if (elem) {
         callable(elem)
       }
     }
 
-    function Run() {
-      WithMeasurementDo(function (elem) {
-        elem.innerHTML = ''
+    function UpdateView(elementId, data) {
+      WithElementIdDo(elementId, function (elem) {
+        const speed = 8 * data.app_info.num_bytes / data.elapsed / 1000 / 1000
+        elem.innerHTML = speed.toFixed(3) + ' Mbit/s'
       })
+    }
 
+    function RunDownload(callback) {
       let worker = new Worker('ndt7-worker.js')
       worker.postMessage({
         key: 'download',
@@ -40,44 +56,36 @@
       })
       worker.onmessage = function (ev) {
         const msg = ev.data
-        if (msg.key === libndt7.events.open) {
-          console.log('Open: ' + JSON.stringify(msg.value))
-        } else if (msg.key === libndt7.events.close) {
-          console.log('Close: ' + JSON.stringify(msg.value))
-        } else if (msg.key === libndt7.events.error) {
-          console.log('Error: ' + JSON.stringify(msg.value))
-        } else if (msg.key === libndt7.events.downloadClient) {
-          console.log('Measurement from us: ' + JSON.stringify(msg.value))
-        } else if (msg.key === libndt7.events.downloadServer) {
-          const d = msg.value
-          // Enable only for debugging. Will overload the browser.
-          //console.log('Measurement from server: ' + JSON.stringify(d))
-          WithMeasurementDo(function (elem) {
-            let row = elem.insertRow()
-            row.insertCell().innerHTML = d.elapsed.toFixed(3)
-            if (d.bbr_info) {
-              let mbits = d.bbr_info.max_bandwidth / 1000 / 1000
-              row.insertCell().innerHTML = mbits.toFixed(3)
-              row.insertCell().innerHTML = d.bbr_info.min_rtt
-            } else {
-              row.insertCell().innerHTML = 'N/A'
-              row.insertCell().innerHTML = 'N/A'
-            }
-            if (d.tcp_info) {
-              row.insertCell().innerHTML = d.tcp_info.smoothed_rtt
-              row.insertCell().innerHTML = d.tcp_info.rtt_var
-            } else {
-              row.insertCell().innerHTML = 'N/A'
-              row.insertCell().innerHTML = 'N/A'
-            }
-          })
+        if (msg.key === libndt7.events.clientMeasurement) {
+          UpdateView('download', msg.value)
         } else {
-          console.log('Received unexpected message: ' + msg.key)
+          console.log('Worker event: ' + msg.key)
+          if (msg.key === libndt7.events.close) {
+            callback()
+          }
         }
       }
     }
 
-    Run()  // When you load the page
+    function RunUpload() {
+      let worker = new Worker('ndt7-worker.js')
+      worker.postMessage({
+        key: 'upload',
+        value: {
+          href: window.location.href
+        },
+      })
+      worker.onmessage = function (ev) {
+        const msg = ev.data
+        if (msg.key === libndt7.events.clientMeasurement) {
+          UpdateView('upload', msg.value)
+        } else {
+          console.log('Worker event: ' + msg.key)
+        }
+      }
+    }
+
+    RunDownload(function() { RunUpload(); })
   </script>
 </body>
 </html>

@@ -173,6 +173,13 @@ func main() {
 				promhttp.InstrumentHandlerDuration(
 					metrics.TestDuration.MustCurryWith(ndt7Label),
 					http.HandlerFunc(ndt7Handler.Download))))
+		ndt7Mux.Handle(
+			spec.UploadURLPath,
+			promhttp.InstrumentHandlerInFlight(
+				metrics.CurrentTests.With(ndt7Label),
+				promhttp.InstrumentHandlerDuration(
+					metrics.TestDuration.MustCurryWith(ndt7Label),
+					http.HandlerFunc(ndt7Handler.Upload))))
 		ndt7Server := &http.Server{
 			Addr:    *ndt7Port,
 			Handler: logging.MakeAccessLogHandler(ndt7Mux),
