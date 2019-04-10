@@ -123,7 +123,8 @@ const libndt7 = (function () {
         if (t1 - t0 > duration) {
           return
         }
-        if (socket.bufferedAmount < data.length) {
+        const underbuffered = 7 * data.length
+        while (socket.bufferedAmount < underbuffered) {
           socket.send(data)
           count += data.length
         }
