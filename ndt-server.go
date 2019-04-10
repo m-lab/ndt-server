@@ -21,7 +21,7 @@ import (
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/metrics"
 	"github.com/m-lab/ndt-server/ndt7/listener"
-	"github.com/m-lab/ndt-server/ndt7/download"
+	"github.com/m-lab/ndt-server/ndt7/handler"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -163,15 +163,16 @@ func main() {
 		ndt7Mux := http.NewServeMux()
 		ndt7Mux.HandleFunc("/", defaultHandler)
 		ndt7Mux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
+		ndt7Handler := &handler.Handler{
+			DataDir: *dataDir,
+		}
 		ndt7Mux.Handle(
 			spec.DownloadURLPath,
 			promhttp.InstrumentHandlerInFlight(
 				metrics.CurrentTests.With(ndt7Label),
 				promhttp.InstrumentHandlerDuration(
 					metrics.TestDuration.MustCurryWith(ndt7Label),
-					&download.Handler{
-						DataDir: *dataDir,
-					})))
+					http.HandlerFunc(ndt7Handler.Download))))
 		ndt7Server := &http.Server{
 			Addr:    *ndt7Port,
 			Handler: logging.MakeAccessLogHandler(ndt7Mux),
