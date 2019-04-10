@@ -13,7 +13,7 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
-// Handler handles a download subtest from the server side.
+// Handler handles ndt7 subtests.
 type Handler struct {
 	// Upgrader is the WebSocket upgrader.
 	Upgrader websocket.Upgrader
