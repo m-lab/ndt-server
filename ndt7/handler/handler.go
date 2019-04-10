@@ -38,9 +38,10 @@ type testerFunc = func(context.Context, *websocket.Conn, *results.File)
 
 // downloadOrUpload implements both download and upload. The writer argument
 // is the HTTP response writer. The request argument is the HTTP request
-// that we received. The kind argument must either be "download" or "upload".
-// The tester is a function actually implementing the requested test.
-func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Request, kind string, tester testerFunc) {
+// that we received. The kind argument must be spec.SubtestDownload or
+// spec.SubtestUpload. The tester is a function actually implementing the
+// requested ndt7 subtest.
+func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Request, kind spec.SubtestKind, tester testerFunc) {
 	logging.Logger.Debug("downloadOrUpload: upgrading to WebSockets")
 	if request.Header.Get("Sec-WebSocket-Protocol") != spec.SecWebSocketProtocol {
 		warnAndClose(
@@ -72,5 +73,5 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 
 // Download handles the download subtest.
 func (h Handler) Download(writer http.ResponseWriter, request *http.Request) {
-	h.downloadOrUpload(writer, request, "download", download.Do)
+	h.downloadOrUpload(writer, request, spec.SubtestDownload, download.Do)
 }

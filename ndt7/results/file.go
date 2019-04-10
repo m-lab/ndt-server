@@ -12,12 +12,14 @@ import (
 	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
+	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
 // File is the file where we save measurements.
 type File struct {
 	// Writer is the gzip writer instance
 	Writer *gzip.Writer
+
 	// Fp is the underlying file
 	Fp *os.File
 }
@@ -55,8 +57,9 @@ func newFile(datadir, what, uuid string) (*File, error) {
 // containing the metadata. The conn argument is used to retrieve the local and
 // the remote endpoints addresses. The "datadir" argument specifies the
 // directory on disk to write the data into and the what argument should
-// indicate whether this is a "download" or an "upload" ndt7 measurement.
-func OpenFor(request *http.Request, conn *websocket.Conn, datadir, what string) (*File, error) {
+// indicate whether this is a spec.SubtestDownload or a spec.SubtestUpload
+// ndt7 measurement.
+func OpenFor(request *http.Request, conn *websocket.Conn, datadir string, what spec.SubtestKind) (*File, error) {
 	meta := make(metadata)
 	netConn := conn.UnderlyingConn()
 	id, err := fdcache.GetUUID(netConn)
@@ -65,8 +68,8 @@ func OpenFor(request *http.Request, conn *websocket.Conn, datadir, what string) 
 		return nil, err
 	}
 	initMetadata(&meta, conn.LocalAddr().String(), conn.RemoteAddr().String(), id,
-		request.URL.Query(), what)
-	resultfp, err := newFile(datadir, what, id)
+		request.URL.Query(), string(what))
+	resultfp, err := newFile(datadir, string(what), id)
 	if err != nil {
 		logging.Logger.WithError(err).Warn("newFile failed")
 		return nil, err
