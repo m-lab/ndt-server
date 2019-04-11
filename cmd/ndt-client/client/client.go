@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"time"
@@ -21,9 +22,15 @@ const minMeasurementInterval = 250 * time.Millisecond
 // defaultTimeout is the default I/O timeout.
 const defaultTimeout = 7 * time.Second
 
+// defaultDuration is the default duration of the upload.
+const defaultDuration = 10 * time.Second
+
 // Client is a simplified ndt7 client.
 type Client struct {
+	// Dialer is the WebSocket dialer.
 	Dialer websocket.Dialer
+
+	// URL is the URL to use.
 	URL    url.URL
 }
 
@@ -86,5 +93,54 @@ func (cl Client) Download() error {
 		}
 	}
 	log.Info("Download complete")
+	return nil
+}
+
+// makePreparedMessage generates a prepared message that should be sent
+// over the network for generating network load.
+func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	data := make([]byte, size)
+	// This is not the fastest algorithm to generate a random string, yet it
+	// is most likely good enough for our purposes. See [1] for a comprehensive
+	// discussion regarding how to generate a random string in Golang.
+	//
+	// .. [1] https://stackoverflow.com/a/31832326/4354461
+	for i := range data {
+		data[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
+}
+
+// Upload runs a ndt7 run test.
+func (cl Client) Upload() error {
+	cl.URL.Path = spec.UploadURLPath
+	log.Infof("Creating a WebSocket connection to: %s", cl.URL.String())
+	headers := http.Header{}
+	headers.Add("Sec-WebSocket-Protocol", spec.SecWebSocketProtocol)
+	cl.Dialer.HandshakeTimeout = defaultTimeout
+	conn, _, err := cl.Dialer.Dial(cl.URL.String(), headers)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	t0 := time.Now()
+	const bulkMessageSize = 1 << 13
+	preparedMessage, err := makePreparedMessage(bulkMessageSize)
+	if err != nil {
+		return err
+	}
+	for {
+		// Check whether we've run for too much time
+		now := time.Now()
+		elapsed := now.Sub(t0)
+		if elapsed >= defaultDuration {
+			break
+		}
+		if err := conn.WritePreparedMessage(preparedMessage); err != nil {
+			return err
+		}
+	}
+	log.Info("Upload complete")
 	return nil
 }

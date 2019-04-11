@@ -26,4 +26,8 @@ func main() {
 		log.WithError(err).Warn("clnt.Download() failed")
 		os.Exit(1)
 	}
+	if err := clnt.Upload(); err != nil {
+		log.WithError(err).Warn("clnt.Upload() failed")
+		os.Exit(1)
+	}
 }
