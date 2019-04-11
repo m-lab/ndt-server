@@ -124,23 +124,22 @@ func (cl Client) Upload() error {
 		return err
 	}
 	defer conn.Close()
-	t0 := time.Now()
 	const bulkMessageSize = 1 << 13
 	preparedMessage, err := makePreparedMessage(bulkMessageSize)
 	if err != nil {
 		return err
 	}
+	timer := time.NewTimer(defaultDuration)
 	for {
-		// Check whether we've run for too much time
-		now := time.Now()
-		elapsed := now.Sub(t0)
-		if elapsed >= defaultDuration {
-			break
+		select {
+		case <-timer.C:
+			log.Info("Upload complete")
+			return nil
+		default:
+			// nothing
 		}
 		if err := conn.WritePreparedMessage(preparedMessage); err != nil {
 			return err
 		}
 	}
-	log.Info("Upload complete")
-	return nil
 }

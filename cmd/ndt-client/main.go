@@ -10,7 +10,7 @@ import (
 )
 
 var hostname = flag.String("hostname", "localhost", "Host to connect to")
-var port = flag.String("port", "3010", "Port to connect to")
+var port = flag.String("port", "443", "Port to connect to")
 var skipTLSVerify = flag.Bool("skip-tls-verify", false, "Skip TLS verify")
 
 func main() {
