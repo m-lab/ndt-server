@@ -23,6 +23,7 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/listener"
 	"github.com/m-lab/ndt-server/ndt7/handler"
 	"github.com/m-lab/ndt-server/ndt7/spec"
+	"github.com/m-lab/ndt-server/platformx"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -99,6 +100,8 @@ func main() {
 
 	promSrv := prometheusx.MustStartPrometheus(*metricsPort)
 	defer promSrv.Close()
+
+	platformx.WarnIfNotFullySupported()
 
 	// The legacy protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
