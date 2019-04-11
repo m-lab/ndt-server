@@ -28,8 +28,8 @@ const (
 	// defaultTimeout is the default value of the I/O timeout.
 	defaultTimeout = 7 * time.Second
 
-	// defaultDuration is the default duration of a subtest in nanoseconds.
-	defaultDuration = 10 * time.Second
+	// maxDuration is the maximum duration of the upload in nanoseconds.
+	maxDuration = 15 * time.Second
 )
 
 // getConnFile returns the connection to be used to gather low level stats.
@@ -89,7 +89,7 @@ func measuringLoop(ctx context.Context, conn *websocket.Conn, resultfp *results.
 			return
 		case now := <-ticker.C:
 			elapsed := now.Sub(t0)
-			if elapsed > defaultDuration {
+			if elapsed > maxDuration {
 				logging.Logger.Debug("upload: I have run for long enough")
 				return
 			}
