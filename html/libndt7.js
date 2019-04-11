@@ -123,6 +123,8 @@ const libndt7 = (function () {
         if (t1 - t0 > duration) {
           return
         }
+        // TODO(bassosimone): refine to ensure this works well across a wide
+        // range of CPU speed/network speed/browser combinations
         const underbuffered = 7 * data.length
         while (socket.bufferedAmount < underbuffered) {
           socket.send(data)
