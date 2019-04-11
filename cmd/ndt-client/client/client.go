@@ -130,16 +130,26 @@ func (cl Client) Upload() error {
 		return err
 	}
 	timer := time.NewTimer(defaultDuration)
+	defer timer.Stop()
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	var total int64
+	t0 := time.Now()
 	for {
 		select {
 		case <-timer.C:
 			log.Info("Upload complete")
 			return nil
+		case <-ticker.C:
+			elapsed := time.Now().Sub(t0)
+			speed := 8.0 * float64(total) / 1000.0 / 1000.0 / elapsed.Seconds()
+			log.Infof("Elapsed: %f s; speed: %f Mbit/s", elapsed.Seconds(), speed)
 		default:
 			// nothing
 		}
 		if err := conn.WritePreparedMessage(preparedMessage); err != nil {
 			return err
 		}
+		total += bulkMessageSize
 	}
 }
