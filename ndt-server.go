@@ -187,7 +187,7 @@ func main() {
 			Handler: logging.MakeAccessLogHandler(ndt7Mux),
 		}
 		log.Println("About to listen for ndt7 tests on " + *ndt7Port)
-		rtx.Must(listener.ListenAndServeAsync(ndt7Server), "Could not start ndt7 server")
+		rtx.Must(listener.ListenAndServeTLSAsync(ndt7Server, *certFile, *keyFile), "Could not start ndt7 server")
 		defer ndt7Server.Close()
 	} else {
 		log.Printf("Cert=%q and Key=%q means no TLS services will be started.\n", *certFile, *keyFile)
