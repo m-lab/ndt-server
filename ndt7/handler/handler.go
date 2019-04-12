@@ -3,6 +3,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/websocket"
@@ -53,7 +54,9 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 	headers.Add("Sec-WebSocket-Protocol", spec.SecWebSocketProtocol)
 	conn, err := h.Upgrader.Upgrade(writer, request, headers)
 	if err != nil {
-		warnAndClose(writer, "downloadOrUpload: cannnot UPGRADE to WebSocket")
+		warnAndClose(writer, fmt.Sprintf(
+			"downloadOrUpload: cannnot UPGRADE to WebSocket: %s", err,
+		))
 		return
 	}
 	// TODO(bassosimone): an error before this point means that the *os.File
