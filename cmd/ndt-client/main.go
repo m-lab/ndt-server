@@ -10,7 +10,7 @@ import (
 )
 
 var hostname = flag.String("hostname", "localhost", "Host to connect to")
-var port = flag.String("port", "3010", "Port to connect to")
+var port = flag.String("port", "443", "Port to connect to")
 var skipTLSVerify = flag.Bool("skip-tls-verify", false, "Skip TLS verify")
 
 func main() {
@@ -24,6 +24,10 @@ func main() {
 	}
 	if err := clnt.Download(); err != nil {
 		log.WithError(err).Warn("clnt.Download() failed")
+		os.Exit(1)
+	}
+	if err := clnt.Upload(); err != nil {
+		log.WithError(err).Warn("clnt.Upload() failed")
 		os.Exit(1)
 	}
 }

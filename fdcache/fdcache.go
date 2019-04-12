@@ -168,6 +168,5 @@ func GetUUID(conn net.Conn) (string, error) {
 	if !found {
 		return "", errors.New("fd not found")
 	}
-	id, err := uuid.FromFile(entry.Fp)
-	return id, err
+	return uuid.FromFile(entry.Fp)
 }
