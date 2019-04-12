@@ -31,7 +31,6 @@ import (
 
 var (
 	// Flags that can be passed in on the command line
-	metricsPort   = flag.String("metrics_port", ":9090", "The address and port to use for prometheus metrics")
 	ndt7Port      = flag.String("ndt7_port", ":443", "The address and port to use for the ndt7 test")
 	legacyPort    = flag.String("legacy_port", ":3001", "The address and port to use for the unencrypted legacy NDT test")
 	legacyWsPort  = flag.String("legacy_ws_port", ":3002", "The address and port to use for the legacy NDT Ws test")
@@ -97,7 +96,7 @@ func main() {
 	// TODO: Decide if signal handling is the right approach here.
 	go catchSigterm()
 
-	promSrv := prometheusx.MustStartPrometheus(*metricsPort)
+	promSrv := prometheusx.MustServeMetrics()
 	defer promSrv.Close()
 
 	// The legacy protocol serving non-HTTP-based tests - forwards to Ws-based
