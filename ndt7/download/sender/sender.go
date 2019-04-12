@@ -46,7 +46,7 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 			// make sure we drain the channel
 		}
 	}()
-	logging.Logger.Debug("sender: enerating random buffer")
+	logging.Logger.Debug("sender: generating random buffer")
 	const bulkMessageSize = 1 << 13
 	preparedMessage, err := makePreparedMessage(bulkMessageSize)
 	if err != nil {

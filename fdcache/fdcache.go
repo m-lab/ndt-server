@@ -63,7 +63,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m-lab/ndt-server/fdcache/uuidx"
+	"github.com/m-lab/uuid"
 )
 
 // connKey is the key associated to a TCP connection.
@@ -168,6 +168,6 @@ func GetUUID(conn net.Conn) (string, error) {
 	if !found {
 		return "", errors.New("fd not found")
 	}
-	id, err := uuidx.FromFile(entry.Fp)
+	id, err := uuid.FromFile(entry.Fp)
 	return id, err
 }
