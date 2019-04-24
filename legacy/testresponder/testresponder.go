@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/legacy/protocol"
@@ -72,8 +71,7 @@ func listenRandom() (net.Listener, int, error) {
 
 // StartAsync allocates a new TLS HTTP server listening on a random port. The
 // server can be stopped again using TestResponder.Close().
-func (tr *TestResponder) StartAsync(mux *http.ServeMux, rawTest func(protocol.MeasuredConnection), msg string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+func (tr *TestResponder) StartAsync(ctx context.Context, cancel context.CancelFunc, mux *http.ServeMux, rawTest func(protocol.MeasuredConnection), msg string) error {
 	tr.Ctx = ctx
 	tr.Cancel = cancel
 	ln, port, err := listenRandom()
