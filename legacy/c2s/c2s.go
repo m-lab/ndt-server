@@ -98,7 +98,7 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 		promhttp.InstrumentHandlerCounter(
 			metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": "c2s"}),
 			http.HandlerFunc(testResponder.TestServer)))
-	err := testResponder.StartAsync(ctx, cancel, serveMux, testResponder.performTest, "C2S")
+	err := testResponder.StartAsync(ctx, serveMux, testResponder.performTest, "C2S")
 	if err != nil {
 		return 0, err
 	}

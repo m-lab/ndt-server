@@ -168,7 +168,7 @@ func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, 
 		promhttp.InstrumentHandlerCounter(
 			metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": "s2c"}),
 			http.HandlerFunc(responder.websocketHandler)))
-	err := responder.StartAsync(ctx, cancel, serveMux, responder.performTest, "S2C")
+	err := responder.StartAsync(ctx, serveMux, responder.performTest, "S2C")
 	if err != nil {
 		return 0, err
 	}

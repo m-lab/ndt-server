@@ -71,9 +71,8 @@ func listenRandom() (net.Listener, int, error) {
 
 // StartAsync allocates a new TLS HTTP server listening on a random port. The
 // server can be stopped again using TestResponder.Close().
-func (tr *TestResponder) StartAsync(ctx context.Context, cancel context.CancelFunc, mux *http.ServeMux, rawTest func(protocol.MeasuredConnection), msg string) error {
-	tr.Ctx = ctx
-	tr.Cancel = cancel
+func (tr *TestResponder) StartAsync(ctx context.Context, mux *http.ServeMux, rawTest func(protocol.MeasuredConnection), msg string) error {
+	tr.Ctx, tr.Cancel = context.WithCancel(ctx)
 	ln, port, err := listenRandom()
 	if err != nil {
 		log.Println("ERROR: Failed to listen on any port:", err)
