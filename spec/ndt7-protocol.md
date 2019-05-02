@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.7.0 of the ndt7 specification.
+This is version v0.7.1 of the ndt7 specification.
 
 ## Protocol description
 
@@ -192,7 +192,110 @@ implementations will likely round bigger (or smaller) numbers to the nearest
 make sure that it does not mit values that a `int53` cannot represent. The
 proper action to take in this case is currently unspecified.
 
-# Reference implementation
+## Server discovery
+
+This section explains how a client can get the FQDN of one or more
+ndt7-enabled servers for the purpose of running tests. Of course, this
+section only applies to clients using M-Lab infrastructure. Clients
+using other server infrastructure MUST refer to the documentation
+provided by such infrastructure instead.
+
+Clients:
+
+1. SHOULD use [mlab-ns](https://github.com/m-lab/mlab-ns);
+
+2. MUST query for the `ndt_ssl` mlab-ns tool (see below for a
+description of how a real request would look like);
+
+3. MUST set `User-Agent` to identify themselves;
+
+4. SHOULD use the `policy=geo_options` policy that causes mlab-ns to
+return a set of nearby servers;
+
+5. if the connection to the first returned server is down, they SHOULD
+try with subsequent servers, and fail the test if all the returned
+servers appear to be down;
+
+6. MUST handle gracefully the case where M-Lab is out of capacity, which
+is identifiable by mlab-ns returning `200` along with an empty set of servers;
+
+7. MUST use the following retry policy (if applicable): extract a random
+number of seconds from an exponential distribution with average equal
+to `3,600` seconds, and wait that number of seconds before trying again;
+
+8. MUST (of course) interpret `200` as success and any other status
+code as failure, and act accordingly.
+
+For the purpose of the beta testing phase of `ndt7`, and whenever they wish
+to use non production infrastructure, client MUST use the following base
+URL for mlab-ns:
+
+```
+https://locate-dot-mlab-staging.appspot.com
+```
+
+Otherwise, they MUST use the following base URL (which will not work
+until ndt7 is deployed on the production infrastructure):
+
+```
+https://mlab-ns.appspot.com
+```
+
+Thus, the full URL to contact mlab-ns MUST be:
+
+```
+${baseURL}/ndt_ssl?policy=geo_options
+```
+
+The following example shows a request to mlab-ns originating from a
+well-behaved ndt7 client:
+
+```
+* Connected to mlab-ns.appspot.com (216.58.205.84) port 443 (#0)
+> GET /ndt_ssl?policy=geo_options HTTP/2
+> Host: mlab-ns.appspot.com
+> User-Agent: MKEngine/0.1.0
+> Accept: application/json
+>
+```
+
+A possible successful response from a server could look like the
+following (where some irrelevant JSON fields have been omitted for
+the sake of brevity and thus content-length is now wrong):
+
+```
+< HTTP/2 200
+< cache-control: no-cache
+< access-control-allow-origin: *
+< content-type: application/json
+< date: Thu, 02 May 2019 13:46:32 GMT
+< server: Google Frontend
+< content-length: 622
+<
+[
+    { "fqdn": "ndt-iupui-mlab2-tun01.measurement-lab.org" },
+    { "fqdn": "ndt-iupui-mlab2-tgd01.measurement-lab.org" },
+    { "fqdn": "ndt-iupui-mlab2-ath03.measurement-lab.org" },
+    { "fqdn": "ndt-iupui-mlab2-beg01.measurement-lab.org" }
+]
+```
+
+In case of capacity issues (as specified above), the server response
+would instead look like the following:
+
+```
+< HTTP/2 200
+< cache-control: no-cache
+< access-control-allow-origin: *
+< content-type: application/json
+< date: Thu, 02 May 2019 13:46:32 GMT
+< server: Google Frontend
+< content-length: 2
+<
+[]
+```
+
+## Reference implementation
 
 The reference implementation is [github.com/m-lab/ndt-server](
 https://github.com/m-lab/ndt-server).
