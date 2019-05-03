@@ -8,12 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
+	"github.com/m-lab/ndt-server/legacy/singleserving"
 	"github.com/m-lab/ndt-server/legacy/testresponder"
 	"github.com/m-lab/ndt-server/legacy/web100"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // ready should be a constant, but const initializers may not be nil in Go.
@@ -152,37 +150,71 @@ func (r *Responder) runControlChannel(ctx context.Context, cancel context.Cancel
 }
 
 // ManageTest manages the s2c test lifecycle
-func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+func ManageTest(ctx context.Context, conn protocol.Connection, sf singleserving.Factory) (float64, error) {
+	localCtx, localCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer localCancel()
 
-	// Create a testResponder instance.
-	responder := &Responder{
-		Response: make(chan *web100.Metrics),
+	srv, err := sf.SingleServingServer("s2c")
+	if err != nil {
+		log.Println("Could not start single serving server", err)
+		return 0, err
 	}
-	responder.Config = config
+	err = protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(srv.Port()), conn)
+	if err != nil {
+		log.Println("Could not send TestPrepare", err)
+		return 0, err
+	}
 
-	// Create a TLS server for running the S2C test.
-	serveMux := http.NewServeMux()
-	serveMux.HandleFunc("/ndt_protocol",
-		promhttp.InstrumentHandlerCounter(
-			metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": "s2c"}),
-			http.HandlerFunc(responder.websocketHandler)))
-	err := responder.StartAsync(ctx, serveMux, responder.performTest, "S2C")
+	testConn, err := srv.ServeOnce(localCtx)
+	if err != nil {
+		log.Println("Could not successfully ServeOnce", err)
+		return 0, err
+	}
+
+	dataToSend := make([]byte, 8192)
+	for i := range dataToSend {
+		dataToSend[i] = byte(((i * 101) % (122 - 33)) + 33)
+	}
+	testConn.StartMeasuring(localCtx)
+	byteCount, err := testConn.FillUntil(time.Now().Add(10*time.Second), dataToSend)
+	metrics, metricErr := testConn.StopMeasuring()
 	if err != nil {
 		return 0, err
 	}
-	defer responder.Close()
-
-	done := make(chan float64)
-	go responder.runControlChannel(ctx, cancel, done, ws)
-
-	select {
-	case <-ctx.Done():
-		log.Println("S2C: ctx done!")
-		return 0, ctx.Err()
-	case rate := <-done:
-		log.Println("S2C: finished ", rate)
-		return rate, nil
+	if metricErr != nil {
+		return 0, metricErr
 	}
+	err = testConn.Close()
+	if err != nil {
+		return 0, err
+	}
+
+	bps := 8 * float64(byteCount) / 10
+	kbps := bps / 1000
+
+	// Send additional download results to the client.
+	resultMsg := &Result{
+		ThroughputValue:  strconv.FormatInt(int64(kbps), 10),
+		UnsentDataAmount: "0",
+		TotalSentByte:    strconv.FormatInt(byteCount, 10), // TODO: use actual bytes sent.
+	}
+	err = protocol.WriteNDTMessage(conn, protocol.TestMsg, resultMsg)
+	if err != nil {
+		return kbps, err
+	}
+	clientRateMsg, err := protocol.ReceiveJSONMessage(conn, protocol.TestMsg)
+	if err != nil {
+		return kbps, err
+	}
+	log.Println("We measured", kbps, "and the client sent us", clientRateMsg)
+	err = protocol.SendMetrics(metrics, conn)
+	if err != nil {
+		return kbps, err
+	}
+	err = protocol.SendJSONMessage(protocol.TestFinalize, "", conn)
+	if err != nil {
+		return kbps, err
+	}
+
+	return kbps, nil
 }

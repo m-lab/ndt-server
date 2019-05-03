@@ -2,17 +2,13 @@ package c2s
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
+	"github.com/m-lab/ndt-server/legacy/singleserving"
 	"github.com/m-lab/ndt-server/legacy/testresponder"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -82,59 +78,9 @@ func (tr *Responder) recvC2SUntil(ws protocol.Connection) float64 {
 }
 
 // ManageTest manages the c2s test lifecycle.
-func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+func ManageTest(ws protocol.Connection, f singleserving.Factory) (float64, error) {
+	_, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Create a testResponder instance.
-	testResponder := &Responder{
-		Response: make(chan float64),
-	}
-	testResponder.Config = config
-
-	// Create a TLS server for running the C2S test.
-	serveMux := http.NewServeMux()
-	serveMux.HandleFunc("/ndt_protocol",
-		promhttp.InstrumentHandlerCounter(
-			metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": "c2s"}),
-			http.HandlerFunc(testResponder.TestServer)))
-	err := testResponder.StartAsync(ctx, serveMux, testResponder.performTest, "C2S")
-	if err != nil {
-		return 0, err
-	}
-	defer testResponder.Close()
-
-	done := make(chan float64)
-	go func() {
-		// Wait for test to run.
-		// Send the server port to the client.
-		protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(testResponder.Port), ws)
-		c2sReady := <-testResponder.Response
-		if c2sReady != ready {
-			log.Println("ERROR C2S: Bad value received on the c2s channel", c2sReady)
-			cancel()
-			return
-		}
-		// Tell the client to start the test.
-		protocol.SendJSONMessage(protocol.TestStart, "", ws)
-
-		// Wait for results to be generated.
-		c2sBytesPerSecond := <-testResponder.Response
-		c2sKbps := 8 * c2sBytesPerSecond / 1000.0
-
-		// Finish the test.
-		protocol.SendJSONMessage(protocol.TestMsg, fmt.Sprintf("%.4f", c2sKbps), ws)
-		protocol.SendJSONMessage(protocol.TestFinalize, "", ws)
-		log.Println("C2S: server rate:", c2sKbps)
-		done <- c2sKbps
-	}()
-
-	select {
-	case <-ctx.Done():
-		log.Println("C2S: ctx Done!")
-		return 0, ctx.Err()
-	case value := <-done:
-		log.Println("C2S: finished ", value)
-		return value, nil
-	}
+	return 0, nil
 }

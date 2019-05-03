@@ -18,8 +18,7 @@ import (
 	"github.com/m-lab/go/httpx"
 	"github.com/m-lab/go/rtx"
 
-	"github.com/m-lab/ndt-server/legacy"
-	"github.com/m-lab/ndt-server/legacy/testresponder"
+	legacyhandler "github.com/m-lab/ndt-server/legacy/handler"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/metrics"
 	"github.com/m-lab/ndt-server/ndt7/handler"
@@ -110,10 +109,7 @@ func main() {
 
 	// The legacy protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
-	legacyServer := legacy.BasicServer{
-		ForwardingAddr: *legacyWsPort, // This is the port to which connections are forwarded.
-		ServerType:     testresponder.RawJSON,
-	}
+	legacyServer := legacyhandler.NewTCP(*legacyWsPort)
 	rtx.Must(
 		legacyServer.ListenAndServeRawAsync(ctx, *legacyPort),
 		"Could not start raw server")
@@ -130,7 +126,7 @@ func main() {
 			metrics.CurrentTests.With(legacyWsLabel),
 			promhttp.InstrumentHandlerDuration(
 				metrics.TestDuration.MustCurryWith(legacyWsLabel),
-				&legacy.BasicServer{ServerType: testresponder.WS})))
+				legacyhandler.NewWS())))
 	legacyWsServer := &http.Server{
 		Addr:    *legacyWsPort,
 		Handler: logging.MakeAccessLogHandler(legacyWsMux),
@@ -146,18 +142,14 @@ func main() {
 		legacyWssMux := http.NewServeMux()
 		legacyWssMux.HandleFunc("/", defaultHandler)
 		legacyWssMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
-		legacyWssConfig := legacy.BasicServer{
-			CertFile:   *certFile,
-			KeyFile:    *keyFile,
-			ServerType: testresponder.WSS,
-		}
+		legacyWssConfig := legacyhandler.NewWSS(*certFile, *keyFile)
 		legacyWssMux.Handle(
 			"/ndt_protocol",
 			promhttp.InstrumentHandlerInFlight(
 				metrics.CurrentTests.With(legacyWssLabel),
 				promhttp.InstrumentHandlerDuration(
 					metrics.TestDuration.MustCurryWith(legacyWssLabel),
-					&legacyWssConfig)))
+					legacyWssConfig)))
 		legacyWssServer := &http.Server{
 			Addr:    *legacyWssPort,
 			Handler: logging.MakeAccessLogHandler(legacyWssMux),
