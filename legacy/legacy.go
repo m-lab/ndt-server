@@ -84,7 +84,7 @@ func HandleControlChannel(conn protocol.Connection, sf singleserving.Factory) {
 
 	var c2sRate, s2cRate float64
 	if runC2s {
-		c2sRate, err = c2s.ManageTest(conn, sf)
+		c2sRate, err = c2s.ManageTest(ctx, conn, sf)
 		if err != nil {
 			log.Println("ERROR: manageC2sTest", err)
 		} else {

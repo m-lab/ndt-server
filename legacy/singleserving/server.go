@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strconv"
-	"strings"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
+	"github.com/m-lab/ndt-server/legacy/tcplistener"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -113,15 +112,8 @@ func StartWS(direction string) (Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.listener = listener
-	address := listener.Addr().String()
-	s.srv.Addr = address
-	chunks := strings.Split(address, ":")
-	portStr := chunks[len(chunks)-1]
-	s.port, err = strconv.Atoi(portStr)
-	if err != nil {
-		return nil, err
-	}
+	s.listener = tcplistener.RawListener{TCPListener: listener.(*net.TCPListener)}
+	s.port = s.listener.Addr().(*net.TCPAddr).Port
 	return s, nil
 }
 

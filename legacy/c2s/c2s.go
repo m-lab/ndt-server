@@ -4,8 +4,10 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/singleserving"
 	"github.com/m-lab/ndt-server/legacy/testresponder"
@@ -78,9 +80,53 @@ func (tr *Responder) recvC2SUntil(ws protocol.Connection) float64 {
 }
 
 // ManageTest manages the c2s test lifecycle.
-func ManageTest(ws protocol.Connection, f singleserving.Factory) (float64, error) {
-	_, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+func ManageTest(ctx context.Context, conn protocol.Connection, f singleserving.Factory) (float64, error) {
+	localContext, localCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer localCancel()
 
-	return 0, nil
+	srv, err := f.SingleServingServer("c2s")
+	if err != nil {
+		log.Println("Could not start SingleServingServer", err)
+		return 0, err
+	}
+
+	err = protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(srv.Port()), conn)
+	if err != nil {
+		log.Println("Could not send TestPrepare", err)
+		return 0, err
+	}
+
+	testConn, err := srv.ServeOnce(localContext)
+	if err != nil {
+		log.Println("Could not successfully ServeOnce", err)
+		return 0, err
+	}
+	defer warnonerror.Close(testConn, "Could not close test connection")
+
+	err = protocol.SendJSONMessage(protocol.TestStart, "", conn)
+	if err != nil {
+		log.Println("Could not send TestStart", err)
+		return 0, err
+	}
+
+	byteCount, err := testConn.DrainUntil(time.Now().Add(10 * time.Second))
+	if err != nil {
+		log.Println("Could not drain the test connection", err)
+		return 0, err
+	}
+	throughputValue := 8 * float64(byteCount) / 1000 / 10
+
+	err = protocol.SendJSONMessage(protocol.TestMsg, strconv.FormatFloat(throughputValue, 'g', -1, 64), conn)
+	if err != nil {
+		log.Println("Could not send TestMsg with C2S results", err)
+		return 0, err
+	}
+
+	err = protocol.SendJSONMessage(protocol.TestFinalize, "", conn)
+	if err != nil {
+		log.Println("Could not send TestFinalize", err)
+		return throughputValue, err
+	}
+
+	return throughputValue, nil
 }
