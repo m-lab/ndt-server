@@ -304,7 +304,7 @@ func sleepTime() time.Duration {
 	return time.Duration(t * float64(time.Second))
 }
 
-func main() {
+func mainLoop() {
 	for {
 		tryPerformanceTest()
 		time.Sleep(sleepTime())
