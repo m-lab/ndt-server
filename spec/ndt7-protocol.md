@@ -260,7 +260,7 @@ would instead look like the following:
 {}
 ```
 
-## Requirements for non-interactive clients
+### Requirements for non-interactive clients
 
 Non-interactive clients SHOULD schedule tests according
 to the following algorithm:
