@@ -202,58 +202,28 @@ provided by such infrastructure instead.
 
 Clients:
 
-1. SHOULD use [mlab-ns](https://github.com/m-lab/mlab-ns);
+1. SHOULD use the [locate.measurementlab.net](
+https://locate.measurementlab.net/) server-discovery web API;
 
-2. MUST query for the `ndt_ssl` mlab-ns tool (see below for a
+2. MUST query for the `ndt7` mlab-ns tool (see below for a
 description of how a real request would look like);
 
 3. MUST set `User-Agent` to identify themselves;
 
-4. SHOULD use the `policy=geo_options` policy that causes mlab-ns to
-return a set of nearby servers;
+4. MUST correctly handle `3xx` redirects, interpret `200` as success, and
+any other status code as failure;
 
-5. if the connection to the first returned server is down, they SHOULD
-try with subsequent servers, and fail the test if all the returned
-servers appear to be down;
+5. MUST handle gracefully the case where M-Lab is out of capacity, which
+is identifiable by locate.measurementlab.net returning `200` along with an
+empty response.
 
-6. MUST handle gracefully the case where M-Lab is out of capacity, which
-is identifiable by mlab-ns returning `200` along with an empty set of servers;
-
-7. MUST use the following retry policy (if applicable): extract a random
-number of seconds from an exponential distribution with average equal
-to `3,600` seconds, and wait that number of seconds before trying again;
-
-8. MUST (of course) interpret `200` as success and any other status
-code as failure, and act accordingly.
-
-For the purpose of the beta testing phase of `ndt7`, and whenever they wish
-to use non production infrastructure, client MUST use the following base
-URL for mlab-ns:
+The following example shows a request to locate.measurementlab.net originating
+from a well-behaved ndt7 client:
 
 ```
-https://locate-dot-mlab-staging.appspot.com
-```
-
-Otherwise, they MUST use the following base URL (which will not work
-until ndt7 is deployed on the production infrastructure):
-
-```
-https://mlab-ns.appspot.com
-```
-
-Thus, the full URL to contact mlab-ns MUST be:
-
-```
-${baseURL}/ndt_ssl?policy=geo_options
-```
-
-The following example shows a request to mlab-ns originating from a
-well-behaved ndt7 client:
-
-```
-* Connected to mlab-ns.appspot.com (216.58.205.84) port 443 (#0)
-> GET /ndt_ssl?policy=geo_options HTTP/2
-> Host: mlab-ns.appspot.com
+* Connected to locate.measurementlab.net (216.58.205.84) port 443 (#0)
+> GET /ndt7 HTTP/2
+> Host: locate.measurementlab.net
 > User-Agent: MKEngine/0.1.0
 > Accept: application/json
 >
@@ -272,12 +242,7 @@ the sake of brevity and thus content-length is now wrong):
 < server: Google Frontend
 < content-length: 622
 <
-[
-    { "fqdn": "ndt-iupui-mlab2-tun01.measurement-lab.org" },
-    { "fqdn": "ndt-iupui-mlab2-tgd01.measurement-lab.org" },
-    { "fqdn": "ndt-iupui-mlab2-ath03.measurement-lab.org" },
-    { "fqdn": "ndt-iupui-mlab2-beg01.measurement-lab.org" }
-]
+{ "fqdn": "ndt-iupui-mlab2-tun01.measurement-lab.org" }
 ```
 
 In case of capacity issues (as specified above), the server response
@@ -292,8 +257,62 @@ would instead look like the following:
 < server: Google Frontend
 < content-length: 2
 <
-[]
+{}
 ```
+
+## Requirements for non-interactive clients
+
+Non-interactive clients SHOULD schedule tests according
+to the following algorithm:
+
+0. make sure that the RNG is correctly seeded;
+
+1. extract `t` from an exponential distribution with average
+equal to 21'600 seconds;
+
+2. if `t` is smaller than 2'160 seconds, set `t` to 2'160 seconds;
+
+3. if `t` is larger 54'000 seconds, set `t` to 54'000 seconds;
+
+4. return `t`.
+
+An hypothetical non-interactive ndt7 client written in Go SHOULD do:
+
+```Go
+import (
+	"math/rand"
+	"sync"
+	"time"
+)
+
+var once sync.Once
+
+func sleepTime() time.Duration {
+	once.Do(func() {
+		rand.Seed(time.Now().UTC().UnixNano())
+	})
+	t := rand.ExpFloat64() * 21600
+	if t < 2160 {
+		t = 2160
+	} else if t > 54000 {
+		t = 54000
+	}
+	return time.Duration(t * float64(time.Second))
+}
+
+func main() {
+	for {
+		runPerformanceTest()
+		time.Sleep(sleepTime())
+	}
+}
+```
+
+The locate.measurementlab.net service will return an empty result if
+M-Lab is out of capacity, as mentioned above. In such case, a non-interactive
+client SHOULD either skip the test and wait until it's time to run the next
+test (preferred) or retry contacting locate.measurementlab.net applying an
+exponential backoff.
 
 ## Reference implementation
 
