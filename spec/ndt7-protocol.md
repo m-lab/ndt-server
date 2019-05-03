@@ -194,8 +194,8 @@ proper action to take in this case is currently unspecified.
 
 ## Server discovery
 
-This section explains how a client can get the FQDN of one or more
-ndt7-enabled servers for the purpose of running tests. Of course, this
+This section explains how a client can get the FQDN of a ndt7-enabled
+M-Lab server for the purpose of running tests. Of course, this
 section only applies to clients using M-Lab infrastructure. Clients
 using other server infrastructure MUST refer to the documentation
 provided by such infrastructure instead.
@@ -205,7 +205,7 @@ Clients:
 1. SHOULD use the [locate.measurementlab.net](
 https://locate.measurementlab.net/) server-discovery web API;
 
-2. MUST query for the `ndt7` mlab-ns tool (see below for a
+2. MUST query for the `ndt7` locate.measurementlab.net tool (see below for a
 description of how a real request would look like);
 
 3. MUST set `User-Agent` to identify themselves;
@@ -265,16 +265,20 @@ would instead look like the following:
 Non-interactive clients SHOULD schedule tests according
 to the following algorithm:
 
-0. make sure that the RNG is correctly seeded;
+1. run a test
 
-1. extract `t` from an exponential distribution with average
-equal to 21'600 seconds;
+2. make sure that the RNG is correctly seeded;
 
-2. if `t` is smaller than 2'160 seconds, set `t` to 2'160 seconds;
+3. extract `t` from an exponential distribution with average
+equal to 21'600 seconds (i.e. six hours);
 
-3. if `t` is larger 54'000 seconds, set `t` to 54'000 seconds;
+4. if `t` is smaller than 2'160 seconds, set `t` to 2'160 seconds;
 
-4. return `t`.
+5. if `t` is larger 54'000 seconds, set `t` to 54'000 seconds;
+
+6. sleep for `t` seconds;
+
+7. goto step 1.
 
 An hypothetical non-interactive ndt7 client written in Go SHOULD do:
 
@@ -302,7 +306,7 @@ func sleepTime() time.Duration {
 
 func main() {
 	for {
-		runPerformanceTest()
+		tryPerformanceTest()
 		time.Sleep(sleepTime())
 	}
 }
@@ -310,9 +314,34 @@ func main() {
 
 The locate.measurementlab.net service will return an empty result if
 M-Lab is out of capacity, as mentioned above. In such case, a non-interactive
-client SHOULD either skip the test and wait until it's time to run the next
-test (preferred) or retry contacting locate.measurementlab.net applying an
-exponential backoff.
+client SHOULD:
+
+1. either skip the test and wait until it's time to run the next test; or
+
+2. retry contacting locate.measurementlab.net applying an exponential
+backoff by extracting from a normal distribution with increasing average (60,
+120, 240, 480, 960, ... seconds) and standard deviation equal to 5% of
+the average value.
+
+In our hypotethical Go client, the exponential backoff would be
+implementation like this:
+
+```Go
+func tryPerformanceTest() {
+	for mean := 60.0; mean <= 960.0; mean *= 2.0 {
+		fqdn, err := locateServer()
+		if err != nil {
+			// Note: RNG already seeded as shown above
+			stdev := 0.05 * mean
+			seconds := rand.NormFloat64() * stdev + mean
+			time.Sleep(time.Duration(seconds * float64(time.Second)))
+			continue
+		}
+		runWithServer(fqdn)
+		return
+	}
+}
+```
 
 ## Reference implementation
 
