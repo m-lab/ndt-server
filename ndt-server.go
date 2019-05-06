@@ -111,7 +111,7 @@ func main() {
 	// server if the first three bytes are "GET".
 	legacyServer := legacyhandler.NewTCP(*legacyWsPort)
 	rtx.Must(
-		legacyServer.ListenAndServeRawAsync(ctx, *legacyPort),
+		legacyServer.ListenAndServe(ctx, *legacyPort),
 		"Could not start raw server")
 
 	// The legacy protocol serving Ws-based tests. Most clients are hard-coded to

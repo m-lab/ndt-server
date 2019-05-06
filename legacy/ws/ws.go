@@ -2,6 +2,7 @@ package ws
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -14,6 +15,7 @@ func Upgrader(protocol string) *websocket.Upgrader {
 		WriteBufferSize:   81920,
 		Subprotocols:      []string{protocol},
 		EnableCompression: false,
+		HandshakeTimeout:  10 * time.Second,
 		CheckOrigin: func(r *http.Request) bool {
 			// TODO: make this check more appropriate -- added to get initial html5 widget to work.
 			return true

@@ -83,6 +83,7 @@ type Connection interface {
 	WriteMessage(messageType int, data []byte) error
 	DrainUntil(t time.Time) (bytesRead int64, err error)
 	FillUntil(t time.Time, buffer []byte) (bytesWritten int64, err error)
+	SetReadDeadline(t time.Time) error
 	Close() error
 }
 

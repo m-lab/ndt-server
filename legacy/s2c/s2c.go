@@ -59,15 +59,17 @@ func ManageTest(ctx context.Context, conn protocol.Connection, sf singleserving.
 	}
 
 	testConn.StartMeasuring(localCtx)
+
 	byteCount, err := testConn.FillUntil(time.Now().Add(10*time.Second), dataToSend)
-	metrics, metricErr := testConn.StopMeasuring()
 	if err != nil {
 		log.Println("Could not FillUntil", err)
 		return 0, err
 	}
-	if metricErr != nil {
-		log.Println("Could not read metrics", metricErr)
-		return 0, metricErr
+
+	metrics, err := testConn.StopMeasuring()
+	if err != nil {
+		log.Println("Could not read metrics", err)
+		return 0, err
 	}
 
 	bps := 8 * float64(byteCount) / 10
@@ -75,6 +77,7 @@ func ManageTest(ctx context.Context, conn protocol.Connection, sf singleserving.
 
 	// Send additional download results to the client.
 	resultMsg := &Result{
+		// TODO: clean up this logic to use socket stats rather than application-level counters.
 		ThroughputValue:  strconv.FormatInt(int64(kbps), 10),
 		UnsentDataAmount: "0",
 		TotalSentByte:    strconv.FormatInt(byteCount, 10), // TODO: use actual bytes sent.
@@ -84,17 +87,20 @@ func ManageTest(ctx context.Context, conn protocol.Connection, sf singleserving.
 		log.Println("Could not write a TestMsg", err)
 		return kbps, err
 	}
+
 	clientRateMsg, err := protocol.ReceiveJSONMessage(conn, protocol.TestMsg)
 	if err != nil {
 		log.Println("Could not receive a TestMsg", err)
 		return kbps, err
 	}
 	log.Println("We measured", kbps, "and the client sent us", clientRateMsg)
+
 	err = protocol.SendMetrics(metrics, conn)
 	if err != nil {
 		log.Println("Could not SendMetrics", err)
 		return kbps, err
 	}
+
 	err = protocol.SendJSONMessage(protocol.TestFinalize, "", conn)
 	if err != nil {
 		log.Println("Could not send TestFinalize", err)
