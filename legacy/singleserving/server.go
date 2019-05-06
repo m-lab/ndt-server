@@ -14,6 +14,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Factory is the method by which we abstract away what kind of server is being
+// created at any given time. Using this abstraction allows us to use almost the
+// same code for WS and WSS.
 type Factory interface {
 	SingleServingServer(direction string) (Server, error)
 }

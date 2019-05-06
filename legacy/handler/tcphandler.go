@@ -140,6 +140,9 @@ type RawHandler interface {
 	ListenAndServe(ctx context.Context, addr string) error
 }
 
+// NewTCP creates a new TCP listener to serve the client. It forwards all
+// connection requests that look like HTTP to a different address (assumed to be
+// on the same host).
 func NewTCP(forwardingaddr string) RawHandler {
 	return &rawHandler{
 		forwardingAddr: forwardingaddr,
