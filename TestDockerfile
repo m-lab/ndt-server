@@ -32,7 +32,7 @@ WORKDIR /ndt/src
 RUN make web100clt
 
 # Build the image in which the server will be tested.
-FROM golang:1.11 as build
+FROM golang:1.12 as build
 COPY --from=ndtrawjson /ndt/src/web100clt /bin/web100clt-with-json-support
 COPY --from=ndtrawnojson /ndt/src/web100clt /bin/web100clt-without-json-support
 RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
