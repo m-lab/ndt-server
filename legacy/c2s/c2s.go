@@ -66,6 +66,9 @@ func ManageTest(ctx context.Context, conn protocol.Connection, f singleserving.F
 		} else {
 			log.Printf("C2S test had an error after %f seconds, which is within acceptable bounds. We will continue with the test.\n", seconds)
 		}
+	} else {
+		// Empty out the buffer for poorly-behaved clients.
+		testConn.DrainUntil(errorTime)
 	}
 	throughputValue := 8 * float64(byteCount) / 1000 / 10
 

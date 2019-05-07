@@ -157,6 +157,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// TODO(https://github.com/m-lab/ndt-server/issues/66)
 		//  /bin/web100clt-with-json-support    # No tests disabled.
 		//  /bin/web100clt-without-json-support # No tests disabled.
+		// TODO: Restore support for raw clients.
 		// Test legacy raw JSON clients
 		//		{
 		//			name:       "Connect with web100clt (with JSON)",
@@ -255,7 +256,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	// Run every test in parallel (the server must handle parallel tests just fine)
-	for _, tc := range tests {
+	for _, c := range tests {
 		wg.Add(1)
 		func(tc testcase) {
 			go t.Run(tc.name, func(t *testing.T) {
@@ -275,7 +276,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 				}
 				t.Logf("%s (command=%q) has completed successfully", tc.name, tc.cmd)
 			})
-		}(tc)
+		}(c)
 	}
 	wg.Wait()
 }
