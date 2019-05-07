@@ -116,26 +116,18 @@ func StartWS(direction string) (Server, error) {
 }
 
 // wssServer is a single-serving server for encrypted websockets. A wssServer is
-// just a wsServer with a different ServeOnce method.
+// just a wsServer with a different ServeOnce method and two extra fields.
 type wssServer struct {
-	ws                *wsServer
+	*wsServer
 	certFile, keyFile string
 }
 
 func (wss *wssServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, error) {
-	err := wss.ws.srv.ServeTLS(wss.ws.listener, wss.certFile, wss.keyFile)
+	err := wss.srv.ServeTLS(wss.listener, wss.certFile, wss.keyFile)
 	if err != http.ErrServerClosed {
 		return nil, err
 	}
-	return wss.ws.newConn, wss.ws.newConnErr
-}
-
-func (wss *wssServer) Port() int {
-	return wss.ws.Port()
-}
-
-func (wss *wssServer) Close() {
-	wss.ws.Close()
+	return wss.newConn, wss.newConnErr
 }
 
 // StartWSS starts a single-serving encrypted websocket server. When this method
@@ -149,7 +141,7 @@ func StartWSS(direction, certFile, keyFile string) (Server, error) {
 		return nil, err
 	}
 	wss := wssServer{
-		ws:       ws.(*wsServer),
+		wsServer: ws.(*wsServer),
 		certFile: certFile,
 		keyFile:  keyFile,
 	}
