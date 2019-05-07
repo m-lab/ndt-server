@@ -1,4 +1,4 @@
-package handler
+package plain
 
 import (
 	"bufio"
@@ -16,15 +16,15 @@ import (
 	"github.com/m-lab/ndt-server/metrics"
 )
 
-// rawServer handles requests that are TCP-based but not HTTP(S) based. If it
+// plainServer handles requests that are TCP-based but not HTTP(S) based. If it
 // receives an HTTP test it will forward that test to the ForwardingAddress.
-type rawServer struct {
+type plainServer struct {
 	wsAddr   string
 	dialer   *net.Dialer
 	listener *net.TCPListener
 }
 
-func (rs *rawServer) SingleServingServer(direction string) (singleserving.Server, error) {
+func (ps *plainServer) SingleServingServer(direction string) (singleserving.Server, error) {
 	// TODO: create one for raw connections
 	return nil, nil
 }
@@ -34,7 +34,7 @@ func (rs *rawServer) SingleServingServer(direction string) (singleserving.Server
 // first time, but enough clients exist that need it that we are keeping it in
 // this code. In the future, if you are thinking of adding protocol sniffing to
 // your system, don't.
-func (rs *rawServer) sniffThenHandle(conn net.Conn) {
+func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 	// Set up our observation of the duration of this function.
 	connectionType := "tcp" // This value may change. Don't close over its value until after the sniffing procedure.
 	startTime := time.Now()
@@ -60,7 +60,7 @@ func (rs *rawServer) sniffThenHandle(conn net.Conn) {
 		// clients don't support redirects, e.g.
 		//    https://github.com/websockets/ws/issues/812
 		connectionType = "forwarded_ws"
-		fwd, err := rs.dialer.Dial("tcp", rs.wsAddr)
+		fwd, err := ps.dialer.Dial("tcp", ps.wsAddr)
 		if err != nil {
 			log.Println("Could not forward connection", err)
 			return
@@ -98,17 +98,17 @@ func (rs *rawServer) sniffThenHandle(conn net.Conn) {
 	if n != len(kickoff) || err != nil {
 		log.Printf("Could not write %d byte kickoff string: %d bytes written err: %v\n", len(kickoff), n, err)
 	}
-	legacy.HandleControlChannel(protocol.AdaptNetConn(conn, input), rs)
+	legacy.HandleControlChannel(protocol.AdaptNetConn(conn, input), ps)
 }
 
 // ListenAndServe starts up the sniffing server that delegates to the
 // appropriate just-TCP or WS protocol.Connection.
-func (rs *rawServer) ListenAndServe(ctx context.Context, addr string) error {
+func (ps *plainServer) ListenAndServe(ctx context.Context, addr string) error {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
-	rs.listener = ln.(*net.TCPListener)
+	ps.listener = ln.(*net.TCPListener)
 	// Close the listener when the context is canceled. We do this in a separate
 	// goroutine to ensure that context cancellation interrupts the Accept() call.
 	go func() {
@@ -133,29 +133,29 @@ func (rs *rawServer) ListenAndServe(ctx context.Context, addr string) error {
 						log.Println("Recovered from panic in RawServer", r)
 					}
 				}()
-				rs.sniffThenHandle(conn)
+				ps.sniffThenHandle(conn)
 			}()
 		}
 	}()
 	return nil
 }
 
-func (rs *rawServer) Addr() net.Addr {
-	return rs.listener.Addr()
+func (ps *plainServer) Addr() net.Addr {
+	return ps.listener.Addr()
 }
 
-// RawForwardingServer is the interface implemented by the non-HTTP-based NDT server.
+// Server is the interface implemented by the non-HTTP-based NDT server.
 // Because it isn't run by the http.Server machinery, it has its own interface.
-type RawForwardingServer interface {
+type Server interface {
 	ListenAndServe(ctx context.Context, addr string) error
 	Addr() net.Addr
 }
 
-// NewTCP creates a new TCP listener to serve the client. It forwards all
+// NewServer creates a new TCP listener to serve the client. It forwards all
 // connection requests that look like HTTP to a different address (assumed to be
 // on the same host).
-func NewTCP(wsAddr string) RawForwardingServer {
-	return &rawServer{
+func NewServer(wsAddr string) Server {
+	return &plainServer{
 		wsAddr: wsAddr,
 		// The dialer is only contacting localhost. The timeout should be set to a
 		// small number.

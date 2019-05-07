@@ -1,4 +1,4 @@
-package handler_test
+package plain_test
 
 import (
 	"context"
@@ -9,10 +9,10 @@ import (
 
 	"github.com/m-lab/go/httpx"
 	"github.com/m-lab/go/rtx"
-	"github.com/m-lab/ndt-server/legacy/handler"
+	"github.com/m-lab/ndt-server/legacy/plain"
 )
 
-func TestNewTCP(t *testing.T) {
+func TestNewPlainServer(t *testing.T) {
 	// Set up the forwarding server
 	success := 0
 	h := &http.ServeMux{}
@@ -32,8 +32,8 @@ func TestNewTCP(t *testing.T) {
 		t.Error("GET was unsuccessful")
 	}
 
-	// Set up the TCP handler
-	tcpS := handler.NewTCP(wsSrv.Addr)
+	// Set up the plain server
+	tcpS := plain.NewServer(wsSrv.Addr)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rtx.Must(tcpS.ListenAndServe(ctx, ":0"), "Could not start tcp server")
@@ -66,9 +66,9 @@ func TestNewTCP(t *testing.T) {
 	})
 }
 
-func TestNewTCPBrokenForwarding(t *testing.T) {
+func TestNewPlainServerBrokenForwarding(t *testing.T) {
 	// Set up the TCP handler
-	tcpS := handler.NewTCP("127.0.0.1:1")
+	tcpS := plain.NewServer("127.0.0.1:1")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rtx.Must(tcpS.ListenAndServe(ctx, ":0"), "Could not start tcp server")

@@ -19,6 +19,7 @@ import (
 	"github.com/m-lab/go/rtx"
 
 	legacyhandler "github.com/m-lab/ndt-server/legacy/handler"
+	"github.com/m-lab/ndt-server/legacy/plain"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/handler"
 	"github.com/m-lab/ndt-server/ndt7/listener"
@@ -107,7 +108,7 @@ func main() {
 
 	// The legacy protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
-	legacyServer := legacyhandler.NewTCP(*legacyWsPort)
+	legacyServer := plain.NewServer(*legacyWsPort)
 	rtx.Must(
 		legacyServer.ListenAndServe(ctx, *legacyPort),
 		"Could not start raw server")
