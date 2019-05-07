@@ -24,7 +24,7 @@ type rawServer struct {
 	listener *net.TCPListener
 }
 
-func (rh *rawServer) SingleServingServer(direction string) (singleserving.Server, error) {
+func (rs *rawServer) SingleServingServer(direction string) (singleserving.Server, error) {
 	// TODO: create one for raw connections
 	return nil, nil
 }

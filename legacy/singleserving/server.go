@@ -6,7 +6,8 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-server/legacy/ws"
+
 	"github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/tcplistener"
@@ -40,21 +41,15 @@ type wsServer struct {
 }
 
 func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:    81920,
-		WriteBufferSize:   81920,
-		Subprotocols:      []string{s.direction},
-		EnableCompression: false,
-		CheckOrigin: func(r *http.Request) bool {
-			return true // Always pass the check.
-		},
-	}
+	upgrader := ws.Upgrader(s.direction)
 	wsc, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.newConnErr = err
 		return
 	}
 	s.newConn = protocol.AdaptWsConn(wsc)
+	// The websocket upgrade process hijacks the connection. Only un-hijacked
+	// connections are terminated on server shutdown.
 	s.Close()
 }
 
@@ -95,7 +90,7 @@ func (s *wsServer) Close() {
 
 // StartWS starts a single-serving unencrypted websocket server. When this
 // method returns without error, it is safe for a client to connect to the
-// server, as the server socket will be in "listening" mode. Then returned
+// server, as the server socket will be in "listening" mode. The returned
 // server will not actually respond until ServeOnce() is called, but the
 // connect() will not fail as long as ServeOnce is called soon after this
 // returns.
