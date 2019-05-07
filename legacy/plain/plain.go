@@ -17,7 +17,8 @@ import (
 )
 
 // plainServer handles requests that are TCP-based but not HTTP(S) based. If it
-// receives an HTTP test it will forward that test to the ForwardingAddress.
+// receives an HTTP test it will forward that test to wsAddr, the address of the
+// websocket-based server..
 type plainServer struct {
 	wsAddr   string
 	dialer   *net.Dialer

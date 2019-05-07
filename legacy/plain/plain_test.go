@@ -13,7 +13,7 @@ import (
 )
 
 func TestNewPlainServer(t *testing.T) {
-	// Set up the forwarding server
+	// Set up the proxied server
 	success := 0
 	h := &http.ServeMux{}
 	h.HandleFunc("/test_url", func(w http.ResponseWriter, r *http.Request) {
@@ -25,9 +25,9 @@ func TestNewPlainServer(t *testing.T) {
 		Handler: h,
 	}
 	rtx.Must(httpx.ListenAndServeAsync(wsSrv), "Could not start server")
-	// Sanity check that the backend server is up and running.
+	// Sanity check that the proxied server is up and running.
 	_, err := http.Get("http://" + wsSrv.Addr + "/test_url")
-	rtx.Must(err, "Forwarding server could not respond to get")
+	rtx.Must(err, "Proxied server could not respond to get")
 	if success != 1 {
 		t.Error("GET was unsuccessful")
 	}
@@ -67,7 +67,7 @@ func TestNewPlainServer(t *testing.T) {
 }
 
 func TestNewPlainServerBrokenForwarding(t *testing.T) {
-	// Set up the TCP handler
+	// Set up the plain server.
 	tcpS := plain.NewServer("127.0.0.1:1")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -68,6 +68,7 @@ func ManageTest(ctx context.Context, conn protocol.Connection, f singleserving.F
 		}
 	} else {
 		// Empty out the buffer for poorly-behaved clients.
+		// TODO: ensure this behavior is required by a unit test.
 		testConn.DrainUntil(errorTime)
 	}
 	throughputValue := 8 * float64(byteCount) / 1000 / 10
