@@ -26,8 +26,7 @@ type plainServer struct {
 }
 
 func (ps *plainServer) SingleServingServer(direction string) (singleserving.Server, error) {
-	// TODO: create one for raw connections
-	return nil, nil
+	return singleserving.StartPlain()
 }
 
 // sniffThenHandle implements protocol sniffing to allow WS clients and just-TCP
@@ -131,6 +130,7 @@ func (ps *plainServer) ListenAndServe(ctx context.Context, addr string) error {
 				defer func() {
 					r := recover()
 					if r != nil {
+						// TODO add a metric for this.
 						log.Println("Recovered from panic in RawServer", r)
 					}
 				}()
