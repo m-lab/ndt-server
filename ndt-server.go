@@ -18,18 +18,16 @@ import (
 	"github.com/m-lab/go/httpx"
 	"github.com/m-lab/go/rtx"
 
-	"github.com/m-lab/ndt-server/legacy"
-	"github.com/m-lab/ndt-server/legacy/testresponder"
+	legacyhandler "github.com/m-lab/ndt-server/legacy/handler"
+	"github.com/m-lab/ndt-server/legacy/plain"
 	"github.com/m-lab/ndt-server/logging"
-	"github.com/m-lab/ndt-server/metrics"
-	"github.com/m-lab/ndt-server/ndt7/listener"
 	"github.com/m-lab/ndt-server/ndt7/handler"
+	"github.com/m-lab/ndt-server/ndt7/listener"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/platformx"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -93,6 +91,10 @@ func catchSigterm() {
 	}
 }
 
+func init() {
+	log.SetFlags(log.LUTC | log.LstdFlags | log.Lshortfile)
+}
+
 func main() {
 	flag.Parse()
 	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse env args")
@@ -106,27 +108,17 @@ func main() {
 
 	// The legacy protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
-	legacyServer := legacy.BasicServer{
-		ForwardingAddr: *legacyWsPort, // This is the port to which connections are forwarded.
-		ServerType:     testresponder.RawJSON,
-	}
+	legacyServer := plain.NewServer(*legacyWsPort)
 	rtx.Must(
-		legacyServer.ListenAndServeRawAsync(ctx, *legacyPort),
+		legacyServer.ListenAndServe(ctx, *legacyPort),
 		"Could not start raw server")
 
 	// The legacy protocol serving Ws-based tests. Most clients are hard-coded to
 	// connect to the raw server, which will forward things along.
-	legacyWsLabel := prometheus.Labels{"type": "legacy_ws"}
 	legacyWsMux := http.NewServeMux()
 	legacyWsMux.HandleFunc("/", defaultHandler)
 	legacyWsMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
-	legacyWsMux.Handle(
-		"/ndt_protocol",
-		promhttp.InstrumentHandlerInFlight(
-			metrics.CurrentTests.With(legacyWsLabel),
-			promhttp.InstrumentHandlerDuration(
-				metrics.TestDuration.MustCurryWith(legacyWsLabel),
-				&legacy.BasicServer{ServerType: testresponder.WS})))
+	legacyWsMux.Handle("/ndt_protocol", legacyhandler.NewWS())
 	legacyWsServer := &http.Server{
 		Addr:    *legacyWsPort,
 		Handler: logging.MakeAccessLogHandler(legacyWsMux),
@@ -138,22 +130,10 @@ func main() {
 	// Only start TLS-based services if certs and keys are provided
 	if *certFile != "" && *keyFile != "" {
 		// The legacy protocol serving WsS-based tests.
-		legacyWssLabel := prometheus.Labels{"type": "legacy_wss"}
 		legacyWssMux := http.NewServeMux()
 		legacyWssMux.HandleFunc("/", defaultHandler)
 		legacyWssMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
-		legacyWssConfig := legacy.BasicServer{
-			CertFile:   *certFile,
-			KeyFile:    *keyFile,
-			ServerType: testresponder.WSS,
-		}
-		legacyWssMux.Handle(
-			"/ndt_protocol",
-			promhttp.InstrumentHandlerInFlight(
-				metrics.CurrentTests.With(legacyWssLabel),
-				promhttp.InstrumentHandlerDuration(
-					metrics.TestDuration.MustCurryWith(legacyWssLabel),
-					&legacyWssConfig)))
+		legacyWssMux.Handle("/ndt_protocol", legacyhandler.NewWSS(*certFile, *keyFile))
 		legacyWssServer := &http.Server{
 			Addr:    *legacyWssPort,
 			Handler: logging.MakeAccessLogHandler(legacyWssMux),
@@ -163,7 +143,6 @@ func main() {
 		defer legacyWssServer.Close()
 
 		// The ndt7 listener serving up NDT7 tests, likely on standard ports.
-		ndt7Label := prometheus.Labels{"type": "ndt7"}
 		ndt7Mux := http.NewServeMux()
 		ndt7Mux.HandleFunc("/", defaultHandler)
 		ndt7Mux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
@@ -175,20 +154,8 @@ func main() {
 				},
 			},
 		}
-		ndt7Mux.Handle(
-			spec.DownloadURLPath,
-			promhttp.InstrumentHandlerInFlight(
-				metrics.CurrentTests.With(ndt7Label),
-				promhttp.InstrumentHandlerDuration(
-					metrics.TestDuration.MustCurryWith(ndt7Label),
-					http.HandlerFunc(ndt7Handler.Download))))
-		ndt7Mux.Handle(
-			spec.UploadURLPath,
-			promhttp.InstrumentHandlerInFlight(
-				metrics.CurrentTests.With(ndt7Label),
-				promhttp.InstrumentHandlerDuration(
-					metrics.TestDuration.MustCurryWith(ndt7Label),
-					http.HandlerFunc(ndt7Handler.Upload))))
+		ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
+		ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
 		ndt7Server := &http.Server{
 			Addr:    *ndt7Port,
 			Handler: logging.MakeAccessLogHandler(ndt7Mux),

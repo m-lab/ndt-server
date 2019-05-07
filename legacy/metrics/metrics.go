@@ -12,6 +12,7 @@ var (
 			Name: "ndt_test_rate_mbps",
 			Help: "A histogram of request rates.",
 			Buckets: []float64{
+				.1, .15, .25, .4, .6,
 				1, 1.5, 2.5, 4, 6,
 				10, 15, 25, 40, 60,
 				100, 150, 250, 400, 600,
@@ -27,6 +28,4 @@ var (
 		},
 		[]string{"direction", "code"},
 	)
-
-
 )
