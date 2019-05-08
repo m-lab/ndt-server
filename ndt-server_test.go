@@ -157,13 +157,12 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// TODO(https://github.com/m-lab/ndt-server/issues/66)
 		//  /bin/web100clt-with-json-support    # No tests disabled.
 		//  /bin/web100clt-without-json-support # No tests disabled.
-		// TODO: Restore support for raw clients.
 		// Test legacy raw JSON clients
-		//		{
-		//			name:       "Connect with web100clt (with JSON)",
-		//			cmd:        "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyPort + " --disablemid --disablesfw",
-		//			ignoreData: true,
-		//		},
+		{
+			name:       "Connect with web100clt (with JSON)",
+			cmd:        "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyPort + " --disablemid --disablesfw",
+			ignoreData: true,
+		},
 		// Test legacy WS clients connected to the HTTP port
 		{
 			name: "Upload & Download legacy WS",

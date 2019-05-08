@@ -147,3 +147,48 @@ func StartWSS(direction, certFile, keyFile string) (Server, error) {
 	}
 	return &wss, nil
 }
+
+// plainServer is a single-serving server for plain TCP sockets.
+type plainServer struct {
+	listener net.Listener
+	port     int
+}
+
+func (ps *plainServer) Close() {
+	ps.listener.Close()
+}
+
+func (ps *plainServer) Port() int {
+	return ps.port
+}
+
+func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, error) {
+	derivedCtx, derivedCancel := context.WithCancel(ctx)
+	defer ps.Close()
+
+	var conn net.Conn
+	var err error
+	go func() {
+		conn, err = ps.listener.Accept()
+		derivedCancel()
+	}()
+	<-derivedCtx.Done()
+
+	if err != nil {
+		return nil, err
+	}
+	return protocol.AdaptNetConn(conn, conn), nil
+}
+
+// StartPlain starts a single-serving server for plain NDT tests.
+func StartPlain() (Server, error) {
+	// Start listening right away to ensure that subsequent connections succeed.
+	s := &plainServer{}
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return nil, err
+	}
+	s.listener = tcplistener.RawListener{TCPListener: listener.(*net.TCPListener)}
+	s.port = listener.Addr().(*net.TCPAddr).Port
+	return s, nil
+}
