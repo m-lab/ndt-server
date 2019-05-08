@@ -108,7 +108,7 @@ func main() {
 
 	// The legacy protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
-	legacyServer := plain.NewServer(*legacyWsPort)
+	legacyServer := plain.NewServer(*dataDir+"/legacy", *legacyWsPort)
 	rtx.Must(
 		legacyServer.ListenAndServe(ctx, *legacyPort),
 		"Could not start raw server")
@@ -118,7 +118,7 @@ func main() {
 	legacyWsMux := http.NewServeMux()
 	legacyWsMux.HandleFunc("/", defaultHandler)
 	legacyWsMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
-	legacyWsMux.Handle("/ndt_protocol", legacyhandler.NewWS())
+	legacyWsMux.Handle("/ndt_protocol", legacyhandler.NewWS(*dataDir+"/legacy"))
 	legacyWsServer := &http.Server{
 		Addr:    *legacyWsPort,
 		Handler: logging.MakeAccessLogHandler(legacyWsMux),
@@ -133,7 +133,7 @@ func main() {
 		legacyWssMux := http.NewServeMux()
 		legacyWssMux.HandleFunc("/", defaultHandler)
 		legacyWssMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
-		legacyWssMux.Handle("/ndt_protocol", legacyhandler.NewWSS(*certFile, *keyFile))
+		legacyWssMux.Handle("/ndt_protocol", legacyhandler.NewWSS(*dataDir+"/legacy", *certFile, *keyFile))
 		legacyWssServer := &http.Server{
 			Addr:    *legacyWssPort,
 			Handler: logging.MakeAccessLogHandler(legacyWssMux),

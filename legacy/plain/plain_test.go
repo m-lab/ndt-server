@@ -2,8 +2,10 @@ package plain_test
 
 import (
 	"context"
+	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -13,6 +15,9 @@ import (
 )
 
 func TestNewPlainServer(t *testing.T) {
+	d, err := ioutil.TempDir("", "TestNewPlainServer")
+	rtx.Must(err, "Could not create tempdir")
+	defer os.RemoveAll(d)
 	// Set up the proxied server
 	success := 0
 	h := &http.ServeMux{}
@@ -26,14 +31,14 @@ func TestNewPlainServer(t *testing.T) {
 	}
 	rtx.Must(httpx.ListenAndServeAsync(wsSrv), "Could not start server")
 	// Sanity check that the proxied server is up and running.
-	_, err := http.Get("http://" + wsSrv.Addr + "/test_url")
+	_, err = http.Get("http://" + wsSrv.Addr + "/test_url")
 	rtx.Must(err, "Proxied server could not respond to get")
 	if success != 1 {
 		t.Error("GET was unsuccessful")
 	}
 
 	// Set up the plain server
-	tcpS := plain.NewServer(wsSrv.Addr)
+	tcpS := plain.NewServer(d, wsSrv.Addr)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rtx.Must(tcpS.ListenAndServe(ctx, ":0"), "Could not start tcp server")
@@ -67,8 +72,11 @@ func TestNewPlainServer(t *testing.T) {
 }
 
 func TestNewPlainServerBrokenForwarding(t *testing.T) {
+	d, err := ioutil.TempDir("", "TestNewPlainServerBrokenForwarding")
+	rtx.Must(err, "Could not create tempdir")
+	defer os.RemoveAll(d)
 	// Set up the plain server.
-	tcpS := plain.NewServer("127.0.0.1:1")
+	tcpS := plain.NewServer(d, "127.0.0.1:1")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rtx.Must(tcpS.ListenAndServe(ctx, ":0"), "Could not start tcp server")
@@ -76,7 +84,7 @@ func TestNewPlainServerBrokenForwarding(t *testing.T) {
 	client := &http.Client{
 		Timeout: 10 * time.Millisecond,
 	}
-	_, err := client.Get("http://" + tcpS.Addr().String() + "/test_url")
+	_, err = client.Get("http://" + tcpS.Addr().String() + "/test_url")
 	if err == nil {
 		t.Error("This should have failed")
 	}

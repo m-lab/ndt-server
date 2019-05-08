@@ -6,12 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"net"
 	"os"
+	"path"
 	"reflect"
 	"time"
 
 	"github.com/m-lab/ndt-server/fdcache"
+	"github.com/m-lab/uuid"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/legacy/web100"
@@ -84,7 +88,25 @@ type Connection interface {
 	DrainUntil(t time.Time) (bytesRead int64, err error)
 	FillUntil(t time.Time, buffer []byte) (bytesWritten int64, err error)
 	SetReadDeadline(t time.Time) error
+	ServerIP() string
+	ClientIP() string
 	Close() error
+	UUID() string
+}
+
+var badUUID = "BAD_UUID"
+
+// UUIDToFile converts a UUID into a newly-created open file with the extension '.json'.
+func UUIDToFile(dir, uuid string) (*os.File, error) {
+	if uuid == badUUID {
+		f, err := ioutil.TempFile(dir, badUUID+"XXXXXX.json")
+		if err != nil {
+			log.Println("Could not create filename for data")
+			return nil, err
+		}
+		return f, nil
+	}
+	return os.Create(path.Join(dir, uuid+".json"))
 }
 
 // Measurable things can be measured over a given timeframe.
@@ -164,6 +186,24 @@ func (ws *wsConnection) StartMeasuring(ctx context.Context) {
 	ws.measurer.StartMeasuring(ctx, fdcache.GetAndForgetFile(ws.UnderlyingConn()))
 }
 
+func (ws *wsConnection) UUID() string {
+	id, err := uuid.FromTCPConn(ws.UnderlyingConn().(*net.TCPConn))
+	if err != nil {
+		log.Println("Could not discover UUID")
+		// TODO: increment a metric
+		return badUUID
+	}
+	return id
+}
+
+func (ws *wsConnection) ServerIP() string {
+	return ws.UnderlyingConn().LocalAddr().String()
+}
+
+func (ws *wsConnection) ClientIP() string {
+	return ws.UnderlyingConn().RemoteAddr().String()
+}
+
 // netConnection is a utility struct that allows us to use OS sockets and
 // Websockets using the same set of methods. Its second element is a Reader
 // because we want to allow the input channel to be buffered.
@@ -216,6 +256,24 @@ func (nc *netConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int6
 
 func (nc *netConnection) StartMeasuring(ctx context.Context) {
 	nc.measurer.StartMeasuring(ctx, fdcache.GetAndForgetFile(nc))
+}
+
+func (nc *netConnection) UUID() string {
+	id, err := uuid.FromTCPConn(nc.Conn.(*net.TCPConn))
+	if err != nil {
+		log.Println("Could not discover UUID")
+		// TODO: increment a metric
+		return badUUID
+	}
+	return id
+}
+
+func (nc *netConnection) ServerIP() string {
+	return nc.LocalAddr().String()
+}
+
+func (nc *netConnection) ClientIP() string {
+	return nc.RemoteAddr().String()
 }
 
 // AdaptNetConn turns a non-WS-based TCP connection into a protocol.MeasuredConnection.
