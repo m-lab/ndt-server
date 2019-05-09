@@ -187,9 +187,10 @@ func (ws *wsConnection) StartMeasuring(ctx context.Context) {
 }
 
 func (ws *wsConnection) UUID() string {
-	id, err := uuid.FromTCPConn(ws.UnderlyingConn().(*net.TCPConn))
+	conn := ws.UnderlyingConn()
+	id, err := fdcache.GetUUID(conn)
 	if err != nil {
-		log.Println("Could not discover UUID")
+		log.Println("Could not discover UUID:", err)
 		// TODO: increment a metric
 		return badUUID
 	}
@@ -197,11 +198,13 @@ func (ws *wsConnection) UUID() string {
 }
 
 func (ws *wsConnection) ServerIP() string {
-	return ws.UnderlyingConn().LocalAddr().String()
+	localAddr := ws.UnderlyingConn().LocalAddr().(*net.TCPAddr)
+	return localAddr.IP.String()
 }
 
 func (ws *wsConnection) ClientIP() string {
-	return ws.UnderlyingConn().RemoteAddr().String()
+	remoteAddr := ws.UnderlyingConn().RemoteAddr().(*net.TCPAddr)
+	return remoteAddr.IP.String()
 }
 
 // netConnection is a utility struct that allows us to use OS sockets and

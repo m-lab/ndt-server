@@ -25,10 +25,11 @@ type ArchivalData struct {
 	TestConnectionUUID string
 
 	// These fields are here to enable analyses that don't require joining with tcp-info data.
-	StartTime          time.Time
-	EndTime            time.Time
-	MeanThroughputMbps float64
-	MinRTT             time.Duration
+	StartTime                        time.Time
+	EndTime                          time.Time
+	MeanThroughputMbps               float64
+	MinRTT                           time.Duration
+	ClientReportedMeanThroughputMbps float64
 	// TODO: Add MaxThroughputKbps and Jitter
 	Error string `json:",omitempty"`
 }
@@ -65,7 +66,7 @@ func ManageTest(ctx context.Context, conn protocol.Connection, s ndt.Server) (*A
 	}
 
 	testConn, err := srv.ServeOnce(localCtx)
-	if err != nil {
+	if err != nil || testConn == nil {
 		log.Println("Could not successfully ServeOnce", err)
 		record.Error = err.Error()
 		return record, err
@@ -130,6 +131,13 @@ func ManageTest(ctx context.Context, conn protocol.Connection, s ndt.Server) (*A
 		return record, err
 	}
 	log.Println("We measured", kbps, "and the client sent us", clientRateMsg)
+	clientRateKbps, err := strconv.ParseFloat(clientRateMsg.Msg, 64)
+	if err == nil {
+		record.ClientReportedMeanThroughputMbps = clientRateKbps / 1000
+	} else {
+		log.Println("Could not parse number sent from client")
+		// Being unable to parse the number should not be a fatal error, so continue.
+	}
 
 	err = protocol.SendMetrics(metrics, conn)
 	if err != nil {

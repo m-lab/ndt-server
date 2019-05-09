@@ -56,7 +56,14 @@ func ManageTest(ctx context.Context, conn protocol.Connection, s ndt.Server) (*A
 		record.Error = err.Error()
 		return record, err
 	}
-	defer warnonerror.Close(testConn, "Could not close test connection")
+	// Empty out the buffer for poorly-behaved clients.
+	// TODO: ensure this behavior is required by a unit test.
+	defer func() {
+		go func() {
+			testConn.DrainUntil(time.Now().Add(5 * time.Second))
+			warnonerror.Close(testConn, "Could not close test connection")
+		}()
+	}()
 	record.TestConnectionUUID = testConn.UUID()
 	record.ServerIP = conn.ServerIP()
 	record.ClientIP = conn.ClientIP()
@@ -81,6 +88,7 @@ func ManageTest(ctx context.Context, conn protocol.Connection, s ndt.Server) (*A
 	}
 	byteCount, err := testConn.DrainUntil(endTime)
 	record.EndTime = time.Now()
+	log.Println("Ended C2S test on", testConn)
 	if err != nil {
 		if byteCount == 0 {
 			log.Println("Could not drain the test connection", byteCount, err)
@@ -98,10 +106,6 @@ func ManageTest(ctx context.Context, conn protocol.Connection, s ndt.Server) (*A
 		} else {
 			log.Printf("C2S test had an error after %f seconds, which is within acceptable bounds. We will continue with the test.\n", seconds)
 		}
-	} else {
-		// Empty out the buffer for poorly-behaved clients.
-		// TODO: ensure this behavior is required by a unit test.
-		testConn.DrainUntil(errorTime)
 	}
 	throughputValue := 8 * float64(byteCount) / 1000 / 10
 	record.MeanThroughputMbps = throughputValue / 1000 // Convert Kbps to Mbps

@@ -58,9 +58,10 @@ func SaveData(record *NDTResult, datadir string) {
 		return
 	}
 	dir := path.Join(datadir, record.StartTime.Format("2006/01/02"))
-	err := os.MkdirAll(datadir, 0777)
+	err := os.MkdirAll(dir, 0777)
 	if err != nil {
-		log.Printf("could not create directory %s: %v\n", datadir, err)
+		log.Printf("Could not create directory %s: %v\n", dir, err)
+		return
 	}
 	file, err := protocol.UUIDToFile(dir, record.ControlChannelUUID)
 	if err != nil {
@@ -72,7 +73,9 @@ func SaveData(record *NDTResult, datadir string) {
 	err = enc.Encode(record)
 	if err != nil {
 		log.Println("Could not encode", record, "to", file.Name())
+		return
 	}
+	log.Println("Wrote", file.Name())
 }
 
 // HandleControlChannel is the "business logic" of an NDT test. It is designed
@@ -93,6 +96,7 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 		ClientIP:           conn.ClientIP(),
 		Protocol:           s.ConnectionType(),
 	}
+	log.Println("Handling connection", *record)
 	defer func() {
 		record.EndTime = time.Now()
 		SaveData(record, s.DataDir())

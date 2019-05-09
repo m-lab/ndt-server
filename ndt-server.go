@@ -15,7 +15,6 @@ import (
 	"github.com/m-lab/go/prometheusx"
 
 	"github.com/m-lab/go/flagx"
-	"github.com/m-lab/go/httpx"
 	"github.com/m-lab/go/rtx"
 
 	legacyhandler "github.com/m-lab/ndt-server/legacy/handler"
@@ -124,7 +123,7 @@ func main() {
 		Handler: logging.MakeAccessLogHandler(legacyWsMux),
 	}
 	log.Println("About to listen for unencrypted legacy NDT tests on " + *legacyWsPort)
-	rtx.Must(httpx.ListenAndServeAsync(legacyWsServer), "Could not start unencrypted legacy NDT server")
+	rtx.Must(listener.ListenAndServeAsync(legacyWsServer), "Could not start unencrypted legacy NDT server")
 	defer legacyWsServer.Close()
 
 	// Only start TLS-based services if certs and keys are provided
@@ -139,7 +138,7 @@ func main() {
 			Handler: logging.MakeAccessLogHandler(legacyWssMux),
 		}
 		log.Println("About to listen for legacy WsS tests on " + *legacyWssPort)
-		rtx.Must(httpx.ListenAndServeTLSAsync(legacyWssServer, *certFile, *keyFile), "Could not start legacy WsS server")
+		rtx.Must(listener.ListenAndServeTLSAsync(legacyWssServer, *certFile, *keyFile), "Could not start legacy WsS server")
 		defer legacyWssServer.Close()
 
 		// The ndt7 listener serving up NDT7 tests, likely on standard ports.

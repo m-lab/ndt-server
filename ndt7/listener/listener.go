@@ -23,15 +23,15 @@ var logFatalf = log.Fatalf
 
 // The code here is adapted from https://golang.org/src/net/http/server.go?s=85391:85432#L2742
 
-// tcpKeepAliveListener sets TCP keep-alive timeouts on accepted
+// CachingTCPKeepAliveListener sets TCP keep-alive timeouts on accepted
 // connections. It's used by ListenAndServe and ListenAndServeTLS so
 // dead TCP connections (e.g. closing laptop mid-download) eventually
 // go away.
-type tcpKeepAliveListener struct {
+type CachingTCPKeepAliveListener struct {
 	*net.TCPListener
 }
 
-func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
+func (ln CachingTCPKeepAliveListener) Accept() (net.Conn, error) {
 	tc, err := ln.AcceptTCP()
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func ListenAndServeAsync(server *http.Server) error {
 		server.Addr = listener.Addr().String()
 	}
 	// Serve asynchronously.
-	go serve(server, tcpKeepAliveListener{listener.(*net.TCPListener)})
+	go serve(server, CachingTCPKeepAliveListener{listener.(*net.TCPListener)})
 	return nil
 }
 
@@ -109,16 +109,16 @@ func ListenAndServeTLSAsync(server *http.Server, certFile, keyFile string) error
 		return err
 	}
 
-	// Unlike ListenAndServeAsync we don't update the server's Addr when the
-	// server.Addr ends with :0, because the resulting URL may or may not be
-	// GET-able. In ipv6-only contexts it could be, for example, "[::]:3232", and
-	// that URL can't be used for TLS because TLS needs a name or an explicit IP
-	// and [::] doesn't qualify. It is unclear what the right thing to do is in
-	// this situation, because names and IPs and TLS are suffciently complicated
-	// that no one thing is the right thing in all situations, so we affirmatively
-	// do nothing in an attempt to avoid making a bad situation worse.
+ // Unlike ListenAndServeAsync we don't update the server's Addr when the
+ // server.Addr ends with :0, because the resulting URL may or may not be
+ // GET-able. In ipv6-only contexts it could be, for example, "[::]:3232", and
+ // that URL can't be used for TLS because TLS needs a name or an explicit IP
+ // and [::] doesn't qualify. It is unclear what the right thing to do is in
+ // this situation, because names and IPs and TLS are sufficiently complicated
+ // that no one thing is the right thing in all situations, so we affirmatively
+ // do nothing in an attempt to avoid making a bad situation worse.
 
 	// Serve asynchronously.
-	go serveTLS(server, tcpKeepAliveListener{listener.(*net.TCPListener)}, certFile, keyFile)
+	go serveTLS(server, CachingTCPKeepAliveListener{listener.(*net.TCPListener)}, certFile, keyFile)
 	return nil
 }
