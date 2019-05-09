@@ -109,14 +109,14 @@ func ListenAndServeTLSAsync(server *http.Server, certFile, keyFile string) error
 		return err
 	}
 
- // Unlike ListenAndServeAsync we don't update the server's Addr when the
- // server.Addr ends with :0, because the resulting URL may or may not be
- // GET-able. In ipv6-only contexts it could be, for example, "[::]:3232", and
- // that URL can't be used for TLS because TLS needs a name or an explicit IP
- // and [::] doesn't qualify. It is unclear what the right thing to do is in
- // this situation, because names and IPs and TLS are sufficiently complicated
- // that no one thing is the right thing in all situations, so we affirmatively
- // do nothing in an attempt to avoid making a bad situation worse.
+	// Unlike ListenAndServeAsync we don't update the server's Addr when the
+	// server.Addr ends with :0, because the resulting URL may or may not be
+	// GET-able. In ipv6-only contexts it could be, for example, "[::]:3232", and
+	// that URL can't be used for TLS because TLS needs a name or an explicit IP
+	// and [::] doesn't qualify. It is unclear what the right thing to do is in
+	// this situation, because names and IPs and TLS are sufficiently complicated
+	// that no one thing is the right thing in all situations, so we affirmatively
+	// do nothing in an attempt to avoid making a bad situation worse.
 
 	// Serve asynchronously.
 	go serveTLS(server, CachingTCPKeepAliveListener{listener.(*net.TCPListener)}, certFile, keyFile)
