@@ -12,9 +12,9 @@ type ConnectionType string
 
 // The types of connections we support.
 var (
-	WS  = ConnectionType("WS")
-	WSS = ConnectionType("WSS")
-	TCP = ConnectionType("TCP")
+	WS    = ConnectionType("WS")
+	WSS   = ConnectionType("WSS")
+	Plain = ConnectionType("PLAIN")
 )
 
 // Server describes the methods implemented by every server of every connection

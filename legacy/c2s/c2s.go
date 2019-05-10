@@ -29,7 +29,9 @@ type ArchivalData struct {
 	StartTime          time.Time
 	EndTime            time.Time
 	MeanThroughputMbps float64
-	Error              string `json:",omitempty"`
+	// TODO: Add TCPEngine (bbr, cubic, reno, etc.)
+
+	Error string `json:",omitempty"`
 }
 
 // ManageTest manages the c2s test lifecycle.

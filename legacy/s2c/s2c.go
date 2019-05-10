@@ -34,7 +34,7 @@ type ArchivalData struct {
 	MeanThroughputMbps float64
 	MinRTT             time.Duration
 	ClientReportedMbps float64
-	// TODO: Add MaxThroughputKbps and Jitter
+	// TODO: Add TCPEngine (bbr, cubic, reno, etc.), MaxThroughputKbps, and Jitter
 
 	Error string `json:",omitempty"`
 }
@@ -173,4 +173,3 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 
 	return record, nil
 }
-

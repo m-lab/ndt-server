@@ -86,14 +86,14 @@ type Connection interface {
 	ReadBytes() (count int64, err error)
 	WriteMessage(messageType int, data []byte) error
 	FillUntil(t time.Time, buffer []byte) (bytesWritten int64, err error)
-	SetReadDeadline(t time.Time) error
 	ServerIP() string
 	ClientIP() string
 	Close() error
 	UUID() string
+	String() string
 }
 
-var badUUID = "BAD_UUID"
+var badUUID = "ERROR_DISCOVERING_UUID"
 
 // UUIDToFile converts a UUID into a newly-created open file with the extension '.json'.
 func UUIDToFile(dir, uuid string) (*os.File, error) {
@@ -205,6 +205,10 @@ func (ws *wsConnection) ReadBytes() (int64, error) {
 	return count, err
 }
 
+func (ws *wsConnection) String() string {
+	return ws.LocalAddr().String() + "<=WS(S)=>" + ws.RemoteAddr().String()
+}
+
 // netConnection is a utility struct that allows us to use OS sockets and
 // Websockets using the same set of methods. Its second element is a Reader
 // because we want to allow the input channel to be buffered.
@@ -234,7 +238,7 @@ func (nc *netConnection) WriteMessage(_messageType int, data []byte) error {
 }
 
 func (nc *netConnection) ReadBytes() (bytesRead int64, err error) {
-	n, err := nc.Read(nc.c2sBuffer)
+	n, err := nc.input.Read(nc.c2sBuffer)
 	return int64(n), err
 }
 
@@ -264,11 +268,17 @@ func (nc *netConnection) UUID() string {
 }
 
 func (nc *netConnection) ServerIP() string {
-	return nc.LocalAddr().String()
+	localAddr := nc.LocalAddr().(*net.TCPAddr)
+	return localAddr.IP.String()
 }
 
 func (nc *netConnection) ClientIP() string {
-	return nc.RemoteAddr().String()
+	remoteAddr := nc.RemoteAddr().(*net.TCPAddr)
+	return remoteAddr.IP.String()
+}
+
+func (nc *netConnection) String() string {
+	return nc.LocalAddr().String() + "<=PLAIN=>" + nc.RemoteAddr().String()
 }
 
 // AdaptNetConn turns a non-WS-based TCP connection into a protocol.MeasuredConnection.

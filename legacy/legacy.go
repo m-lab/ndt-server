@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/m-lab/go/prometheusx"
+	"github.com/m-lab/go/warnonerror"
 
 	"github.com/m-lab/ndt-server/legacy/c2s"
 	"github.com/m-lab/ndt-server/legacy/meta"
@@ -34,8 +35,8 @@ const (
 // data. It also contains enough data for interested parties to perform
 // lightweight data analysis without needing to join with other tools.
 type NDTResult struct {
-	// GitCommit is the Git commit (short form) of the running server code.
-	GitCommit string
+	// GitShortCommit is the Git commit (short form) of the running server code.
+	GitShortCommit string
 
 	// These data members should all be self-describing. In the event of confusion,
 	// rename them to add clarity rather than adding a comment.
@@ -88,15 +89,18 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 	// cause all resources used by the test to be reclaimed.
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
+
+	log.Println("Handling connection", conn)
+	defer warnonerror.Close(conn, "Could not close "+conn.String())
+
 	record := &NDTResult{
-		GitCommit:          prometheusx.GitShortCommit,
+		GitShortCommit:     prometheusx.GitShortCommit,
 		StartTime:          time.Now(),
 		ControlChannelUUID: conn.UUID(),
 		ServerIP:           conn.ServerIP(),
 		ClientIP:           conn.ClientIP(),
 		Protocol:           s.ConnectionType(),
 	}
-	log.Println("Handling connection", *record)
 	defer func() {
 		record.EndTime = time.Now()
 		SaveData(record, s.DataDir())
@@ -153,7 +157,7 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 		}
 	}
 	log.Printf("NDT: uploaded at %.4f Mbps and downloaded at %.4f Mbps", c2sRate, s2cRate)
-	// For fistorical reasons, clients expect results in kbps
+	// For historical reasons, clients expect results in kbps
 	protocol.SendJSONMessage(protocol.MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000), conn)
 	protocol.SendJSONMessage(protocol.MsgLogout, "", conn)
 }

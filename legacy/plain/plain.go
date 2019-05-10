@@ -143,7 +143,7 @@ func (ps *plainServer) ListenAndServe(ctx context.Context, addr string) error {
 	return nil
 }
 
-func (ps *plainServer) ConnectionType() ndt.ConnectionType { return ndt.TCP }
+func (ps *plainServer) ConnectionType() ndt.ConnectionType { return ndt.Plain }
 func (ps *plainServer) DataDir() string                    { return ps.datadir }
 
 func (ps *plainServer) TestLength() time.Duration  { return 10 * time.Second }
