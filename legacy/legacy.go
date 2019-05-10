@@ -46,9 +46,9 @@ type NDTResult struct {
 
 	StartTime time.Time
 	EndTime   time.Time
-	C2S       *c2s.ArchivalData
-	S2C       *s2c.ArchivalData
-	Meta      *meta.ArchivalData
+	C2S       *c2s.ArchivalData  `json:",omitempty"`
+	S2C       *s2c.ArchivalData  `json:",omitempty"`
+	Meta      *meta.ArchivalData `json:",omitempty"`
 }
 
 // SaveData archives the data to disk.
