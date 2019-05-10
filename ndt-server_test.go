@@ -185,12 +185,6 @@ func Test_MainIntegrationTest(t *testing.T) {
 				" --port=" + legacyPort + " --protocol=ws --tests=22",
 		},
 		{
-			name: "Connect legacy WS",
-			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + legacyPort + " --protocol=ws --tests=16",
-		},
-
-		{
 			// Start both tests, but kill the client during the upload test.
 			// This causes the server to wait for a test that never comes. After the
 			// timeout, the server should have cleaned up all outstanding goroutines.
