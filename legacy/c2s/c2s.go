@@ -141,10 +141,6 @@ func drainForeverButMeasureFor(conn protocol.Connection, d time.Duration) (int64
 		totalByteCount int64
 		err            error
 	}
-	// TODO: investigate whether this channel needs to be buffered for performance
-	// reasons. Will adding a buffer increase or decrease performance? Peter can
-	// come up with arguments for either case, as well as arguments that it doesn't
-	// matter. We will leave it simple as a default.
 	measurements := make(chan measurement)
 
 	// This is the "drain forever" part of this function. Read the passed-in
