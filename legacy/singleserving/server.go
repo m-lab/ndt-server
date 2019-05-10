@@ -60,7 +60,9 @@ func (s *wsServer) Port() int {
 
 func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, error) {
 	// This is a single-serving server. After serving one response, shut it down.
-	defer s.Close()
+	defer func() {
+		go s.Close()
+	}()
 
 	derivedCtx, derivedCancel := context.WithCancel(ctx)
 	var closeErr error

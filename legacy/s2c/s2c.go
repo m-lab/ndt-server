@@ -3,11 +3,13 @@ package s2c
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"strconv"
 	"time"
 
 	"github.com/m-lab/go/warnonerror"
+	"github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/ndt"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 )
@@ -15,22 +17,25 @@ import (
 // ArchivalData is the data saved by the S2C test. If a researcher wants deeper
 // data, then they should use the UUID to get deeper data from tcp-info.
 type ArchivalData struct {
+	// This is the only field that is really required.
+	TestConnectionUUID string
+
+	// All subsequent fields are here to enable analyses that don't require joining
+	// with tcp-info data.
+
 	// The server and client IP are here as well as in the containing struct
 	// because happy eyeballs means that we may have a IPv4 control connection
 	// causing a IPv6 connection to the test port or vice versa.
 	ServerIP string
 	ClientIP string
 
-	// This is the only field that is really required.
-	TestConnectionUUID string
-
-	// These fields are here to enable analyses that don't require joining with tcp-info data.
-	StartTime                        time.Time
-	EndTime                          time.Time
-	MeanThroughputMbps               float64
-	MinRTT                           time.Duration
-	ClientReportedMeanThroughputMbps float64
+	StartTime          time.Time
+	EndTime            time.Time
+	MeanThroughputMbps float64
+	MinRTT             time.Duration
+	ClientReportedMbps float64
 	// TODO: Add MaxThroughputKbps and Jitter
+
 	Error string `json:",omitempty"`
 }
 
@@ -47,7 +52,7 @@ func (n *result) String() string {
 }
 
 // ManageTest manages the s2c test lifecycle
-func ManageTest(ctx context.Context, conn protocol.Connection, s ndt.Server) (*ArchivalData, error) {
+func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Server) (*ArchivalData, error) {
 	localCtx, localCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer localCancel()
 	record := &ArchivalData{}
@@ -55,12 +60,14 @@ func ManageTest(ctx context.Context, conn protocol.Connection, s ndt.Server) (*A
 	srv, err := s.SingleServingServer("s2c")
 	if err != nil {
 		log.Println("Could not start single serving server", err)
+		metrics.ErrorCount.WithLabelValues("s2c", "StartSingleServingServer")
 		record.Error = err.Error()
 		return record, err
 	}
-	err = protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(srv.Port()), conn)
+	err = protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(srv.Port()), controlConn)
 	if err != nil {
 		log.Println("Could not send TestPrepare", err)
+		metrics.ErrorCount.WithLabelValues("s2c", "TestPrepare")
 		record.Error = err.Error()
 		return record, err
 	}
@@ -68,22 +75,27 @@ func ManageTest(ctx context.Context, conn protocol.Connection, s ndt.Server) (*A
 	testConn, err := srv.ServeOnce(localCtx)
 	if err != nil || testConn == nil {
 		log.Println("Could not successfully ServeOnce", err)
+		metrics.ErrorCount.WithLabelValues("s2c", "ServeOnce")
+		if err == nil {
+			err = errors.New("nil testConn, but also a nil error")
+		}
 		record.Error = err.Error()
 		return record, err
 	}
 	defer warnonerror.Close(testConn, "Could not close test connection")
-	record.TestConnectionUUID = conn.UUID()
-	record.ServerIP = conn.ServerIP()
-	record.ClientIP = conn.ClientIP()
+	record.TestConnectionUUID = testConn.UUID()
+	record.ServerIP = testConn.ServerIP()
+	record.ClientIP = testConn.ClientIP()
 
 	dataToSend := make([]byte, 8192)
 	for i := range dataToSend {
 		dataToSend[i] = byte(((i * 101) % (122 - 33)) + 33)
 	}
 
-	err = protocol.SendJSONMessage(protocol.TestStart, "", conn)
+	err = protocol.SendJSONMessage(protocol.TestStart, "", controlConn)
 	if err != nil {
 		log.Println("Could not write TestStart", err)
+		metrics.ErrorCount.WithLabelValues("s2c", "TestStart")
 		record.Error = err.Error()
 		return record, err
 	}
@@ -94,20 +106,22 @@ func ManageTest(ctx context.Context, conn protocol.Connection, s ndt.Server) (*A
 	record.EndTime = time.Now()
 	if err != nil {
 		log.Println("Could not FillUntil", err)
+		metrics.ErrorCount.WithLabelValues("s2c", "FillUntil")
 		record.Error = err.Error()
 		return record, err
 	}
 
-	metrics, err := testConn.StopMeasuring()
+	web100metrics, err := testConn.StopMeasuring()
 	if err != nil {
 		log.Println("Could not read metrics", err)
+		metrics.ErrorCount.WithLabelValues("s2c", "web100Metrics")
 		record.Error = err.Error()
 		return record, err
 	}
 
 	bps := 8 * float64(byteCount) / 10
 	kbps := bps / 1000
-	record.MinRTT = time.Duration(metrics.MinRTT) * time.Millisecond
+	record.MinRTT = time.Duration(web100metrics.MinRTT) * time.Millisecond
 	record.MeanThroughputMbps = kbps / 1000 // Convert Kbps to Mbps
 
 	// Send additional download results to the client.
@@ -117,15 +131,17 @@ func ManageTest(ctx context.Context, conn protocol.Connection, s ndt.Server) (*A
 		UnsentDataAmount: "0",
 		TotalSentByte:    strconv.FormatInt(byteCount, 10), // TODO: use actual bytes sent.
 	}
-	err = protocol.WriteNDTMessage(conn, protocol.TestMsg, resultMsg)
+	err = protocol.WriteNDTMessage(controlConn, protocol.TestMsg, resultMsg)
 	if err != nil {
 		log.Println("Could not write a TestMsg", err)
+		metrics.ErrorCount.WithLabelValues("s2c", "TestMsgSend")
 		record.Error = err.Error()
 		return record, err
 	}
 
-	clientRateMsg, err := protocol.ReceiveJSONMessage(conn, protocol.TestMsg)
+	clientRateMsg, err := protocol.ReceiveJSONMessage(controlConn, protocol.TestMsg)
 	if err != nil {
+		metrics.ErrorCount.WithLabelValues("s2c", "TestMsgRcv")
 		log.Println("Could not receive a TestMsg", err)
 		record.Error = err.Error()
 		return record, err
@@ -133,25 +149,28 @@ func ManageTest(ctx context.Context, conn protocol.Connection, s ndt.Server) (*A
 	log.Println("We measured", kbps, "and the client sent us", clientRateMsg)
 	clientRateKbps, err := strconv.ParseFloat(clientRateMsg.Msg, 64)
 	if err == nil {
-		record.ClientReportedMeanThroughputMbps = clientRateKbps / 1000
+		record.ClientReportedMbps = clientRateKbps / 1000
 	} else {
 		log.Println("Could not parse number sent from client")
 		// Being unable to parse the number should not be a fatal error, so continue.
 	}
 
-	err = protocol.SendMetrics(metrics, conn)
+	err = protocol.SendMetrics(web100metrics, controlConn)
 	if err != nil {
 		log.Println("Could not SendMetrics", err)
+		metrics.ErrorCount.WithLabelValues("s2c", "SendMetrics")
 		record.Error = err.Error()
 		return record, err
 	}
 
-	err = protocol.SendJSONMessage(protocol.TestFinalize, "", conn)
+	err = protocol.SendJSONMessage(protocol.TestFinalize, "", controlConn)
 	if err != nil {
 		log.Println("Could not send TestFinalize", err)
+		metrics.ErrorCount.WithLabelValues("s2c", "TestFinalize")
 		record.Error = err.Error()
 		return record, err
 	}
 
 	return record, nil
 }
+

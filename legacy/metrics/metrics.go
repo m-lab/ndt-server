@@ -28,4 +28,12 @@ var (
 		},
 		[]string{"direction", "code"},
 	)
+	// ErrorCount exports the number of test failures seen by the server.
+	ErrorCount = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt_test_errors_total",
+			Help: "Number of test errors of each type for each test.",
+		},
+		[]string{"test", "error"},
+	)
 )

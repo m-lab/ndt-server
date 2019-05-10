@@ -138,8 +138,8 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 			log.Println("ERROR: manageC2sTest", err)
 		}
 		if record.C2S != nil && record.C2S.MeanThroughputMbps != 0 {
-			c2sRate = record.C2S.MeanThroughputMbps * 1000
-			legacymetrics.TestRate.WithLabelValues("c2s").Observe(c2sRate / 1000.0)
+			c2sRate = record.C2S.MeanThroughputMbps
+			legacymetrics.TestRate.WithLabelValues("c2s").Observe(c2sRate)
 		}
 	}
 	if runS2c {
@@ -148,11 +148,12 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 			log.Println("ERROR: manageS2cTest", err)
 		}
 		if record.S2C != nil && record.S2C.MeanThroughputMbps != 0 {
-			s2cRate = record.S2C.MeanThroughputMbps * 1000
-			legacymetrics.TestRate.WithLabelValues("s2c").Observe(s2cRate / 1000.0)
+			s2cRate = record.S2C.MeanThroughputMbps
+			legacymetrics.TestRate.WithLabelValues("s2c").Observe(s2cRate)
 		}
 	}
-	log.Printf("NDT: uploaded at %.4f and downloaded at %.4f", c2sRate, s2cRate)
-	protocol.SendJSONMessage(protocol.MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate, s2cRate), conn)
+	log.Printf("NDT: uploaded at %.4f Mbps and downloaded at %.4f Mbps", c2sRate, s2cRate)
+	// For fistorical reasons, clients expect results in kbps
+	protocol.SendJSONMessage(protocol.MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000), conn)
 	protocol.SendJSONMessage(protocol.MsgLogout, "", conn)
 }

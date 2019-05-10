@@ -80,12 +80,11 @@ func (m MessageType) String() string {
 
 // Connection is a general system over which we might be able to read an NDT
 // message. It contains a subset of the methods of websocket.Conn, in order to
-// allow non-websocket-based NDT tests in support of legacy clients, along with
-// the new methods "DrainUntil" and "FillUntil".
+// allow non-websocket-based NDT tests in support of legacy clients.
 type Connection interface {
 	ReadMessage() (_ int, p []byte, err error) // The first value in the returned tuple should be ignored. It is included in the API for websocket.Conn compatibility.
+	ReadBytes() (count int64, err error)
 	WriteMessage(messageType int, data []byte) error
-	DrainUntil(t time.Time) (bytesRead int64, err error)
 	FillUntil(t time.Time, buffer []byte) (bytesWritten int64, err error)
 	SetReadDeadline(t time.Time) error
 	ServerIP() string
@@ -156,17 +155,6 @@ func AdaptWsConn(ws *websocket.Conn) MeasuredConnection {
 	return &wsConnection{Conn: ws, measurer: &measurer{}}
 }
 
-func (ws *wsConnection) DrainUntil(t time.Time) (bytesRead int64, err error) {
-	for time.Now().Before(t) {
-		_, buffer, err := ws.ReadMessage()
-		if err != nil {
-			return bytesRead, err
-		}
-		bytesRead += int64(len(buffer))
-	}
-	return bytesRead, nil
-}
-
 func (ws *wsConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64, err error) {
 	messageToSend, err := websocket.NewPreparedMessage(websocket.BinaryMessage, bytes)
 	if err != nil {
@@ -187,8 +175,7 @@ func (ws *wsConnection) StartMeasuring(ctx context.Context) {
 }
 
 func (ws *wsConnection) UUID() string {
-	conn := ws.UnderlyingConn()
-	id, err := fdcache.GetUUID(conn)
+	id, err := fdcache.GetUUID(ws.UnderlyingConn())
 	if err != nil {
 		log.Println("Could not discover UUID:", err)
 		// TODO: increment a metric
@@ -207,13 +194,25 @@ func (ws *wsConnection) ClientIP() string {
 	return remoteAddr.IP.String()
 }
 
+// ReadBytes reads some bytes and discards them. This method is in service of
+// the c2s test.
+func (ws *wsConnection) ReadBytes() (int64, error) {
+	var count int64
+	_, buff, err := ws.ReadMessage()
+	if buff != nil {
+		count = int64(len(buff))
+	}
+	return count, err
+}
+
 // netConnection is a utility struct that allows us to use OS sockets and
 // Websockets using the same set of methods. Its second element is a Reader
 // because we want to allow the input channel to be buffered.
 type netConnection struct {
 	net.Conn
 	*measurer
-	input io.Reader
+	input     io.Reader
+	c2sBuffer []byte
 }
 
 func (nc *netConnection) ReadMessage() (int, []byte, error) {
@@ -234,16 +233,9 @@ func (nc *netConnection) WriteMessage(_messageType int, data []byte) error {
 	return err
 }
 
-func (nc *netConnection) DrainUntil(t time.Time) (bytesRead int64, err error) {
-	buff := make([]byte, 8192)
-	for time.Now().Before(t) {
-		n, err := nc.Read(buff)
-		if err != nil {
-			return bytesRead, err
-		}
-		bytesRead += int64(n)
-	}
-	return bytesRead, nil
+func (nc *netConnection) ReadBytes() (bytesRead int64, err error) {
+	n, err := nc.Read(nc.c2sBuffer)
+	return int64(n), err
 }
 
 func (nc *netConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64, err error) {
@@ -281,7 +273,7 @@ func (nc *netConnection) ClientIP() string {
 
 // AdaptNetConn turns a non-WS-based TCP connection into a protocol.MeasuredConnection.
 func AdaptNetConn(conn net.Conn, input io.Reader) MeasuredConnection {
-	return &netConnection{Conn: conn, measurer: &measurer{}, input: input}
+	return &netConnection{Conn: conn, measurer: &measurer{}, input: input, c2sBuffer: make([]byte, 8192)}
 }
 
 // ReadNDTMessage reads a single NDT message out of the connection.

@@ -40,6 +40,11 @@ func (ln CachingTCPKeepAliveListener) Accept() (net.Conn, error) {
 	tc.SetKeepAlivePeriod(3 * time.Minute)
 	fp, err := fdcache.TCPConnToFile(tc)
 	if err != nil {
+		var dest net.Addr
+		if tc != nil {
+			dest = tc.RemoteAddr()
+		}
+		log.Println("Could not save TCPConnection to fdcache, connection was to", dest)
 		tc.Close()
 		return nil, err
 	}
