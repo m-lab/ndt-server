@@ -21,6 +21,8 @@ var (
 		[]string{"direction"},
 	)
 	// TestCount exports via prometheus the number of tests run by this server.
+	//
+	// TODO: Decide what monitoring we want and transition to that.
 	TestCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt_test_total",
