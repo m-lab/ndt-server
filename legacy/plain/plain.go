@@ -11,6 +11,7 @@ import (
 
 	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/legacy"
+	"github.com/m-lab/ndt-server/legacy/ndt"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/singleserving"
 	"github.com/m-lab/ndt-server/metrics"
@@ -23,6 +24,7 @@ type plainServer struct {
 	wsAddr   string
 	dialer   *net.Dialer
 	listener *net.TCPListener
+	datadir  string
 }
 
 func (ps *plainServer) SingleServingServer(direction string) (singleserving.Server, error) {
@@ -141,6 +143,12 @@ func (ps *plainServer) ListenAndServe(ctx context.Context, addr string) error {
 	return nil
 }
 
+func (ps *plainServer) ConnectionType() ndt.ConnectionType { return ndt.Plain }
+func (ps *plainServer) DataDir() string                    { return ps.datadir }
+
+func (ps *plainServer) TestLength() time.Duration  { return 10 * time.Second }
+func (ps *plainServer) TestMaxTime() time.Duration { return 30 * time.Second }
+
 func (ps *plainServer) Addr() net.Addr {
 	return ps.listener.Addr()
 }
@@ -155,7 +163,7 @@ type Server interface {
 // NewServer creates a new TCP listener to serve the client. It forwards all
 // connection requests that look like HTTP to a different address (assumed to be
 // on the same host).
-func NewServer(wsAddr string) Server {
+func NewServer(datadir, wsAddr string) Server {
 	return &plainServer{
 		wsAddr: wsAddr,
 		// The dialer is only contacting localhost. The timeout should be set to a
@@ -163,5 +171,6 @@ func NewServer(wsAddr string) Server {
 		dialer: &net.Dialer{
 			Timeout: 10 * time.Millisecond,
 		},
+		datadir: datadir,
 	}
 }

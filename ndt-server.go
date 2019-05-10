@@ -15,7 +15,6 @@ import (
 	"github.com/m-lab/go/prometheusx"
 
 	"github.com/m-lab/go/flagx"
-	"github.com/m-lab/go/httpx"
 	"github.com/m-lab/go/rtx"
 
 	legacyhandler "github.com/m-lab/ndt-server/legacy/handler"
@@ -108,7 +107,7 @@ func main() {
 
 	// The legacy protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
-	legacyServer := plain.NewServer(*legacyWsPort)
+	legacyServer := plain.NewServer(*dataDir+"/legacy", *legacyWsPort)
 	rtx.Must(
 		legacyServer.ListenAndServe(ctx, *legacyPort),
 		"Could not start raw server")
@@ -118,13 +117,13 @@ func main() {
 	legacyWsMux := http.NewServeMux()
 	legacyWsMux.HandleFunc("/", defaultHandler)
 	legacyWsMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
-	legacyWsMux.Handle("/ndt_protocol", legacyhandler.NewWS())
+	legacyWsMux.Handle("/ndt_protocol", legacyhandler.NewWS(*dataDir+"/legacy"))
 	legacyWsServer := &http.Server{
 		Addr:    *legacyWsPort,
 		Handler: logging.MakeAccessLogHandler(legacyWsMux),
 	}
 	log.Println("About to listen for unencrypted legacy NDT tests on " + *legacyWsPort)
-	rtx.Must(httpx.ListenAndServeAsync(legacyWsServer), "Could not start unencrypted legacy NDT server")
+	rtx.Must(listener.ListenAndServeAsync(legacyWsServer), "Could not start unencrypted legacy NDT server")
 	defer legacyWsServer.Close()
 
 	// Only start TLS-based services if certs and keys are provided
@@ -133,13 +132,13 @@ func main() {
 		legacyWssMux := http.NewServeMux()
 		legacyWssMux.HandleFunc("/", defaultHandler)
 		legacyWssMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
-		legacyWssMux.Handle("/ndt_protocol", legacyhandler.NewWSS(*certFile, *keyFile))
+		legacyWssMux.Handle("/ndt_protocol", legacyhandler.NewWSS(*dataDir+"/legacy", *certFile, *keyFile))
 		legacyWssServer := &http.Server{
 			Addr:    *legacyWssPort,
 			Handler: logging.MakeAccessLogHandler(legacyWssMux),
 		}
 		log.Println("About to listen for legacy WsS tests on " + *legacyWssPort)
-		rtx.Must(httpx.ListenAndServeTLSAsync(legacyWssServer, *certFile, *keyFile), "Could not start legacy WsS server")
+		rtx.Must(listener.ListenAndServeTLSAsync(legacyWssServer, *certFile, *keyFile), "Could not start legacy WsS server")
 		defer legacyWssServer.Close()
 
 		// The ndt7 listener serving up NDT7 tests, likely on standard ports.

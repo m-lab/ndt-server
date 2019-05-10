@@ -159,43 +159,31 @@ func Test_MainIntegrationTest(t *testing.T) {
 		//  /bin/web100clt-without-json-support # No tests disabled.
 		// Test legacy raw JSON clients
 		{
-			name:       "Connect with web100clt (with JSON)",
-			cmd:        "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyPort + " --disablemid --disablesfw",
-			ignoreData: true,
+			name: "Connect with web100clt (with JSON)",
+			cmd:  "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyPort + " --disablemid --disablesfw",
 		},
 		// Test legacy WS clients connected to the HTTP port
 		{
 			name: "Upload & Download legacy WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsPort + " --protocol=ws --tests=22",
-			ignoreData: true,
 		},
 		{
 			name: "Upload legacy WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsPort + " --protocol=ws --tests=18",
-			ignoreData: true,
 		},
 		{
 			name: "Download legacy WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsPort + " --protocol=ws --tests=20",
-			ignoreData: true,
 		},
 		// Test legacy WS clients connecting to the raw port
 		{
 			name: "Connect legacy WS (upload and download) to RAW port",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + legacyPort + " --protocol=ws --tests=22",
-			ignoreData: true,
 		},
-		{
-			name: "Connect legacy WS",
-			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + legacyPort + " --protocol=ws --tests=16",
-			ignoreData: true,
-		},
-
 		{
 			// Start both tests, but kill the client during the upload test.
 			// This causes the server to wait for a test that never comes. After the
@@ -205,26 +193,22 @@ func Test_MainIntegrationTest(t *testing.T) {
 				" --port=" + wsPort +
 				" --protocol=ws --abort-c2s-early --tests=22 & " +
 				"sleep 25",
-			ignoreData: true,
 		},
 		// Test WSS clients with the legacy protocol.
 		{
 			name: "Upload legacy WSS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=18",
-			ignoreData: true,
 		},
 		{
 			name: "Download legacy WSS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=20",
-			ignoreData: true,
 		},
 		{
 			name: "Upload & Download legacy WSS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=22",
-			ignoreData: true,
 		},
 		{
 			// Start both tests, but kill the client during the upload test.
@@ -235,7 +219,6 @@ func Test_MainIntegrationTest(t *testing.T) {
 				" --port=" + wssPort +
 				" --protocol=wss --acceptinvalidcerts --abort-c2s-early --tests=22 & " +
 				"sleep 25",
-			ignoreData: true,
 		},
 		// Test NDT7 clients
 		{

@@ -3,13 +3,22 @@ package handler
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/legacy"
+	"github.com/m-lab/ndt-server/legacy/ndt"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/singleserving"
 	"github.com/m-lab/ndt-server/legacy/ws"
 )
+
+// WSHandler is both an ndt.Server and an http.Handler to allow websocket-based
+// NDT tests to be run by Go's http libraries.
+type WSHandler interface {
+	ndt.Server
+	http.Handler
+}
 
 type httpFactory struct{}
 
@@ -20,7 +29,19 @@ func (hf *httpFactory) SingleServingServer(dir string) (singleserving.Server, er
 // httpHandler handles requests that come in over HTTP or HTTPS. It should be
 // created with MakeHTTPHandler() or MakeHTTPSHandler().
 type httpHandler struct {
-	serverFactory singleserving.Factory
+	serverFactory  singleserving.Factory
+	connectionType ndt.ConnectionType
+	datadir        string
+}
+
+func (s *httpHandler) DataDir() string                    { return s.datadir }
+func (s *httpHandler) ConnectionType() ndt.ConnectionType { return s.connectionType }
+
+func (s *httpHandler) TestLength() time.Duration  { return 10 * time.Second }
+func (s *httpHandler) TestMaxTime() time.Duration { return 30 * time.Second }
+
+func (s *httpHandler) SingleServingServer(dir string) (singleserving.Server, error) {
+	return s.serverFactory.SingleServingServer(dir)
 }
 
 // ServeHTTP is the command channel for the NDT-WS or NDT-WSS test. All
@@ -37,13 +58,15 @@ func (s *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ws := protocol.AdaptWsConn(wsc)
 	defer warnonerror.Close(ws, "Could not close connection")
-	legacy.HandleControlChannel(ws, s.serverFactory)
+	legacy.HandleControlChannel(ws, s)
 }
 
 // NewWS returns a handler suitable for http-based connections.
-func NewWS() http.Handler {
+func NewWS(datadir string) WSHandler {
 	return &httpHandler{
-		serverFactory: &httpFactory{},
+		serverFactory:  &httpFactory{},
+		connectionType: ndt.WS,
+		datadir:        datadir,
 	}
 }
 
@@ -57,11 +80,13 @@ func (hf *httpsFactory) SingleServingServer(dir string) (singleserving.Server, e
 }
 
 // NewWSS returns a handler suitable for https-based connections.
-func NewWSS(certFile, keyFile string) http.Handler {
+func NewWSS(datadir, certFile, keyFile string) WSHandler {
 	return &httpHandler{
 		serverFactory: &httpsFactory{
 			certFile: certFile,
 			keyFile:  keyFile,
 		},
+		connectionType: ndt.WSS,
+		datadir:        datadir,
 	}
 }

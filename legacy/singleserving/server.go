@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/m-lab/ndt-server/legacy/ws"
+	"github.com/m-lab/ndt-server/ndt7/listener"
 
 	"github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
@@ -59,7 +60,9 @@ func (s *wsServer) Port() int {
 
 func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, error) {
 	// This is a single-serving server. After serving one response, shut it down.
-	defer s.Close()
+	defer func() {
+		go s.Close()
+	}()
 
 	derivedCtx, derivedCancel := context.WithCancel(ctx)
 	var closeErr error
@@ -77,7 +80,7 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 	// ensure that the race gets resolved in just one way for the following if().
 	err := closeErr
 
-	if err != http.ErrServerClosed {
+	if err != nil && err != http.ErrServerClosed {
 		return nil, fmt.Errorf("Server did not close correctly: %v", err)
 	}
 	return s.newConn, s.newConnErr
@@ -106,11 +109,11 @@ func StartWS(direction string) (Server, error) {
 		promhttp.InstrumentHandlerCounter(metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": direction}), s))
 
 	// Start listening right away to ensure that subsequent connections succeed.
-	listener, err := net.Listen("tcp", ":0")
+	tcpl, err := net.Listen("tcp", ":0")
 	if err != nil {
 		return nil, err
 	}
-	s.listener = tcplistener.RawListener{TCPListener: listener.(*net.TCPListener)}
+	s.listener = listener.CachingTCPKeepAliveListener{TCPListener: tcpl.(*net.TCPListener)}
 	s.port = s.listener.Addr().(*net.TCPAddr).Port
 	return s, nil
 }

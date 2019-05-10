@@ -21,11 +21,21 @@ var (
 		[]string{"direction"},
 	)
 	// TestCount exports via prometheus the number of tests run by this server.
+	//
+	// TODO: Decide what monitoring we want and transition to that.
 	TestCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt_test_total",
 			Help: "Number of NDT tests run by this server.",
 		},
 		[]string{"direction", "code"},
+	)
+	// ErrorCount exports the number of test failures seen by the server.
+	ErrorCount = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt_test_errors_total",
+			Help: "Number of test errors of each type for each test.",
+		},
+		[]string{"test", "error"},
 	)
 )
