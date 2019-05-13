@@ -146,7 +146,7 @@ func main() {
 		ndt7Mux.HandleFunc("/", defaultHandler)
 		ndt7Mux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
 		ndt7Handler := &handler.Handler{
-			DataDir: *dataDir,
+			DataDir: *dataDir + "/ndt7",
 			Upgrader: websocket.Upgrader{
 				CheckOrigin: func(r *http.Request) bool {
 					return true // Allow cross origin resource sharing
