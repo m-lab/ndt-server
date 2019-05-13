@@ -87,8 +87,8 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 }
 
 func (s *wsServer) Close() {
-	s.srv.Close()
 	s.listener.Close()
+	s.srv.Close()
 }
 
 // StartWS starts a single-serving unencrypted websocket server. When this
