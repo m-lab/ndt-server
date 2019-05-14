@@ -86,11 +86,9 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 }
 
 func (s *wsServer) Close() {
-	/*
-		// We need to set the timeout in the future to break the server out of its
-		// confusion around the error being temporary. This is a hack.
-		s.listener.SetDeadline(time.Now().Add(10 * time.Second))
-	*/
+	// We need to set the timeout in the future to break the server out of its
+	// confusion around the error being temporary. This is a hack.
+	s.listener.SetDeadline(time.Now().Add(10 * time.Second))
 
 	// Close the listener first. accept() on a timed-out channel is an net.Error
 	// where .Temporary() returns true. This means that timeouts cause the
