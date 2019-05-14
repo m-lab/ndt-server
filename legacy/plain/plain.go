@@ -27,7 +27,7 @@ type plainServer struct {
 	datadir  string
 }
 
-func (ps *plainServer) SingleServingServer(direction string) (singleserving.Server, error) {
+func (ps *plainServer) SingleServingServer(direction string) (ndt.TestServer, error) {
 	return singleserving.StartPlain()
 }
 
