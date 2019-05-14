@@ -61,9 +61,7 @@ func (s *wsServer) Port() int {
 
 func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, error) {
 	// This is a single-serving server. After serving one response, shut it down.
-	defer func() {
-		go s.Close()
-	}()
+	defer s.Close()
 
 	derivedCtx, derivedCancel := context.WithCancel(ctx)
 	var closeErr error
@@ -88,8 +86,8 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 }
 
 func (s *wsServer) Close() {
-	s.srv.Close()
 	s.listener.Close()
+	s.srv.Close()
 }
 
 // StartWS starts a single-serving unencrypted websocket server. When this
