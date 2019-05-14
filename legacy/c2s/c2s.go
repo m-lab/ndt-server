@@ -57,7 +57,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	}
 
 	testConn, err := srv.ServeOnce(localContext)
-	if err != nil {
+	if err != nil || testConn == nil {
 		log.Println("Could not successfully ServeOnce", err)
 		metrics.ErrorCount.WithLabelValues("c2s", "ServeOnce")
 		record.Error = err.Error()

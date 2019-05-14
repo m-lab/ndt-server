@@ -2,6 +2,7 @@ package singleserving
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -56,6 +57,7 @@ type wsServer struct {
 	newConnErr error
 	once       sync.Once
 	kind       ndt.ConnectionType
+	serve      func(net.Listener) error
 }
 
 func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -82,7 +84,7 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 	derivedCtx, derivedCancel := context.WithCancel(ctx)
 	var closeErr error
 	go func() {
-		closeErr = s.srv.Serve(s.listener)
+		closeErr = s.serve(s.listener)
 		derivedCancel()
 	}()
 	// This will wait until derivedCancel() is called or the parent context is
@@ -97,6 +99,9 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 
 	if err != nil && err != http.ErrServerClosed {
 		return nil, fmt.Errorf("Server did not close correctly: %v", err)
+	}
+	if s.newConn == nil && s.newConnErr == nil {
+		return nil, errors.New("No connection created")
 	}
 	return s.newConn, s.newConnErr
 }
@@ -143,6 +148,7 @@ func startWS(direction string) (*wsServer, error) {
 		direction: direction,
 		kind:      ndt.WS,
 	}
+	s.serve = s.srv.Serve
 	mux.HandleFunc("/ndt_protocol",
 		promhttp.InstrumentHandlerCounter(metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": direction}), s))
 
@@ -165,14 +171,6 @@ type wssServer struct {
 	certFile, keyFile string
 }
 
-func (wss *wssServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, error) {
-	err := wss.srv.ServeTLS(wss.listener, wss.certFile, wss.keyFile)
-	if err != http.ErrServerClosed {
-		return nil, err
-	}
-	return wss.newConn, wss.newConnErr
-}
-
 // StartWSS starts a single-serving encrypted websocket server. When this method
 // returns without error, it is safe for a client to connect to the server, as
 // the server socket will be in "listening" mode. Then returned server will not
@@ -192,6 +190,9 @@ func StartWSS(direction, certFile, keyFile string) (ndt.TestServer, error) {
 		keyFile:  keyFile,
 	}
 	wss.kind = ndt.WSS
+	wss.serve = func(l net.Listener) error {
+		return wss.srv.ServeTLS(l, wss.certFile, wss.keyFile)
+	}
 	return &wss, nil
 }
 
