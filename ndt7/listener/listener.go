@@ -31,7 +31,7 @@ type CachingTCPKeepAliveListener struct {
 	*net.TCPListener
 }
 
-func (ln CachingTCPKeepAliveListener) Accept() (net.Conn, error) {
+func (ln *CachingTCPKeepAliveListener) Accept() (net.Conn, error) {
 	tc, err := ln.AcceptTCP()
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func ListenAndServeAsync(server *http.Server) error {
 		server.Addr = listener.Addr().String()
 	}
 	// Serve asynchronously.
-	go serve(server, CachingTCPKeepAliveListener{listener.(*net.TCPListener)})
+	go serve(server, &CachingTCPKeepAliveListener{listener.(*net.TCPListener)})
 	return nil
 }
 
@@ -124,6 +124,6 @@ func ListenAndServeTLSAsync(server *http.Server, certFile, keyFile string) error
 	// do nothing in an attempt to avoid making a bad situation worse.
 
 	// Serve asynchronously.
-	go serveTLS(server, CachingTCPKeepAliveListener{listener.(*net.TCPListener)}, certFile, keyFile)
+	go serveTLS(server, &CachingTCPKeepAliveListener{listener.(*net.TCPListener)}, certFile, keyFile)
 	return nil
 }

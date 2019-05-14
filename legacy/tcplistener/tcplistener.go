@@ -18,7 +18,7 @@ type RawListener struct {
 }
 
 // Accept accepts the TCP connection and then sets the connection's options.
-func (ln RawListener) Accept() (net.Conn, error) {
+func (ln *RawListener) Accept() (net.Conn, error) {
 	tc, err := ln.AcceptTCP()
 	if err != nil {
 		return nil, err

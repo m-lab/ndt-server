@@ -35,7 +35,7 @@ type Server interface {
 // wsServer is a single-serving server for unencrypted websockets.
 type wsServer struct {
 	srv        *http.Server
-	listener   net.Listener
+	listener   *listener.CachingTCPKeepAliveListener
 	port       int
 	direction  string
 	newConn    protocol.MeasuredConnection
@@ -52,7 +52,7 @@ func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.newConn = protocol.AdaptWsConn(wsc)
 	// The websocket upgrade process hijacks the connection. Only un-hijacked
 	// connections are terminated on server shutdown.
-	s.Close()
+	go s.Close()
 }
 
 func (s *wsServer) Port() int {
@@ -86,6 +86,18 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 }
 
 func (s *wsServer) Close() {
+	/*
+		// We need to set the timeout in the future to break the server out of its
+		// confusion around the error being temporary. This is a hack.
+		s.listener.SetDeadline(time.Now().Add(10 * time.Second))
+	*/
+
+	// Close the listener first. accept() on a timed-out channel is an net.Error
+	// where .Temporary() returns true. This means that timeouts cause the
+	// http.Server.Serve() function to go into an infinite loop waiting for the
+	// "temporary" error to be fixed. When the listener is closed, the error
+	// returned is a net.Error where .Temporary() returns false, which terminates
+	// the Serve() call.
 	s.listener.Close()
 	s.srv.Close()
 }
@@ -114,7 +126,7 @@ func StartWS(direction string) (Server, error) {
 	}
 	tcpl := l.(*net.TCPListener)
 	tcpl.SetDeadline(time.Now().Add(10 * time.Second))
-	s.listener = listener.CachingTCPKeepAliveListener{TCPListener: tcpl}
+	s.listener = &listener.CachingTCPKeepAliveListener{TCPListener: tcpl}
 	s.port = s.listener.Addr().(*net.TCPAddr).Port
 	return s, nil
 }
@@ -198,7 +210,7 @@ func StartPlain() (Server, error) {
 	}
 	tcpl := l.(*net.TCPListener)
 	tcpl.SetDeadline(time.Now().Add(10 * time.Second))
-	s.listener = tcplistener.RawListener{TCPListener: tcpl}
+	s.listener = &tcplistener.RawListener{TCPListener: tcpl}
 	s.port = s.listener.Addr().(*net.TCPAddr).Port
 	return s, nil
 }
