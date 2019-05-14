@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/m-lab/ndt-server/legacy/ws"
 	"github.com/m-lab/ndt-server/ndt7/listener"
@@ -87,8 +88,8 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 }
 
 func (s *wsServer) Close() {
-	s.listener.Close()
 	s.srv.Close()
+	s.listener.Close()
 }
 
 // StartWS starts a single-serving unencrypted websocket server. When this
@@ -109,11 +110,13 @@ func StartWS(direction string) (Server, error) {
 		promhttp.InstrumentHandlerCounter(metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": direction}), s))
 
 	// Start listening right away to ensure that subsequent connections succeed.
-	tcpl, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", ":0")
 	if err != nil {
 		return nil, err
 	}
-	s.listener = listener.CachingTCPKeepAliveListener{TCPListener: tcpl.(*net.TCPListener)}
+	tcpl := l.(*net.TCPListener)
+	tcpl.SetDeadline(time.Now().Add(10 * time.Second))
+	s.listener = listener.CachingTCPKeepAliveListener{TCPListener: tcpl}
 	s.port = s.listener.Addr().(*net.TCPAddr).Port
 	return s, nil
 }
@@ -187,11 +190,13 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 func StartPlain() (Server, error) {
 	// Start listening right away to ensure that subsequent connections succeed.
 	s := &plainServer{}
-	listener, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", ":0")
 	if err != nil {
 		return nil, err
 	}
-	s.listener = tcplistener.RawListener{TCPListener: listener.(*net.TCPListener)}
-	s.port = listener.Addr().(*net.TCPAddr).Port
+	tcpl := l.(*net.TCPListener)
+	tcpl.SetDeadline(time.Now().Add(10 * time.Second))
+	s.listener = tcplistener.RawListener{TCPListener: tcpl}
+	s.port = s.listener.Addr().(*net.TCPAddr).Port
 	return s, nil
 }
