@@ -140,7 +140,9 @@ func (wss *wssServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnectio
 // returns without error, it is safe for a client to connect to the server, as
 // the server socket will be in "listening" mode. Then returned server will not
 // actually respond until ServeOnce() is called, but the connect() will not fail
-// as long as ServeOnce is called soon after this returns.
+// as long as ServeOnce is called soon after this returns. To prevent the
+// accept() call from blocking forever, the server socket has a read deadline
+// set 10 seconds in the future. Make sure you call accept() within that window.
 func StartWSS(direction, certFile, keyFile string) (Server, error) {
 	ws, err := StartWS(direction)
 	if err != nil {
@@ -186,7 +188,9 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 	return protocol.AdaptNetConn(conn, conn), nil
 }
 
-// StartPlain starts a single-serving server for plain NDT tests.
+// StartPlain starts a single-serving server for plain NDT tests. To prevent the
+// accept() call from blocking forever, the server socket has a read deadline
+// set 10 seconds in the future. Make sure you call accept() within that window.
 func StartPlain() (Server, error) {
 	// Start listening right away to ensure that subsequent connections succeed.
 	s := &plainServer{}
