@@ -96,10 +96,12 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 	// closeErr. We copy the current value to a separate variable in an effort to
 	// ensure that the race gets resolved in just one way for the following if().
 	err := closeErr
-
 	if err != nil && err != http.ErrServerClosed {
 		return nil, fmt.Errorf("Server did not close correctly: %v", err)
 	}
+
+	// If the context times out, then we can arrive here with both the connection
+	// and error being nil.
 	if s.newConn == nil && s.newConnErr == nil {
 		return nil, errors.New("No connection created")
 	}
@@ -113,16 +115,6 @@ func (s *wsServer) Close() {
 			LegacyNDTCloseDuration.WithLabelValues(string(s.kind)).Observe(time.Now().Sub(start).Seconds())
 		}(time.Now())
 
-		// We need to set the timeout in the future to break the server out of its
-		// confusion around the error being temporary. This is a hack.
-		s.listener.SetDeadline(time.Now().Add(10 * time.Second))
-
-		// Close the listener first. Accept() on a timed-out channel is a net.Error
-		// where .Temporary() returns true. This means that timeouts cause the
-		// http.Server.Serve() function to go into an infinite loop waiting for the
-		// "temporary" error to be fixed. When the listener is closed and the timeout
-		// is still in the future, the error returned is a net.Error where .Temporary()
-		// returns false, which terminates the Serve() call.
 		s.listener.Close()
 		s.srv.Close()
 	})

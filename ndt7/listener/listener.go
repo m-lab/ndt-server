@@ -10,7 +10,6 @@
 package listener
 
 import (
-	"errors"
 	"log"
 	"net"
 	"net/http"
@@ -22,17 +21,6 @@ import (
 
 var logFatalf = log.Fatalf
 
-type ClosedError struct {
-	error
-}
-
-func (c *ClosedError) Timeout() bool {
-	return false
-}
-func (c *ClosedError) Temporary() bool {
-	return false
-}
-
 // The code here is adapted from https://golang.org/src/net/http/server.go?s=85391:85432#L2742
 
 // CachingTCPKeepAliveListener sets TCP keep-alive timeouts on accepted
@@ -41,18 +29,11 @@ func (c *ClosedError) Temporary() bool {
 // go away.
 type CachingTCPKeepAliveListener struct {
 	*net.TCPListener
-	closed bool
 }
 
-func (ln *CachingTCPKeepAliveListener) Close() error {
-	ln.closed = true
-	return ln.TCPListener.Close()
-}
-
+// Accept a connection, set its keepalive time, and cache its associated file
+// descriptor for subsequent usage for measurement purposes.
 func (ln *CachingTCPKeepAliveListener) Accept() (net.Conn, error) {
-	if ln.closed {
-		return nil, &ClosedError{errors.New("Connection closed")}
-	}
 	tc, err := ln.AcceptTCP()
 	if err != nil {
 		return nil, err
@@ -73,7 +54,7 @@ func (ln *CachingTCPKeepAliveListener) Accept() (net.Conn, error) {
 	// it from the generic net.Conn object bound to a websocket.Conn. We will
 	// enable BBR at a later time and only if we really need it.
 	//
-	// Note: enabling BBR before performing the WebSocket handshake leaded
+	// Note: enabling BBR before performing the WebSocket handshake lead
 	// to the connection being stuck. See m-lab/ndt-server#37
 	// <https://github.com/m-lab/ndt-server/issues/37>.
 	fdcache.OwnFile(tc, fp)
@@ -109,7 +90,7 @@ func ListenAndServeAsync(server *http.Server) error {
 		server.Addr = listener.Addr().String()
 	}
 	// Serve asynchronously.
-	go serve(server, &CachingTCPKeepAliveListener{TCPListener: listener.(*net.TCPListener)})
+	go serve(server, &CachingTCPKeepAliveListener{listener.(*net.TCPListener)})
 	return nil
 }
 
@@ -145,6 +126,6 @@ func ListenAndServeTLSAsync(server *http.Server, certFile, keyFile string) error
 	// do nothing in an attempt to avoid making a bad situation worse.
 
 	// Serve asynchronously.
-	go serveTLS(server, &CachingTCPKeepAliveListener{TCPListener: listener.(*net.TCPListener)}, certFile, keyFile)
+	go serveTLS(server, &CachingTCPKeepAliveListener{listener.(*net.TCPListener)}, certFile, keyFile)
 	return nil
 }
