@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m-lab/go/rtx"
+
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/warnonerror"
 
@@ -85,6 +87,21 @@ func SaveData(record *NDTResult, datadir string) {
 // only needs a connection, and a factory for making single-use servers for
 // connections of that same type.
 func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
+	legacymetrics.ActiveTests.WithLabelValues(string(s.ConnectionType())).Inc()
+	defer legacymetrics.ActiveTests.WithLabelValues(string(s.ConnectionType())).Dec()
+	defer func() {
+		r := recover()
+		if r != nil {
+			legacymetrics.Failures.WithLabelValues(string(s.ConnectionType()), fmt.Sprint(r)).Inc()
+		}
+	}()
+	defer func(start time.Time) {
+		legacymetrics.ControlChannelDuration.WithLabelValues(string(s.ConnectionType())).Observe(
+			time.Now().Sub(start).Seconds())
+	}(time.Now())
+	handleControlChannel(conn, s)
+}
+func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	// Nothing should take more than 45 seconds, and exiting this method should
 	// cause all resources used by the test to be reclaimed.
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -107,15 +124,9 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 	}()
 
 	message, err := protocol.ReceiveJSONMessage(conn, protocol.MsgExtendedLogin)
-	if err != nil {
-		log.Println("Error reading JSON message:", err)
-		return
-	}
+	rtx.PanicOnError(err, "Error reading JSON message")
 	tests, err := strconv.ParseInt(message.Tests, 10, 64)
-	if err != nil {
-		log.Println("Failed to parse Tests integer:", err)
-		return
-	}
+	rtx.PanicOnError(err, "Failed to parse Tests integer")
 	if (tests & cTestStatus) == 0 {
 		log.Println("We don't support clients that don't support TestStatus")
 		return
@@ -131,16 +142,20 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestS2C))
 	}
 
-	protocol.SendJSONMessage(protocol.SrvQueue, "0", conn)
-	protocol.SendJSONMessage(protocol.MsgLogin, "v5.0-NDTinGO", conn)
-	protocol.SendJSONMessage(protocol.MsgLogin, strings.Join(testsToRun, " "), conn)
+	rtx.PanicOnError(
+		protocol.SendJSONMessage(protocol.SrvQueue, "0", conn),
+		"Could not send SrvQueue")
+	rtx.PanicOnError(
+		protocol.SendJSONMessage(protocol.MsgLogin, "v5.0-NDTinGO", conn),
+		"Could not send MsgLogin with version")
+	rtx.PanicOnError(protocol.SendJSONMessage(
+		protocol.MsgLogin, strings.Join(testsToRun, " "), conn),
+		"Could not send MsgLogin with the tests")
 
 	var c2sRate, s2cRate float64
 	if runC2s {
 		record.C2S, err = c2s.ManageTest(ctx, conn, s)
-		if err != nil {
-			log.Println("ERROR: manageC2sTest", err)
-		}
+		rtx.PanicOnError(err, "Could not run c2s test")
 		if record.C2S != nil && record.C2S.MeanThroughputMbps != 0 {
 			c2sRate = record.C2S.MeanThroughputMbps
 			legacymetrics.TestRate.WithLabelValues("c2s").Observe(c2sRate)
@@ -148,9 +163,7 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 	}
 	if runS2c {
 		record.S2C, err = s2c.ManageTest(ctx, conn, s)
-		if err != nil {
-			log.Println("ERROR: manageS2cTest", err)
-		}
+		rtx.PanicOnError(err, "Could not run s2c test")
 		if record.S2C != nil && record.S2C.MeanThroughputMbps != 0 {
 			s2cRate = record.S2C.MeanThroughputMbps
 			legacymetrics.TestRate.WithLabelValues("s2c").Observe(s2cRate)
@@ -158,6 +171,9 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 	}
 	log.Printf("NDT: uploaded at %.4f Mbps and downloaded at %.4f Mbps", c2sRate, s2cRate)
 	// For historical reasons, clients expect results in kbps
-	protocol.SendJSONMessage(protocol.MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000), conn)
-	protocol.SendJSONMessage(protocol.MsgLogout, "", conn)
+	rtx.PanicOnError(
+		protocol.SendJSONMessage(protocol.MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000), conn),
+		"Could not send test results message")
+	rtx.PanicOnError(protocol.SendJSONMessage(protocol.MsgLogout, "", conn),
+		"Could not send MsgLogout")
 }

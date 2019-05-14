@@ -10,6 +10,7 @@
 package listener
 
 import (
+	"errors"
 	"log"
 	"net"
 	"net/http"
@@ -21,6 +22,17 @@ import (
 
 var logFatalf = log.Fatalf
 
+type ClosedError struct {
+	error
+}
+
+func (c *ClosedError) Timeout() bool {
+	return false
+}
+func (c *ClosedError) Temporary() bool {
+	return false
+}
+
 // The code here is adapted from https://golang.org/src/net/http/server.go?s=85391:85432#L2742
 
 // CachingTCPKeepAliveListener sets TCP keep-alive timeouts on accepted
@@ -29,9 +41,18 @@ var logFatalf = log.Fatalf
 // go away.
 type CachingTCPKeepAliveListener struct {
 	*net.TCPListener
+	closed bool
+}
+
+func (ln *CachingTCPKeepAliveListener) Close() error {
+	ln.closed = true
+	return ln.TCPListener.Close()
 }
 
 func (ln *CachingTCPKeepAliveListener) Accept() (net.Conn, error) {
+	if ln.closed {
+		return nil, &ClosedError{errors.New("Connection closed")}
+	}
 	tc, err := ln.AcceptTCP()
 	if err != nil {
 		return nil, err
@@ -88,7 +109,7 @@ func ListenAndServeAsync(server *http.Server) error {
 		server.Addr = listener.Addr().String()
 	}
 	// Serve asynchronously.
-	go serve(server, &CachingTCPKeepAliveListener{listener.(*net.TCPListener)})
+	go serve(server, &CachingTCPKeepAliveListener{TCPListener: listener.(*net.TCPListener)})
 	return nil
 }
 
@@ -124,6 +145,6 @@ func ListenAndServeTLSAsync(server *http.Server, certFile, keyFile string) error
 	// do nothing in an attempt to avoid making a bad situation worse.
 
 	// Serve asynchronously.
-	go serveTLS(server, &CachingTCPKeepAliveListener{listener.(*net.TCPListener)}, certFile, keyFile)
+	go serveTLS(server, &CachingTCPKeepAliveListener{TCPListener: listener.(*net.TCPListener)}, certFile, keyFile)
 	return nil
 }

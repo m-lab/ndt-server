@@ -103,6 +103,7 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 
 func (s *wsServer) Close() {
 	s.once.Do(func() {
+		LegacyNDTClose.WithLabelValues(string(s.kind)).Inc()
 		defer func(start time.Time) {
 			LegacyNDTCloseDuration.WithLabelValues(string(s.kind)).Observe(time.Now().Sub(start).Seconds())
 		}(time.Now())
@@ -119,7 +120,6 @@ func (s *wsServer) Close() {
 		// returns false, which terminates the Serve() call.
 		s.listener.Close()
 		s.srv.Close()
-		LegacyNDTClose.WithLabelValues(string(s.kind)).Inc()
 	})
 }
 
