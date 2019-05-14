@@ -3,7 +3,7 @@ package singleserving
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"sync"
@@ -96,8 +96,9 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 	// closeErr. We copy the current value to a separate variable in an effort to
 	// ensure that the race gets resolved in just one way for the following if().
 	err := closeErr
-	if err != nil && err != http.ErrServerClosed {
-		return nil, fmt.Errorf("Server did not close correctly: %v", err)
+	if s.newConn == nil && err != nil && err != http.ErrServerClosed {
+		log.Println("Server closed incorrectly:", err)
+		return nil, errors.New("Server did not close correctly")
 	}
 
 	// If the context times out, then we can arrive here with both the connection

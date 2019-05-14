@@ -92,6 +92,7 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 	defer func() {
 		r := recover()
 		if r != nil {
+			log.Println("Test failed, but we recovered", r)
 			legacymetrics.Failures.WithLabelValues(string(s.ConnectionType()), fmt.Sprint(r)).Inc()
 		}
 	}()
