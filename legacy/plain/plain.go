@@ -9,12 +9,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m-lab/ndt-server/legacy/metrics"
+
 	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/legacy"
 	"github.com/m-lab/ndt-server/legacy/ndt"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/singleserving"
-	"github.com/m-lab/ndt-server/metrics"
 )
 
 // plainServer handles requests that are TCP-based but not HTTP(S) based. If it
@@ -27,8 +28,8 @@ type plainServer struct {
 	datadir  string
 }
 
-func (ps *plainServer) SingleServingServer(direction string) (singleserving.Server, error) {
-	return singleserving.StartPlain()
+func (ps *plainServer) SingleServingServer(direction string) (ndt.SingleMeasurementServer, error) {
+	return singleserving.ListenPlain()
 }
 
 // sniffThenHandle implements protocol sniffing to allow WS clients and just-TCP
@@ -37,13 +38,6 @@ func (ps *plainServer) SingleServingServer(direction string) (singleserving.Serv
 // this code. In the future, if you are thinking of adding protocol sniffing to
 // your system, don't.
 func (ps *plainServer) sniffThenHandle(conn net.Conn) {
-	// Set up our observation of the duration of this function.
-	connectionType := "tcp" // This value may change. Don't close over its value until after the sniffing procedure.
-	startTime := time.Now()
-	defer func() {
-		endTime := time.Now()
-		metrics.TestDuration.WithLabelValues("legacy", connectionType).Observe(endTime.Sub(startTime).Seconds())
-	}()
 	// Peek at the first three bytes. If they are "GET", then this is an HTTP
 	// conversation and should be forwarded to the HTTP server.
 	input := bufio.NewReader(conn)
@@ -53,6 +47,7 @@ func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 		return
 	}
 	if string(lead) == "GET" {
+		metrics.SniffedReverseProxyCount.Inc()
 		// Forward HTTP-like handshakes to the HTTP server. Note that this does NOT
 		// introduce overhead for the s2c and c2s tests, because in those tests the
 		// HTTP server itself opens the testing port, and that server will not use
@@ -61,7 +56,6 @@ func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 		// We must forward instead of doing an HTTP redirect because existing deployed
 		// clients don't support redirects, e.g.
 		//    https://github.com/websockets/ws/issues/812
-		connectionType = "forwarded_ws"
 		fwd, err := ps.dialer.Dial("tcp", ps.wsAddr)
 		if err != nil {
 			log.Println("Could not forward connection", err)

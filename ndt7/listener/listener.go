@@ -31,7 +31,9 @@ type CachingTCPKeepAliveListener struct {
 	*net.TCPListener
 }
 
-func (ln CachingTCPKeepAliveListener) Accept() (net.Conn, error) {
+// Accept a connection, set its keepalive time, and cache its associated file
+// descriptor for subsequent usage for measurement purposes.
+func (ln *CachingTCPKeepAliveListener) Accept() (net.Conn, error) {
 	tc, err := ln.AcceptTCP()
 	if err != nil {
 		return nil, err
@@ -52,7 +54,7 @@ func (ln CachingTCPKeepAliveListener) Accept() (net.Conn, error) {
 	// it from the generic net.Conn object bound to a websocket.Conn. We will
 	// enable BBR at a later time and only if we really need it.
 	//
-	// Note: enabling BBR before performing the WebSocket handshake leaded
+	// Note: enabling BBR before performing the WebSocket handshake lead
 	// to the connection being stuck. See m-lab/ndt-server#37
 	// <https://github.com/m-lab/ndt-server/issues/37>.
 	fdcache.OwnFile(tc, fp)
@@ -88,7 +90,7 @@ func ListenAndServeAsync(server *http.Server) error {
 		server.Addr = listener.Addr().String()
 	}
 	// Serve asynchronously.
-	go serve(server, CachingTCPKeepAliveListener{listener.(*net.TCPListener)})
+	go serve(server, &CachingTCPKeepAliveListener{listener.(*net.TCPListener)})
 	return nil
 }
 
@@ -124,6 +126,6 @@ func ListenAndServeTLSAsync(server *http.Server, certFile, keyFile string) error
 	// do nothing in an attempt to avoid making a bad situation worse.
 
 	// Serve asynchronously.
-	go serveTLS(server, CachingTCPKeepAliveListener{listener.(*net.TCPListener)}, certFile, keyFile)
+	go serveTLS(server, &CachingTCPKeepAliveListener{listener.(*net.TCPListener)}, certFile, keyFile)
 	return nil
 }

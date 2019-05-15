@@ -5,37 +5,40 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// Metrics for exporting to prometheus to aid in server monitoring.
+//
+// TODO: Decide what monitoring we want and transition to that.
 var (
-	// TestRate exports a histogram of request rates using prometheus
-	TestRate = promauto.NewHistogramVec(
+	ControlChannelDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "ndt_test_rate_mbps",
-			Help: "A histogram of request rates.",
+			Name: "ndt_legacy_control_channel_duration",
+			Help: "How long do tests last.",
 			Buckets: []float64{
 				.1, .15, .25, .4, .6,
 				1, 1.5, 2.5, 4, 6,
 				10, 15, 25, 40, 60,
-				100, 150, 250, 400, 600,
-				1000},
+				100, 150},
 		},
-		[]string{"direction"},
+		[]string{"protocol"},
 	)
-	// TestCount exports via prometheus the number of tests run by this server.
-	//
-	// TODO: Decide what monitoring we want and transition to that.
-	TestCount = promauto.NewCounterVec(
+	MeasurementServerStart = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "ndt_test_total",
-			Help: "Number of NDT tests run by this server.",
+			Name: "ndt_legacy_measurementserver_start_total",
+			Help: "The number of times a single-serving server was started.",
 		},
-		[]string{"direction", "code"},
+		[]string{"protocol"},
 	)
-	// ErrorCount exports the number of test failures seen by the server.
-	ErrorCount = promauto.NewCounterVec(
+	MeasurementServerStop = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "ndt_test_errors_total",
-			Help: "Number of test errors of each type for each test.",
+			Name: "ndt_legacy_measurementserver_stop_total",
+			Help: "The number of times a single-serving server was stopped.",
 		},
-		[]string{"test", "error"},
+		[]string{"protocol"},
+	)
+	SniffedReverseProxyCount = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "ndt_legacy_sniffed_ws_total",
+			Help: "The number of times we sniffed-then-proxied a websocket connection on the legacy channel.",
+		},
 	)
 )

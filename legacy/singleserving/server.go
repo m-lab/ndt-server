@@ -2,43 +2,36 @@ package singleserving
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"log"
 	"net"
 	"net/http"
+	"sync"
+
+	"github.com/m-lab/ndt-server/legacy/ndt"
 
 	"github.com/m-lab/ndt-server/legacy/ws"
 	"github.com/m-lab/ndt-server/ndt7/listener"
 
-	"github.com/m-lab/ndt-server/legacy/metrics"
+	legacymetrics "github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/tcplistener"
+	"github.com/m-lab/ndt-server/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// Factory is the method by which we abstract away what kind of server is being
-// created at any given time. Using this abstraction allows us to use almost the
-// same code for WS and WSS.
-type Factory interface {
-	SingleServingServer(direction string) (Server, error)
-}
-
-// Server is the interface implemented by every single-serving server. No matter
-// whether they use WSS, WS, TCP with JSON, or TCP without JSON.
-type Server interface {
-	Port() int
-	ServeOnce(context.Context) (protocol.MeasuredConnection, error)
-	Close()
-}
-
 // wsServer is a single-serving server for unencrypted websockets.
 type wsServer struct {
 	srv        *http.Server
-	listener   net.Listener
+	listener   *listener.CachingTCPKeepAliveListener
 	port       int
 	direction  string
 	newConn    protocol.MeasuredConnection
 	newConnErr error
+	once       sync.Once
+	kind       ndt.ConnectionType
+	serve      func(net.Listener) error
 }
 
 func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +44,7 @@ func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.newConn = protocol.AdaptWsConn(wsc)
 	// The websocket upgrade process hijacks the connection. Only un-hijacked
 	// connections are terminated on server shutdown.
-	s.Close()
+	go s.Close()
 }
 
 func (s *wsServer) Port() int {
@@ -60,14 +53,12 @@ func (s *wsServer) Port() int {
 
 func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, error) {
 	// This is a single-serving server. After serving one response, shut it down.
-	defer func() {
-		go s.Close()
-	}()
+	defer s.Close()
 
 	derivedCtx, derivedCancel := context.WithCancel(ctx)
 	var closeErr error
 	go func() {
-		closeErr = s.srv.Serve(s.listener)
+		closeErr = s.serve(s.listener)
 		derivedCancel()
 	}()
 	// This will wait until derivedCancel() is called or the parent context is
@@ -79,74 +70,89 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 	// closeErr. We copy the current value to a separate variable in an effort to
 	// ensure that the race gets resolved in just one way for the following if().
 	err := closeErr
+	if s.newConn == nil && err != nil && err != http.ErrServerClosed {
+		log.Println("Server closed incorrectly:", err)
+		return nil, errors.New("Server did not close correctly")
+	}
 
-	if err != nil && err != http.ErrServerClosed {
-		return nil, fmt.Errorf("Server did not close correctly: %v", err)
+	// If the context times out, then we can arrive here with both the connection
+	// and error being nil.
+	if s.newConn == nil && s.newConnErr == nil {
+		return nil, errors.New("No connection created")
 	}
 	return s.newConn, s.newConnErr
 }
 
 func (s *wsServer) Close() {
-	s.srv.Close()
-	s.listener.Close()
+	s.once.Do(func() {
+		legacymetrics.MeasurementServerStop.WithLabelValues(string(s.kind)).Inc()
+		s.listener.Close()
+		s.srv.Close()
+	})
 }
 
-// StartWS starts a single-serving unencrypted websocket server. When this
+// ListenWS starts a single-serving unencrypted websocket server. When this
 // method returns without error, it is safe for a client to connect to the
-// server, as the server socket will be in "listening" mode. The returned
-// server will not actually respond until ServeOnce() is called, but the
-// connect() will not fail as long as ServeOnce is called soon after this
-// returns.
-func StartWS(direction string) (Server, error) {
+// server, as the server socket will be in "listening" mode. The returned server
+// will not actually respond until ServeOnce() is called, but the connect() will
+// not fail as long as ServeOnce is called soon ("soon" is defined by os-level
+// timeouts) after this returns.
+func ListenWS(direction string) (ndt.SingleMeasurementServer, error) {
+	legacymetrics.MeasurementServerStart.WithLabelValues(string(ndt.WS)).Inc()
+	return listenWS(direction)
+}
+
+func listenWS(direction string) (*wsServer, error) {
 	mux := http.NewServeMux()
 	s := &wsServer{
 		srv: &http.Server{
 			Handler: mux,
 		},
 		direction: direction,
+		kind:      ndt.WS,
 	}
+	s.serve = s.srv.Serve
 	mux.HandleFunc("/ndt_protocol",
 		promhttp.InstrumentHandlerCounter(metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": direction}), s))
 
 	// Start listening right away to ensure that subsequent connections succeed.
-	tcpl, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", ":0")
 	if err != nil {
 		return nil, err
 	}
-	s.listener = listener.CachingTCPKeepAliveListener{TCPListener: tcpl.(*net.TCPListener)}
-	s.port = s.listener.Addr().(*net.TCPAddr).Port
+	tcpl := l.(*net.TCPListener)
+	s.port = tcpl.Addr().(*net.TCPAddr).Port
+	s.listener = &listener.CachingTCPKeepAliveListener{TCPListener: tcpl}
 	return s, nil
 }
 
 // wssServer is a single-serving server for encrypted websockets. A wssServer is
-// just a wsServer with a different ServeOnce method and two extra fields.
+// just a wsServer with a different start method and two extra fields.
 type wssServer struct {
 	*wsServer
 	certFile, keyFile string
 }
 
-func (wss *wssServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, error) {
-	err := wss.srv.ServeTLS(wss.listener, wss.certFile, wss.keyFile)
-	if err != http.ErrServerClosed {
-		return nil, err
-	}
-	return wss.newConn, wss.newConnErr
-}
-
-// StartWSS starts a single-serving encrypted websocket server. When this method
+// ListenWSS starts a single-serving encrypted websocket server. When this method
 // returns without error, it is safe for a client to connect to the server, as
-// the server socket will be in "listening" mode. Then returned server will not
+// the server socket will be in "listening" mode. The returned server will not
 // actually respond until ServeOnce() is called, but the connect() will not fail
-// as long as ServeOnce is called soon after this returns.
-func StartWSS(direction, certFile, keyFile string) (Server, error) {
-	ws, err := StartWS(direction)
+// as long as ServeOnce is called soon ("soon" is defined by os-level timeouts)
+// after this returns.
+func ListenWSS(direction, certFile, keyFile string) (ndt.SingleMeasurementServer, error) {
+	legacymetrics.MeasurementServerStart.WithLabelValues(string(ndt.WSS)).Inc()
+	ws, err := listenWS(direction)
 	if err != nil {
 		return nil, err
 	}
 	wss := wssServer{
-		wsServer: ws.(*wsServer),
+		wsServer: ws,
 		certFile: certFile,
 		keyFile:  keyFile,
+	}
+	wss.kind = ndt.WSS
+	wss.serve = func(l net.Listener) error {
+		return wss.srv.ServeTLS(l, wss.certFile, wss.keyFile)
 	}
 	return &wss, nil
 }
@@ -158,6 +164,7 @@ type plainServer struct {
 }
 
 func (ps *plainServer) Close() {
+	legacymetrics.MeasurementServerStop.WithLabelValues(string(ndt.Plain)).Inc()
 	ps.listener.Close()
 }
 
@@ -183,15 +190,22 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 	return protocol.AdaptNetConn(conn, conn), nil
 }
 
-// StartPlain starts a single-serving server for plain NDT tests.
-func StartPlain() (Server, error) {
+// ListenPlain starts a single-serving server for plain NDT tests. When this
+// method returns without error, it is safe for a client to connect to the
+// server, as the server socket will be in "listening" mode. The returned server
+// will not actually respond until ServeOnce() is called, but the connect() will
+// not fail as long as ServeOnce is called soon ("soon" is defined by os-level
+// timeouts) after this returns.
+func ListenPlain() (ndt.SingleMeasurementServer, error) {
+	legacymetrics.MeasurementServerStart.WithLabelValues(string(ndt.Plain)).Inc()
 	// Start listening right away to ensure that subsequent connections succeed.
 	s := &plainServer{}
-	listener, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", ":0")
 	if err != nil {
 		return nil, err
 	}
-	s.listener = tcplistener.RawListener{TCPListener: listener.(*net.TCPListener)}
-	s.port = listener.Addr().(*net.TCPAddr).Port
+	tcpl := l.(*net.TCPListener)
+	s.listener = &tcplistener.RawListener{TCPListener: tcpl}
+	s.port = s.listener.Addr().(*net.TCPAddr).Port
 	return s, nil
 }

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m-lab/go/rtx"
+
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/warnonerror"
 
@@ -20,6 +22,7 @@ import (
 	"github.com/m-lab/ndt-server/legacy/ndt"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/s2c"
+	"github.com/m-lab/ndt-server/metrics"
 )
 
 const (
@@ -79,12 +82,52 @@ func SaveData(record *NDTResult, datadir string) {
 	log.Println("Wrote", file.Name())
 }
 
+func panicMsgToErrType(msg string) string {
+	okayWords := map[string]struct{}{
+		"MsgExtendedLogin": {},
+		"ParseInt":         {},
+		"SrvQueue":         {},
+		"MsgLoginVersion":  {},
+		"MsgLoginTests":    {},
+		"C2S":              {},
+		"S2C":              {},
+		"MsgResults":       {},
+		"MsgLogout":        {},
+	}
+	words := strings.SplitN(msg, " ", 1)
+	if len(words) >= 1 {
+		word := words[0]
+		if _, ok := okayWords[word]; ok {
+			return word
+		}
+	}
+	return "panic"
+}
+
 // HandleControlChannel is the "business logic" of an NDT test. It is designed
 // to run every test, and to never need to know whether the underlying
 // connection is just a TCP socket, a WS connection, or a WSS connection. It
 // only needs a connection, and a factory for making single-use servers for
 // connections of that same type.
 func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
+	metrics.ActiveTests.WithLabelValues(string(s.ConnectionType())).Inc()
+	defer metrics.ActiveTests.WithLabelValues(string(s.ConnectionType())).Dec()
+	defer func(start time.Time) {
+		legacymetrics.ControlChannelDuration.WithLabelValues(string(s.ConnectionType())).Observe(
+			time.Since(start).Seconds())
+	}(time.Now())
+	defer func() {
+		r := recover()
+		if r != nil {
+			log.Println("Test failed, but we recovered:", r)
+			// All of our panic messages begin with an informative first word.  Use that as a label.
+			errType := panicMsgToErrType(fmt.Sprint(r))
+			metrics.ErrorCount.WithLabelValues(string(s.ConnectionType()), errType).Inc()
+		}
+	}()
+	handleControlChannel(conn, s)
+}
+func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	// Nothing should take more than 45 seconds, and exiting this method should
 	// cause all resources used by the test to be reclaimed.
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -107,15 +150,9 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 	}()
 
 	message, err := protocol.ReceiveJSONMessage(conn, protocol.MsgExtendedLogin)
-	if err != nil {
-		log.Println("Error reading JSON message:", err)
-		return
-	}
+	rtx.PanicOnError(err, "MsgExtendedLogin - error reading JSON message")
 	tests, err := strconv.ParseInt(message.Tests, 10, 64)
-	if err != nil {
-		log.Println("Failed to parse Tests integer:", err)
-		return
-	}
+	rtx.PanicOnError(err, "ParseInt - failed to parse tests integer")
 	if (tests & cTestStatus) == 0 {
 		log.Println("We don't support clients that don't support TestStatus")
 		return
@@ -131,33 +168,38 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestS2C))
 	}
 
-	protocol.SendJSONMessage(protocol.SrvQueue, "0", conn)
-	protocol.SendJSONMessage(protocol.MsgLogin, "v5.0-NDTinGO", conn)
-	protocol.SendJSONMessage(protocol.MsgLogin, strings.Join(testsToRun, " "), conn)
+	rtx.PanicOnError(
+		protocol.SendJSONMessage(protocol.SrvQueue, "0", conn),
+		"SrvQueue - Could not send SrvQueue")
+	rtx.PanicOnError(
+		protocol.SendJSONMessage(protocol.MsgLogin, "v5.0-NDTinGO", conn),
+		"MsgLoginVersion - Could not send MsgLogin with version")
+	rtx.PanicOnError(protocol.SendJSONMessage(
+		protocol.MsgLogin, strings.Join(testsToRun, " "), conn),
+		"MsgLoginTests - Could not send MsgLogin with the tests")
 
 	var c2sRate, s2cRate float64
 	if runC2s {
 		record.C2S, err = c2s.ManageTest(ctx, conn, s)
-		if err != nil {
-			log.Println("ERROR: manageC2sTest", err)
-		}
+		rtx.PanicOnError(err, "C2S - Could not run c2s test")
 		if record.C2S != nil && record.C2S.MeanThroughputMbps != 0 {
 			c2sRate = record.C2S.MeanThroughputMbps
-			legacymetrics.TestRate.WithLabelValues("c2s").Observe(c2sRate)
+			metrics.TestRate.WithLabelValues("c2s").Observe(c2sRate)
 		}
 	}
 	if runS2c {
 		record.S2C, err = s2c.ManageTest(ctx, conn, s)
-		if err != nil {
-			log.Println("ERROR: manageS2cTest", err)
-		}
+		rtx.PanicOnError(err, "S2C - Could not run s2c test")
 		if record.S2C != nil && record.S2C.MeanThroughputMbps != 0 {
 			s2cRate = record.S2C.MeanThroughputMbps
-			legacymetrics.TestRate.WithLabelValues("s2c").Observe(s2cRate)
+			metrics.TestRate.WithLabelValues("s2c").Observe(s2cRate)
 		}
 	}
 	log.Printf("NDT: uploaded at %.4f Mbps and downloaded at %.4f Mbps", c2sRate, s2cRate)
 	// For historical reasons, clients expect results in kbps
-	protocol.SendJSONMessage(protocol.MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000), conn)
-	protocol.SendJSONMessage(protocol.MsgLogout, "", conn)
+	rtx.PanicOnError(
+		protocol.SendJSONMessage(protocol.MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000), conn),
+		"MsgResults - Could not send test results message")
+	rtx.PanicOnError(protocol.SendJSONMessage(protocol.MsgLogout, "", conn),
+		"MsgLogout - Could not send MsgLogout")
 }
