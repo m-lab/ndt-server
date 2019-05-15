@@ -65,20 +65,20 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	srv, err := s.SingleServingServer("s2c")
 	if err != nil {
 		log.Println("Could not start single serving server", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "StartSingleServingServer")
+		metrics.ErrorCount.WithLabelValues("s2c", "StartSingleServingServer").Inc()
 		return record, err
 	}
 	err = protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(srv.Port()), controlConn)
 	if err != nil {
 		log.Println("Could not send TestPrepare", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "TestPrepare")
+		metrics.ErrorCount.WithLabelValues("s2c", "TestPrepare").Inc()
 		return record, err
 	}
 
 	testConn, err := srv.ServeOnce(localCtx)
 	if err != nil || testConn == nil {
 		log.Println("Could not successfully ServeOnce", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "ServeOnce")
+		metrics.ErrorCount.WithLabelValues("s2c", "ServeOnce").Inc()
 		if err == nil {
 			err = errors.New("nil testConn, but also a nil error")
 		}
@@ -97,7 +97,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	err = protocol.SendJSONMessage(protocol.TestStart, "", controlConn)
 	if err != nil {
 		log.Println("Could not write TestStart", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "TestStart")
+		metrics.ErrorCount.WithLabelValues("s2c", "TestStart").Inc()
 		return record, err
 	}
 
@@ -107,14 +107,14 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	record.EndTime = time.Now()
 	if err != nil {
 		log.Println("Could not FillUntil", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "FillUntil")
+		metrics.ErrorCount.WithLabelValues("s2c", "FillUntil").Inc()
 		return record, err
 	}
 
 	web100metrics, err := testConn.StopMeasuring()
 	if err != nil {
 		log.Println("Could not read metrics", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "web100Metrics")
+		metrics.ErrorCount.WithLabelValues("s2c", "web100Metrics").Inc()
 		return record, err
 	}
 
@@ -133,13 +133,13 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	err = protocol.WriteNDTMessage(controlConn, protocol.TestMsg, resultMsg)
 	if err != nil {
 		log.Println("Could not write a TestMsg", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "TestMsgSend")
+		metrics.ErrorCount.WithLabelValues("s2c", "TestMsgSend").Inc()
 		return record, err
 	}
 
 	clientRateMsg, err := protocol.ReceiveJSONMessage(controlConn, protocol.TestMsg)
 	if err != nil {
-		metrics.ErrorCount.WithLabelValues("s2c", "TestMsgRcv")
+		metrics.ErrorCount.WithLabelValues("s2c", "TestMsgRcv").Inc()
 		log.Println("Could not receive a TestMsg", err)
 		return record, err
 	}
@@ -155,14 +155,14 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	err = protocol.SendMetrics(web100metrics, controlConn)
 	if err != nil {
 		log.Println("Could not SendMetrics", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "SendMetrics")
+		metrics.ErrorCount.WithLabelValues("s2c", "SendMetrics").Inc()
 		return record, err
 	}
 
 	err = protocol.SendJSONMessage(protocol.TestFinalize, "", controlConn)
 	if err != nil {
 		log.Println("Could not send TestFinalize", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "TestFinalize")
+		metrics.ErrorCount.WithLabelValues("s2c", "TestFinalize").Inc()
 		return record, err
 	}
 
