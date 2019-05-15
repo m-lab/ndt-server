@@ -22,14 +22,14 @@ type WSHandler interface {
 
 type httpFactory struct{}
 
-func (hf *httpFactory) SingleServingServer(dir string) (ndt.TestServer, error) {
-	return singleserving.StartWS(dir)
+func (hf *httpFactory) SingleServingServer(dir string) (ndt.SingleMeasurementServer, error) {
+	return singleserving.ListenWS(dir)
 }
 
 // httpHandler handles requests that come in over HTTP or HTTPS. It should be
 // created with MakeHTTPHandler() or MakeHTTPSHandler().
 type httpHandler struct {
-	serverFactory  ndt.TestServerFactory
+	serverFactory  ndt.SingleMeasurementServerFactory
 	connectionType ndt.ConnectionType
 	datadir        string
 }
@@ -40,7 +40,7 @@ func (s *httpHandler) ConnectionType() ndt.ConnectionType { return s.connectionT
 func (s *httpHandler) TestLength() time.Duration  { return 10 * time.Second }
 func (s *httpHandler) TestMaxTime() time.Duration { return 30 * time.Second }
 
-func (s *httpHandler) SingleServingServer(dir string) (ndt.TestServer, error) {
+func (s *httpHandler) SingleServingServer(dir string) (ndt.SingleMeasurementServer, error) {
 	return s.serverFactory.SingleServingServer(dir)
 }
 
@@ -75,8 +75,8 @@ type httpsFactory struct {
 	keyFile  string
 }
 
-func (hf *httpsFactory) SingleServingServer(dir string) (ndt.TestServer, error) {
-	return singleserving.StartWSS(dir, hf.certFile, hf.keyFile)
+func (hf *httpsFactory) SingleServingServer(dir string) (ndt.SingleMeasurementServer, error) {
+	return singleserving.ListenWSS(dir, hf.certFile, hf.keyFile)
 }
 
 // NewWSS returns a handler suitable for https-based connections.

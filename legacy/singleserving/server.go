@@ -13,9 +13,10 @@ import (
 	"github.com/m-lab/ndt-server/legacy/ws"
 	"github.com/m-lab/ndt-server/ndt7/listener"
 
-	"github.com/m-lab/ndt-server/legacy/metrics"
+	legacymetrics "github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/tcplistener"
+	"github.com/m-lab/ndt-server/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -84,24 +85,24 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 
 func (s *wsServer) Close() {
 	s.once.Do(func() {
-		metrics.TestServerStop.WithLabelValues(string(s.kind)).Inc()
+		legacymetrics.MeasurementServerStop.WithLabelValues(string(s.kind)).Inc()
 		s.listener.Close()
 		s.srv.Close()
 	})
 }
 
-// StartWS starts a single-serving unencrypted websocket server. When this
+// ListenWS starts a single-serving unencrypted websocket server. When this
 // method returns without error, it is safe for a client to connect to the
 // server, as the server socket will be in "listening" mode. The returned server
 // will not actually respond until ServeOnce() is called, but the connect() will
 // not fail as long as ServeOnce is called soon ("soon" is defined by os-level
 // timeouts) after this returns.
-func StartWS(direction string) (ndt.TestServer, error) {
-	metrics.TestServerStart.WithLabelValues(string(ndt.WS)).Inc()
-	return startWS(direction)
+func ListenWS(direction string) (ndt.SingleMeasurementServer, error) {
+	legacymetrics.MeasurementServerStart.WithLabelValues(string(ndt.WS)).Inc()
+	return listenWS(direction)
 }
 
-func startWS(direction string) (*wsServer, error) {
+func listenWS(direction string) (*wsServer, error) {
 	mux := http.NewServeMux()
 	s := &wsServer{
 		srv: &http.Server{
@@ -132,15 +133,15 @@ type wssServer struct {
 	certFile, keyFile string
 }
 
-// StartWSS starts a single-serving encrypted websocket server. When this method
+// ListenWSS starts a single-serving encrypted websocket server. When this method
 // returns without error, it is safe for a client to connect to the server, as
 // the server socket will be in "listening" mode. The returned server will not
 // actually respond until ServeOnce() is called, but the connect() will not fail
 // as long as ServeOnce is called soon ("soon" is defined by os-level timeouts)
 // after this returns.
-func StartWSS(direction, certFile, keyFile string) (ndt.TestServer, error) {
-	metrics.TestServerStart.WithLabelValues(string(ndt.WSS)).Inc()
-	ws, err := startWS(direction)
+func ListenWSS(direction, certFile, keyFile string) (ndt.SingleMeasurementServer, error) {
+	legacymetrics.MeasurementServerStart.WithLabelValues(string(ndt.WSS)).Inc()
+	ws, err := listenWS(direction)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +164,7 @@ type plainServer struct {
 }
 
 func (ps *plainServer) Close() {
-	metrics.TestServerStop.WithLabelValues(string(ndt.Plain)).Inc()
+	legacymetrics.MeasurementServerStop.WithLabelValues(string(ndt.Plain)).Inc()
 	ps.listener.Close()
 }
 
@@ -189,14 +190,14 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 	return protocol.AdaptNetConn(conn, conn), nil
 }
 
-// StartPlain starts a single-serving server for plain NDT tests. When this
+// ListenPlain starts a single-serving server for plain NDT tests. When this
 // method returns without error, it is safe for a client to connect to the
 // server, as the server socket will be in "listening" mode. The returned server
 // will not actually respond until ServeOnce() is called, but the connect() will
 // not fail as long as ServeOnce is called soon ("soon" is defined by os-level
 // timeouts) after this returns.
-func StartPlain() (ndt.TestServer, error) {
-	metrics.TestServerStart.WithLabelValues(string(ndt.Plain)).Inc()
+func ListenPlain() (ndt.SingleMeasurementServer, error) {
+	legacymetrics.MeasurementServerStart.WithLabelValues(string(ndt.Plain)).Inc()
 	// Start listening right away to ensure that subsequent connections succeed.
 	s := &plainServer{}
 	l, err := net.Listen("tcp", ":0")

@@ -21,7 +21,7 @@ var (
 // Server describes the methods implemented by every server of every connection
 // type.
 type Server interface {
-	TestServerFactory
+	SingleMeasurementServerFactory
 	ConnectionType() ConnectionType
 	DataDir() string
 
@@ -31,16 +31,16 @@ type Server interface {
 	TestMaxTime() time.Duration
 }
 
-// TestServerFactory is the method by which we abstract away what kind of server is being
+// SingleMeasurementServerFactory is the method by which we abstract away what kind of server is being
 // created at any given time. Using this abstraction allows us to use almost the
 // same code for WS and WSS.
-type TestServerFactory interface {
-	SingleServingServer(direction string) (TestServer, error)
+type SingleMeasurementServerFactory interface {
+	SingleServingServer(direction string) (SingleMeasurementServer, error)
 }
 
-// TestServer is the interface implemented by every single-serving server. No
+// SingleMeasurementServer is the interface implemented by every single-serving server. No
 // matter whether they use WSS, WS, TCP with JSON, or TCP without JSON.
-type TestServer interface {
+type SingleMeasurementServer interface {
 	Port() int
 	ServeOnce(context.Context) (protocol.MeasuredConnection, error)
 	Close()

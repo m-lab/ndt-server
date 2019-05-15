@@ -5,23 +5,39 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// Metrics for general use, in both the legacy server and in NDT7.
 var (
-	// CurrentTests keeps track of how many tests are currently executing (and what type they are)
-	CurrentTests = promauto.NewGaugeVec(
+	ActiveTests = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "ndt_control_current",
-			Help: "A gauge of requests currently being served by the NDT control handler.",
+			Name: "ndt_active_tests",
+			Help: "A gauge of requests currently being served by the NDT server.",
 		},
 		[]string{"type"})
-	// TestDuration tracks, for each test type and success code, how long each test took.
-	TestDuration = promauto.NewHistogramVec(
+	TestRate = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "ndt_control_duration_seconds",
-			Help: "A histogram of request latencies to the control channel.",
-			// Durations will likely be tri-modal: early failures (fast),
-			// completed single test (slower), completed dual tests (slowest) or timeouts.
-			Buckets: []float64{.1, 1, 10, 10.5, 11, 11.5, 12, 20, 21, 22, 30, 60},
+			Name: "ndt_test_rate_mbps",
+			Help: "A histogram of request rates.",
+			Buckets: []float64{
+				.1, .15, .25, .4, .6,
+				1, 1.5, 2.5, 4, 6,
+				10, 15, 25, 40, 60,
+				100, 150, 250, 400, 600,
+				1000},
 		},
-		[]string{"type", "code"},
+		[]string{"direction"},
+	)
+	TestCount = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt_test_total",
+			Help: "Number of NDT tests run by this server.",
+		},
+		[]string{"direction", "code"},
+	)
+	ErrorCount = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt_test_errors_total",
+			Help: "Number of test errors of each type for each test.",
+		},
+		[]string{"test", "error"},
 	)
 )

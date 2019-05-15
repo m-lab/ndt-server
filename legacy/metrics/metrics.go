@@ -17,64 +17,28 @@ var (
 				.1, .15, .25, .4, .6,
 				1, 1.5, 2.5, 4, 6,
 				10, 15, 25, 40, 60,
-				100, 150, 250, 400, 600,
-				1000},
+				100, 150},
 		},
 		[]string{"protocol"},
 	)
-	ActiveTests = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "ndt_legacy_active_tests",
-			Help: "The number of tests currently running",
+	MeasurementServerStart = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt_legacy_measurementserver_start_total",
+			Help: "The number of times a single-serving server was started.",
 		},
 		[]string{"protocol"},
 	)
-	Failures = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "ndt_legacy_failures_total",
-			Help: "The number of test failures",
-		},
-		[]string{"protocol", "error"},
-	)
-	TestServerStart = promauto.NewCounterVec(
+	MeasurementServerStop = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "ndt_testserver_start_total",
-			Help: "Number times a single-serving server was started.",
+			Name: "ndt_legacy_measurementserver_stop_total",
+			Help: "The number of times a single-serving server was stopped.",
 		},
 		[]string{"protocol"},
 	)
-	TestServerStop = promauto.NewCounterVec(
+	SniffedReverseProxyCount = promauto.NewCounter(
 		prometheus.CounterOpts{
-			Name: "ndt_testserver_stop_total",
-			Help: "Number times a single-serving server was stopped.",
+			Name: "ndt_legacy_sniffed_ws_total",
+			Help: "The number of times we sniffed-then-proxied a websocket connection on the legacy channel.",
 		},
-		[]string{"protocol"},
-	)
-	TestRate = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name: "ndt_test_rate_mbps",
-			Help: "A histogram of request rates.",
-			Buckets: []float64{
-				.1, .15, .25, .4, .6,
-				1, 1.5, 2.5, 4, 6,
-				10, 15, 25, 40, 60,
-				100, 150, 250, 400, 600,
-				1000},
-		},
-		[]string{"direction"},
-	)
-	TestCount = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "ndt_test_total",
-			Help: "Number of NDT tests run by this server.",
-		},
-		[]string{"direction", "code"},
-	)
-	ErrorCount = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "ndt_test_errors_total",
-			Help: "Number of test errors of each type for each test.",
-		},
-		[]string{"test", "error"},
 	)
 )
