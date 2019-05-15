@@ -5,6 +5,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// Metrics for exporting to prometheus to aid in server monitoring.
+//
+// TODO: Decide what monitoring we want and transition to that.
 var (
 	ControlChannelDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -33,7 +36,20 @@ var (
 		},
 		[]string{"protocol", "error"},
 	)
-	// TestRate exports a histogram of request rates using prometheus
+	TestServerStart = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt_testserver_start_total",
+			Help: "Number times a single-serving server was started.",
+		},
+		[]string{"protocol"},
+	)
+	TestServerStop = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt_testserver_stop_total",
+			Help: "Number times a single-serving server was stopped.",
+		},
+		[]string{"protocol"},
+	)
 	TestRate = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "ndt_test_rate_mbps",
@@ -47,9 +63,6 @@ var (
 		},
 		[]string{"direction"},
 	)
-	// TestCount exports via prometheus the number of tests run by this server.
-	//
-	// TODO: Decide what monitoring we want and transition to that.
 	TestCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt_test_total",
@@ -57,7 +70,6 @@ var (
 		},
 		[]string{"direction", "code"},
 	)
-	// ErrorCount exports the number of test failures seen by the server.
 	ErrorCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt_test_errors_total",

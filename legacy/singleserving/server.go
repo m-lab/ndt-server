@@ -7,11 +7,8 @@ import (
 	"net"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/m-lab/ndt-server/legacy/ndt"
-
-	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/m-lab/ndt-server/legacy/ws"
 	"github.com/m-lab/ndt-server/ndt7/listener"
@@ -21,30 +18,6 @@ import (
 	"github.com/m-lab/ndt-server/legacy/tcplistener"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-)
-
-var (
-	LegacyNDTOpen = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "ndt_singleserving_start_total",
-			Help: "Number times a single-serving server was started.",
-		},
-		[]string{"protocol"},
-	)
-	LegacyNDTClose = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "ndt_singleserving_close_total",
-			Help: "Number times a single-serving server was closed.",
-		},
-		[]string{"protocol"},
-	)
-	LegacyNDTCloseDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name: "ndt_singleserving_close_duration_seconds",
-			Help: "How long did it take to run the Close() method.",
-		},
-		[]string{"protocol"},
-	)
 )
 
 // wsServer is a single-serving server for unencrypted websockets.
@@ -111,11 +84,7 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 
 func (s *wsServer) Close() {
 	s.once.Do(func() {
-		LegacyNDTClose.WithLabelValues(string(s.kind)).Inc()
-		defer func(start time.Time) {
-			LegacyNDTCloseDuration.WithLabelValues(string(s.kind)).Observe(time.Now().Sub(start).Seconds())
-		}(time.Now())
-
+		metrics.TestServerStop.WithLabelValues(string(s.kind)).Inc()
 		s.listener.Close()
 		s.srv.Close()
 	})
@@ -123,12 +92,12 @@ func (s *wsServer) Close() {
 
 // StartWS starts a single-serving unencrypted websocket server. When this
 // method returns without error, it is safe for a client to connect to the
-// server, as the server socket will be in "listening" mode. The returned
-// server will not actually respond until ServeOnce() is called, but the
-// connect() will not fail as long as ServeOnce is called soon after this
-// returns.
+// server, as the server socket will be in "listening" mode. The returned server
+// will not actually respond until ServeOnce() is called, but the connect() will
+// not fail as long as ServeOnce is called soon ("soon" is defined by os-level
+// timeouts) after this returns.
 func StartWS(direction string) (ndt.TestServer, error) {
-	LegacyNDTOpen.WithLabelValues(string(ndt.WS)).Inc()
+	metrics.TestServerStart.WithLabelValues(string(ndt.WS)).Inc()
 	return startWS(direction)
 }
 
@@ -157,7 +126,7 @@ func startWS(direction string) (*wsServer, error) {
 }
 
 // wssServer is a single-serving server for encrypted websockets. A wssServer is
-// just a wsServer with a different ServeOnce method and two extra fields.
+// just a wsServer with a different start method and two extra fields.
 type wssServer struct {
 	*wsServer
 	certFile, keyFile string
@@ -165,11 +134,12 @@ type wssServer struct {
 
 // StartWSS starts a single-serving encrypted websocket server. When this method
 // returns without error, it is safe for a client to connect to the server, as
-// the server socket will be in "listening" mode. Then returned server will not
+// the server socket will be in "listening" mode. The returned server will not
 // actually respond until ServeOnce() is called, but the connect() will not fail
-// as long as ServeOnce is called soon after this returns.
+// as long as ServeOnce is called soon ("soon" is defined by os-level timeouts)
+// after this returns.
 func StartWSS(direction, certFile, keyFile string) (ndt.TestServer, error) {
-	LegacyNDTOpen.WithLabelValues(string(ndt.WSS)).Inc()
+	metrics.TestServerStart.WithLabelValues(string(ndt.WSS)).Inc()
 	ws, err := startWS(direction)
 	if err != nil {
 		return nil, err
@@ -193,7 +163,7 @@ type plainServer struct {
 }
 
 func (ps *plainServer) Close() {
-	LegacyNDTClose.WithLabelValues(string(ndt.Plain)).Inc()
+	metrics.TestServerStop.WithLabelValues(string(ndt.Plain)).Inc()
 	ps.listener.Close()
 }
 
@@ -219,9 +189,14 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 	return protocol.AdaptNetConn(conn, conn), nil
 }
 
-// StartPlain starts a single-serving server for plain NDT tests.
+// StartPlain starts a single-serving server for plain NDT tests. When this
+// method returns without error, it is safe for a client to connect to the
+// server, as the server socket will be in "listening" mode. The returned server
+// will not actually respond until ServeOnce() is called, but the connect() will
+// not fail as long as ServeOnce is called soon ("soon" is defined by os-level
+// timeouts) after this returns.
 func StartPlain() (ndt.TestServer, error) {
-	LegacyNDTOpen.WithLabelValues(string(ndt.Plain)).Inc()
+	metrics.TestServerStart.WithLabelValues(string(ndt.Plain)).Inc()
 	// Start listening right away to ensure that subsequent connections succeed.
 	s := &plainServer{}
 	l, err := net.Listen("tcp", ":0")
