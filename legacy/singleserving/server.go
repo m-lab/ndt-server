@@ -151,9 +151,8 @@ func startWS(direction string) (*wsServer, error) {
 		return nil, err
 	}
 	tcpl := l.(*net.TCPListener)
-	tcpl.SetDeadline(time.Now().Add(10 * time.Second))
+	s.port = tcpl.Addr().(*net.TCPAddr).Port
 	s.listener = &listener.CachingTCPKeepAliveListener{TCPListener: tcpl}
-	s.port = s.listener.Addr().(*net.TCPAddr).Port
 	return s, nil
 }
 
@@ -168,9 +167,7 @@ type wssServer struct {
 // returns without error, it is safe for a client to connect to the server, as
 // the server socket will be in "listening" mode. Then returned server will not
 // actually respond until ServeOnce() is called, but the connect() will not fail
-// as long as ServeOnce is called soon after this returns. To prevent the
-// accept() call from blocking forever, the server socket has a read deadline
-// set 10 seconds in the future. Make sure you call accept() within that window.
+// as long as ServeOnce is called soon after this returns.
 func StartWSS(direction, certFile, keyFile string) (ndt.TestServer, error) {
 	LegacyNDTOpen.WithLabelValues(string(ndt.WSS)).Inc()
 	ws, err := startWS(direction)
@@ -222,9 +219,7 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 	return protocol.AdaptNetConn(conn, conn), nil
 }
 
-// StartPlain starts a single-serving server for plain NDT tests. To prevent the
-// accept() call from blocking forever, the server socket has a read deadline
-// set 10 seconds in the future. Make sure you call accept() within that window.
+// StartPlain starts a single-serving server for plain NDT tests.
 func StartPlain() (ndt.TestServer, error) {
 	LegacyNDTOpen.WithLabelValues(string(ndt.Plain)).Inc()
 	// Start listening right away to ensure that subsequent connections succeed.
@@ -234,7 +229,6 @@ func StartPlain() (ndt.TestServer, error) {
 		return nil, err
 	}
 	tcpl := l.(*net.TCPListener)
-	tcpl.SetDeadline(time.Now().Add(10 * time.Second))
 	s.listener = &tcplistener.RawListener{TCPListener: tcpl}
 	s.port = s.listener.Addr().(*net.TCPAddr).Port
 	return s, nil
