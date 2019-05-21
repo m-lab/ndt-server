@@ -154,9 +154,26 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// Before we can throw out the C NDT codebase:
 		// TODO(https://github.com/m-lab/ndt-server/issues/65)
 		//  /bin/web100clt-without-json-support --disablemid --disablesfw
+		//  /bin/libndt-client --download # No --json flag
+		//  /bin/libndt-client --upload   # No --json flag
 		// TODO(https://github.com/m-lab/ndt-server/issues/66)
 		//  /bin/web100clt-with-json-support    # No tests disabled.
 		//  /bin/web100clt-without-json-support # No tests disabled.
+		// Test libndt clients
+		{
+			name: "Connect with libndt-client - legacy NDT with JSON, download test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyPort + " --json --download",
+		},
+		{
+			name: "Connect with libndt-client - legacy NDT with JSON, upload test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyPort + " --json --upload",
+		},
+		{
+			name: "Connect with libndt-client - ndt7, download test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + ndt7Port + " --ndt7 --download",
+			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
+			ignoreData: true,
+		},
 		// Test legacy raw JSON clients
 		{
 			name: "Connect with web100clt (with JSON)",
