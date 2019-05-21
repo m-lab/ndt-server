@@ -1,19 +1,29 @@
 # A base image with some helpful tools and libraries installed.
-FROM ubuntu as ndtbuild
-RUN apt-get update && apt-get install -y build-essential autotools-dev automake zlib1g-dev git
-RUN git clone --recursive http://github.com/m-lab/ndt/
+FROM ubuntu AS ndtbuild
+RUN apt-get update && apt-get install -y build-essential autotools-dev automake zlib1g-dev git cmake libssl-dev
+RUN git clone --recursive https://github.com/m-lab/ndt/
+
+
+# Build a libndt client.
+FROM ndtbuild AS libndt
+RUN git clone --recursive https://github.com/measurement-kit/libndt
+WORKDIR /libndt
+RUN cmake .
+RUN cmake --build .
+
 
 # Build a version of web100clt that uses JSON.
 FROM ndtbuild as ndtrawjson
-RUN apt-get install -y libjansson-dev libssl-dev
+RUN apt-get install -y libjansson-dev
 WORKDIR /ndt
 RUN ./bootstrap
 RUN ./configure --enable-static
 WORKDIR /ndt/src
 RUN make web100clt
 
+
 # Build a version of web100clt that does not use JSON.
-FROM ndtbuild as ndtrawnojson
+FROM ndtbuild AS ndtrawnojson
 # I2util used to be a separate library, so make sure to install it from the
 # modern NDT repo before we back up to a super-old code version that expects it
 # to be installed separately.
@@ -31,10 +41,12 @@ RUN ./configure --enable-static
 WORKDIR /ndt/src
 RUN make web100clt
 
+
 # Build the image in which the server will be tested.
-FROM golang:1.12 as build
+FROM golang:1.12 AS build
 COPY --from=ndtrawjson /ndt/src/web100clt /bin/web100clt-with-json-support
 COPY --from=ndtrawnojson /ndt/src/web100clt /bin/web100clt-without-json-support
+COPY --from=libndt /libndt/libndt-client /bin/libndt-client
 RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
 RUN apt-get update && apt-get install -y nodejs libjansson4 libssl1.1 libssl1.0
 ENV GOPATH=/go
