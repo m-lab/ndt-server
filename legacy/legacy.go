@@ -45,6 +45,7 @@ type NDTResult struct {
 	// rename them to add clarity rather than adding a comment.
 	ControlChannelUUID string
 	Protocol           ndt.ConnectionType
+	MessageProtocol    string
 	ServerIP           string
 	ClientIP           string
 
@@ -84,15 +85,15 @@ func SaveData(record *NDTResult, datadir string) {
 
 func panicMsgToErrType(msg string) string {
 	okayWords := map[string]struct{}{
-		"MsgExtendedLogin": {},
-		"ParseInt":         {},
-		"SrvQueue":         {},
-		"MsgLoginVersion":  {},
-		"MsgLoginTests":    {},
-		"C2S":              {},
-		"S2C":              {},
-		"MsgResults":       {},
-		"MsgLogout":        {},
+		"Login":           {},
+		"ParseInt":        {},
+		"SrvQueue":        {},
+		"MsgLoginVersion": {},
+		"MsgLoginTests":   {},
+		"C2S":             {},
+		"S2C":             {},
+		"MsgResults":      {},
+		"MsgLogout":       {},
 	}
 	words := strings.SplitN(msg, " ", 1)
 	if len(words) >= 1 {
@@ -149,10 +150,9 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 		SaveData(record, s.DataDir())
 	}()
 
-	message, err := protocol.ReceiveJSONMessage(conn, protocol.MsgExtendedLogin)
-	rtx.PanicOnError(err, "MsgExtendedLogin - error reading JSON message")
-	tests, err := strconv.ParseInt(message.Tests, 10, 64)
-	rtx.PanicOnError(err, "ParseInt - failed to parse tests integer")
+	tests, err := s.LoginCeremony(conn)
+	rtx.PanicOnError(err, "Login - error reading JSON message")
+
 	if (tests & cTestStatus) == 0 {
 		log.Println("We don't support clients that don't support TestStatus")
 		return
@@ -168,14 +168,16 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestS2C))
 	}
 
+	m := conn.Messager()
+	record.MessageProtocol = m.Encoding().String()
 	rtx.PanicOnError(
-		protocol.SendJSONMessage(protocol.SrvQueue, "0", conn),
+		m.SendMessage(protocol.SrvQueue, []byte("0")),
 		"SrvQueue - Could not send SrvQueue")
 	rtx.PanicOnError(
-		protocol.SendJSONMessage(protocol.MsgLogin, "v5.0-NDTinGO", conn),
+		m.SendMessage(protocol.MsgLogin, []byte("v5.0-NDTinGO")),
 		"MsgLoginVersion - Could not send MsgLogin with version")
-	rtx.PanicOnError(protocol.SendJSONMessage(
-		protocol.MsgLogin, strings.Join(testsToRun, " "), conn),
+	rtx.PanicOnError(
+		m.SendMessage(protocol.MsgLogin, []byte(strings.Join(testsToRun, " "))),
 		"MsgLoginTests - Could not send MsgLogin with the tests")
 
 	var c2sRate, s2cRate float64
@@ -195,11 +197,13 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 			metrics.TestRate.WithLabelValues("s2c").Observe(s2cRate)
 		}
 	}
-	log.Printf("NDT: uploaded at %.4f Mbps and downloaded at %.4f Mbps", c2sRate, s2cRate)
+	speedMsg := fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000)
+	log.Println(speedMsg)
 	// For historical reasons, clients expect results in kbps
 	rtx.PanicOnError(
-		protocol.SendJSONMessage(protocol.MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000), conn),
+		m.SendMessage(protocol.MsgResults, []byte(speedMsg)),
 		"MsgResults - Could not send test results message")
-	rtx.PanicOnError(protocol.SendJSONMessage(protocol.MsgLogout, "", conn),
+	rtx.PanicOnError(
+		m.SendMessage(protocol.MsgLogout, []byte{}),
 		"MsgLogout - Could not send MsgLogout")
 }

@@ -3,7 +3,7 @@ package handler
 import (
 	"log"
 	"net/http"
-	"time"
+	"strconv"
 
 	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/legacy"
@@ -37,8 +37,14 @@ type httpHandler struct {
 func (s *httpHandler) DataDir() string                    { return s.datadir }
 func (s *httpHandler) ConnectionType() ndt.ConnectionType { return s.connectionType }
 
-func (s *httpHandler) TestLength() time.Duration  { return 10 * time.Second }
-func (s *httpHandler) TestMaxTime() time.Duration { return 30 * time.Second }
+func (s *httpHandler) LoginCeremony(conn protocol.Connection) (int, error) {
+	// WS and WSS both only support JSON clients and not TLV clients.
+	msg, err := protocol.ReceiveJSONMessage(conn, protocol.MsgExtendedLogin)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(msg.Tests)
+}
 
 func (s *httpHandler) SingleServingServer(dir string) (ndt.SingleMeasurementServer, error) {
 	return s.serverFactory.SingleServingServer(dir)

@@ -69,13 +69,12 @@ func setupMain() func() {
 		"Failed to generate server key and certs")
 
 	// Set up the command-line args via environment variables:
-	ports := getOpenPorts(5)
+	ports := getOpenPorts(4)
 	for _, ev := range []struct{ key, value string }{
-		{"METRICS_PORT", ports[0]},
-		{"NDT7_PORT", ports[1]},
-		{"LEGACY_PORT", ports[2]},
-		{"LEGACY_WS_PORT", ports[3]},
-		{"LEGACY_WSS_PORT", ports[4]},
+		{"NDT7_ADDR", ports[0]},
+		{"LEGACY_ADDR", ports[1]},
+		{"LEGACY_WS_ADDR", ports[2]},
+		{"LEGACY_WSS_ADDR", ports[3]},
 		{"CERT", certFile},
 		{"KEY", keyFile},
 		{"DATADIR", dir},
@@ -134,10 +133,10 @@ func Test_MainIntegrationTest(t *testing.T) {
 	defer cancel()
 
 	// Get the ports but remove the leading ":"
-	legacyPort := os.Getenv("LEGACY_PORT")[1:]
-	wsPort := os.Getenv("LEGACY_WS_PORT")[1:]
-	wssPort := os.Getenv("LEGACY_WSS_PORT")[1:]
-	ndt7Port := os.Getenv("NDT7_PORT")[1:]
+	legacyAddr := os.Getenv("LEGACY_ADDR")[1:]
+	wsAddr := os.Getenv("LEGACY_WS_ADDR")[1:]
+	wssAddr := os.Getenv("LEGACY_WSS_ADDR")[1:]
+	ndt7Addr := os.Getenv("NDT7_ADDR")[1:]
 
 	// Get the datadir
 	dataDir := os.Getenv("DATADIR")
@@ -151,55 +150,72 @@ func Test_MainIntegrationTest(t *testing.T) {
 		ignoreData bool
 	}
 	tests := []testcase{
-		// Before we can throw out the C NDT codebase:
-		// TODO(https://github.com/m-lab/ndt-server/issues/65)
-		//  /bin/web100clt-without-json-support --disablemid --disablesfw
-		//  /bin/libndt-client --download # No --json flag
-		//  /bin/libndt-client --upload   # No --json flag
-		// TODO(https://github.com/m-lab/ndt-server/issues/66)
-		//  /bin/web100clt-with-json-support    # No tests disabled.
-		//  /bin/web100clt-without-json-support # No tests disabled.
-		// Test libndt clients
+		// Legacy TLV-only clients.
 		{
-			name: "Connect with libndt-client - legacy NDT with JSON, download test",
-			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyPort + " --json --download",
+			name: "web100clt (legacy TLV)",
+			cmd:  "timeout 45s /bin/web100clt-without-json-support --name localhost --port " + legacyAddr + " --disablemid --disablesfw",
 		},
 		{
-			name: "Connect with libndt-client - legacy NDT with JSON, upload test",
-			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyPort + " --json --upload",
+			name: "libndt-client - legacy NDT with JSON, download test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyAddr + " --download",
 		},
 		{
-			name: "Connect with libndt-client - ndt7, download test",
-			cmd:  "timeout 45s /bin/libndt-client localhost --port " + ndt7Port + " --ndt7 --download",
+			name: "libndt-client - legacy NDT with JSON, upload test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyAddr + " --upload",
+		},
+		// Verify that legacy clients don't crash when we agree to only run a subset of the requested tests.
+		{
+			name: "Request all tests with web100clt (with JSON)",
+			cmd:  "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyAddr,
+		},
+		// The legacy client without JSON support looks like it DOES crash, although
+		// the exact cause has not been investigated.
+		// TODO(https://github.com/m-lab/ndt-server/issues/66) - make the following test case pass:
+		// 	{
+		// 		name: "Request all tests with web100clt (legacy TLV)",
+		// 		cmd:  "timeout 45s /bin/web100clt-without-json-support --name localhost --port " + legacyAddr,
+		// 	},
+		// Test libndt JSON clients
+		{
+			name: "libndt-client - legacy NDT with JSON, download test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyAddr + " --json --download",
+		},
+		{
+			name: "libndt-client - legacy NDT with JSON, upload test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyAddr + " --json --upload",
+		},
+		{
+			name: "libndt-client - ndt7, download test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + ndt7Addr + " --ndt7 --download",
 			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
 			ignoreData: true,
 		},
 		// Test legacy raw JSON clients
 		{
-			name: "Connect with web100clt (with JSON)",
-			cmd:  "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyPort + " --disablemid --disablesfw",
+			name: "web100clt (with JSON), no MID or SFW",
+			cmd:  "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyAddr + " --disablemid --disablesfw",
 		},
 		// Test legacy WS clients connected to the HTTP port
 		{
 			name: "Upload & Download legacy WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=22",
+				" --port=" + wsAddr + " --protocol=ws --tests=22",
 		},
 		{
 			name: "Upload legacy WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=18",
+				" --port=" + wsAddr + " --protocol=ws --tests=18",
 		},
 		{
 			name: "Download legacy WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort + " --protocol=ws --tests=20",
+				" --port=" + wsAddr + " --protocol=ws --tests=20",
 		},
 		// Test legacy WS clients connecting to the raw port
 		{
 			name: "Connect legacy WS (upload and download) to RAW port",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + legacyPort + " --protocol=ws --tests=22",
+				" --port=" + legacyAddr + " --protocol=ws --tests=22",
 		},
 		{
 			// Start both tests, but kill the client during the upload test.
@@ -207,7 +223,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 			// timeout, the server should have cleaned up all outstanding goroutines.
 			name: "Upload & Download legacy WS with S2C Timeout",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wsPort +
+				" --port=" + wsAddr +
 				" --protocol=ws --abort-c2s-early --tests=22 & " +
 				"sleep 25",
 		},
@@ -215,17 +231,17 @@ func Test_MainIntegrationTest(t *testing.T) {
 		{
 			name: "Upload legacy WSS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=18",
+				" --port=" + wssAddr + " --protocol=wss --acceptinvalidcerts --tests=18",
 		},
 		{
 			name: "Download legacy WSS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=20",
+				" --port=" + wssAddr + " --protocol=wss --acceptinvalidcerts --tests=20",
 		},
 		{
 			name: "Upload & Download legacy WSS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wssPort + " --protocol=wss --acceptinvalidcerts --tests=22",
+				" --port=" + wssAddr + " --protocol=wss --acceptinvalidcerts --tests=22",
 		},
 		{
 			// Start both tests, but kill the client during the upload test.
@@ -233,14 +249,14 @@ func Test_MainIntegrationTest(t *testing.T) {
 			// timeout, the server should have cleaned up all outstanding goroutines.
 			name: "Upload & Download legacy WSS with S2C Timeout",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + wssPort +
+				" --port=" + wssAddr +
 				" --protocol=wss --acceptinvalidcerts --abort-c2s-early --tests=22 & " +
 				"sleep 25",
 		},
 		// Test NDT7 clients
 		{
 			name: "Test the ndt7 protocol",
-			cmd:  "timeout 45s ndt-client -skip-tls-verify -port " + ndt7Port,
+			cmd:  "timeout 45s ndt-client -skip-tls-verify -port " + ndt7Addr,
 			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
 			ignoreData: true,
 		},
@@ -251,7 +267,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 
 	log.Printf(
 		"Legacy port: %s\n ws port: %s\nwss port: %s\nndt7 port: %s\n",
-		legacyPort, wsPort, wssPort, ndt7Port)
+		legacyAddr, wsAddr, wssAddr, ndt7Addr)
 
 	wg := sync.WaitGroup{}
 	// Run every test in parallel (the server must handle parallel tests just fine)

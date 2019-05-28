@@ -31,10 +31,10 @@ import (
 
 var (
 	// Flags that can be passed in on the command line
-	ndt7Port      = flag.String("ndt7_port", ":443", "The address and port to use for the ndt7 test")
-	legacyPort    = flag.String("legacy_port", ":3001", "The address and port to use for the unencrypted legacy NDT test")
-	legacyWsPort  = flag.String("legacy_ws_port", ":3002", "The address and port to use for the legacy NDT Ws test")
-	legacyWssPort = flag.String("legacy_wss_port", ":3010", "The address and port to use for the legacy NDT WsS test")
+	ndt7Addr      = flag.String("ndt7_addr", ":443", "The address and port to use for the ndt7 test")
+	legacyAddr    = flag.String("legacy_addr", ":3001", "The address and port to use for the unencrypted legacy NDT test")
+	legacyWsAddr  = flag.String("legacy_ws_addr", "127.0.0.1:3002", "The address and port to use for the legacy NDT WS test")
+	legacyWssAddr = flag.String("legacy_wss_addr", ":3010", "The address and port to use for the legacy NDT WsS test")
 	certFile      = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile       = flag.String("key", "", "The file with server key in PEM format.")
 	dataDir       = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
@@ -107,9 +107,9 @@ func main() {
 
 	// The legacy protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
-	legacyServer := plain.NewServer(*dataDir+"/legacy", *legacyWsPort)
+	legacyServer := plain.NewServer(*dataDir+"/legacy", *legacyWsAddr)
 	rtx.Must(
-		legacyServer.ListenAndServe(ctx, *legacyPort),
+		legacyServer.ListenAndServe(ctx, *legacyAddr),
 		"Could not start raw server")
 
 	// The legacy protocol serving Ws-based tests. Most clients are hard-coded to
@@ -119,10 +119,10 @@ func main() {
 	legacyWsMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
 	legacyWsMux.Handle("/ndt_protocol", legacyhandler.NewWS(*dataDir+"/legacy"))
 	legacyWsServer := &http.Server{
-		Addr:    *legacyWsPort,
+		Addr:    *legacyWsAddr,
 		Handler: logging.MakeAccessLogHandler(legacyWsMux),
 	}
-	log.Println("About to listen for unencrypted legacy NDT tests on " + *legacyWsPort)
+	log.Println("About to listen for unencrypted legacy NDT tests on " + *legacyWsAddr)
 	rtx.Must(listener.ListenAndServeAsync(legacyWsServer), "Could not start unencrypted legacy NDT server")
 	defer legacyWsServer.Close()
 
@@ -134,10 +134,10 @@ func main() {
 		legacyWssMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
 		legacyWssMux.Handle("/ndt_protocol", legacyhandler.NewWSS(*dataDir+"/legacy", *certFile, *keyFile))
 		legacyWssServer := &http.Server{
-			Addr:    *legacyWssPort,
+			Addr:    *legacyWssAddr,
 			Handler: logging.MakeAccessLogHandler(legacyWssMux),
 		}
-		log.Println("About to listen for legacy WsS tests on " + *legacyWssPort)
+		log.Println("About to listen for legacy WsS tests on " + *legacyWssAddr)
 		rtx.Must(listener.ListenAndServeTLSAsync(legacyWssServer, *certFile, *keyFile), "Could not start legacy WsS server")
 		defer legacyWssServer.Close()
 
@@ -156,10 +156,10 @@ func main() {
 		ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
 		ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
 		ndt7Server := &http.Server{
-			Addr:    *ndt7Port,
+			Addr:    *ndt7Addr,
 			Handler: logging.MakeAccessLogHandler(ndt7Mux),
 		}
-		log.Println("About to listen for ndt7 tests on " + *ndt7Port)
+		log.Println("About to listen for ndt7 tests on " + *ndt7Addr)
 		rtx.Must(listener.ListenAndServeTLSAsync(ndt7Server, *certFile, *keyFile), "Could not start ndt7 server")
 		defer ndt7Server.Close()
 	} else {

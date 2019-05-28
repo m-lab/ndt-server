@@ -2,7 +2,6 @@ package ndt
 
 import (
 	"context"
-	"time"
 
 	"github.com/m-lab/ndt-server/legacy/protocol"
 )
@@ -24,22 +23,19 @@ type Server interface {
 	SingleMeasurementServerFactory
 	ConnectionType() ConnectionType
 	DataDir() string
-
-	// TestLength allows us to create fake servers which run tests very quickly.
-	TestLength() time.Duration
-	// TestMaxTime allows us to create fake servers which run tests very quickly.
-	TestMaxTime() time.Duration
+	LoginCeremony(protocol.Connection) (int, error)
 }
 
-// SingleMeasurementServerFactory is the method by which we abstract away what kind of server is being
-// created at any given time. Using this abstraction allows us to use almost the
-// same code for WS and WSS.
+// SingleMeasurementServerFactory is the method by which we abstract away what
+// kind of server is being created at any given time. Using this abstraction
+// allows us to use almost the same code for WS and WSS.
 type SingleMeasurementServerFactory interface {
 	SingleServingServer(direction string) (SingleMeasurementServer, error)
 }
 
-// SingleMeasurementServer is the interface implemented by every single-serving server. No
-// matter whether they use WSS, WS, TCP with JSON, or TCP without JSON.
+// SingleMeasurementServer is the interface implemented by every single-serving
+// server. No matter whether they use WSS, WS, TCP with JSON, or TCP without
+// JSON.
 type SingleMeasurementServer interface {
 	Port() int
 	ServeOnce(context.Context) (protocol.MeasuredConnection, error)

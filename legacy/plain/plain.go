@@ -3,19 +3,22 @@ package plain
 import (
 	"bufio"
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
-	"github.com/m-lab/ndt-server/legacy/metrics"
-
 	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/legacy"
+	legacymetrics "github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/ndt"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/singleserving"
+	"github.com/m-lab/ndt-server/metrics"
 )
 
 // plainServer handles requests that are TCP-based but not HTTP(S) based. If it
@@ -47,7 +50,7 @@ func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 		return
 	}
 	if string(lead) == "GET" {
-		metrics.SniffedReverseProxyCount.Inc()
+		legacymetrics.SniffedReverseProxyCount.Inc()
 		// Forward HTTP-like handshakes to the HTTP server. Note that this does NOT
 		// introduce overhead for the s2c and c2s tests, because in those tests the
 		// HTTP server itself opens the testing port, and that server will not use
@@ -59,6 +62,7 @@ func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 		fwd, err := ps.dialer.Dial("tcp", ps.wsAddr)
 		if err != nil {
 			log.Println("Could not forward connection", err)
+			metrics.ErrorCount.WithLabelValues(string(ndt.WS), "forwarding").Inc()
 			return
 		}
 		wg := sync.WaitGroup{}
@@ -139,9 +143,34 @@ func (ps *plainServer) ListenAndServe(ctx context.Context, addr string) error {
 
 func (ps *plainServer) ConnectionType() ndt.ConnectionType { return ndt.Plain }
 func (ps *plainServer) DataDir() string                    { return ps.datadir }
-
-func (ps *plainServer) TestLength() time.Duration  { return 10 * time.Second }
-func (ps *plainServer) TestMaxTime() time.Duration { return 30 * time.Second }
+func (ps *plainServer) LoginCeremony(conn protocol.Connection) (int, error) {
+	flex, ok := conn.(protocol.MeasuredFlexibleConnection)
+	if !ok {
+		return 0, errors.New("the connection is unable to set its encoding dynamically - this is a bug")
+	}
+	v, t, err := protocol.ReadTLVMessage(conn, protocol.MsgLogin, protocol.MsgExtendedLogin)
+	if err != nil {
+		return 0, err
+	}
+	switch t {
+	case protocol.MsgExtendedLogin:
+		flex.SetEncoding(protocol.JSON)
+		msg := protocol.JSONMessage{}
+		err := json.Unmarshal(v, &msg)
+		if err != nil {
+			return 0, err
+		}
+		return strconv.Atoi(msg.Tests)
+	case protocol.MsgLogin:
+		flex.SetEncoding(protocol.TLV)
+		if len(v) != 1 {
+			return 0, errors.New("MsgLogin requires a 1-byte message")
+		}
+		return int(v[0]), nil
+	default:
+		return 0, errors.New("Unknown message type")
+	}
+}
 
 func (ps *plainServer) Addr() net.Addr {
 	return ps.listener.Addr()
@@ -161,9 +190,10 @@ func NewServer(datadir, wsAddr string) Server {
 	return &plainServer{
 		wsAddr: wsAddr,
 		// The dialer is only contacting localhost. The timeout should be set to a
-		// small number.
+		// small number. Resolver issues have caused connections to sometimes fail
+		// when given a 10ms timeout.
 		dialer: &net.Dialer{
-			Timeout: 10 * time.Millisecond,
+			Timeout: 1 * time.Second,
 		},
 		datadir: datadir,
 	}

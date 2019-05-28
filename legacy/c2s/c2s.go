@@ -45,6 +45,8 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	}()
 	record = &ArchivalData{}
 
+	m := controlConn.Messager()
+
 	srv, err := s.SingleServingServer("c2s")
 	if err != nil {
 		log.Println("Could not start SingleServingServer", err)
@@ -52,7 +54,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		return record, err
 	}
 
-	err = protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(srv.Port()), controlConn)
+	err = m.SendMessage(protocol.TestPrepare, []byte(strconv.Itoa(srv.Port())))
 	if err != nil {
 		log.Println("Could not send TestPrepare", err)
 		metrics.ErrorCount.WithLabelValues("c2s", "TestPrepare").Inc()
@@ -81,7 +83,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	record.ServerIP = testConn.ServerIP()
 	record.ClientIP = testConn.ClientIP()
 
-	err = protocol.SendJSONMessage(protocol.TestStart, "", controlConn)
+	err = m.SendMessage(protocol.TestStart, []byte{})
 	if err != nil {
 		log.Println("Could not send TestStart", err)
 		metrics.ErrorCount.WithLabelValues("c2s", "TestStart").Inc()
@@ -112,14 +114,15 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	throughputValue := 8 * float64(byteCount) / 1000 / 10
 	record.MeanThroughputMbps = throughputValue / 1000 // Convert Kbps to Mbps
 
-	err = protocol.SendJSONMessage(protocol.TestMsg, strconv.FormatFloat(throughputValue, 'g', -1, 64), controlConn)
+	log.Println(controlConn, "sent us", throughputValue, "Kbps")
+	err = m.SendMessage(protocol.TestMsg, []byte(strconv.FormatInt(int64(throughputValue), 10)))
 	if err != nil {
 		log.Println("Could not send TestMsg with C2S results", err)
 		metrics.ErrorCount.WithLabelValues("c2s", "TestMsg").Inc()
 		return record, err
 	}
 
-	err = protocol.SendJSONMessage(protocol.TestFinalize, "", controlConn)
+	err = m.SendMessage(protocol.TestFinalize, []byte{})
 	if err != nil {
 		log.Println("Could not send TestFinalize", err)
 		metrics.ErrorCount.WithLabelValues("c2s", "TestFinalize").Inc()
