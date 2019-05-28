@@ -32,7 +32,7 @@ func (e Encoding) String() string {
 	case TLV:
 		return "TLV"
 	}
-	return fmt.Sprintf("Bad messager.Encoding value: %d", int(e))
+	return fmt.Sprintf("Bad Encoding value: %d", int(e))
 }
 
 // Messager creates an object that can encode and decode messages in the
@@ -47,7 +47,7 @@ func (e Encoding) Messager(conn Connection) Messager {
 	case TLV:
 		return &tlvMessager{conn}
 	}
-	log.Printf("Bad messager.Encoding value: %d\n", int(e))
+	log.Printf("Bad Encoding value: %d\n", int(e))
 	return nil
 }
 
@@ -60,8 +60,8 @@ type Messager interface {
 	Encoding() Encoding
 }
 
-// jsonMessager has all the methods for sending JSON-format NDT messages. It has
-// no fields because it has no state.
+// jsonMessager has all the methods for sending JSON-format NDT messages along
+// the passed-in connection.
 type jsonMessager struct {
 	conn Connection
 }
@@ -94,9 +94,9 @@ func (jm *jsonMessager) ReceiveMessage(kind MessageType) ([]byte, error) {
 	msg, err := ReceiveJSONMessage(jm.conn, kind)
 	if msg == nil || err != nil {
 		if err == nil {
-			return []byte{}, errors.New("empty message received without error")
+			return nil, errors.New("empty message received without error")
 		}
-		return []byte{}, err
+		return nil, err
 	}
 	return []byte(msg.Msg), nil
 }
@@ -105,8 +105,8 @@ func (jm *jsonMessager) Encoding() Encoding {
 	return JSON
 }
 
-// tlvMessager has all the methods for sending tlv-format NDT messages. It has
-// no fields because it has no state.
+// tlvMessager has all the methods for sending tlv-format NDT messages along the
+// passed-in connection.
 type tlvMessager struct {
 	conn Connection
 }

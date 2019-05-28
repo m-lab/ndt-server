@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,6 +20,8 @@ import (
 
 	"github.com/gorilla/websocket"
 )
+
+var verbose = flag.Bool("legacy.protocol.verbose", false, "Print the contents of every message to the log")
 
 // MessageType is the full set opf NDT protocol messages we understand.
 type MessageType byte
@@ -341,7 +344,9 @@ func ReadTLVMessage(ws Connection, expectedTypes ...MessageType) ([]byte, Messag
 // WriteTLVMessage write a single NDT message to the connection.
 func WriteTLVMessage(ws Connection, msgType MessageType, message string) error {
 	msgBytes := []byte(message)
-	log.Printf("%s is getting sent a TLV of: %s, %d, %q\n", ws.String(), msgType.String(), len(msgBytes), message)
+	if *verbose {
+		log.Printf("%s is getting sent a TLV of: %s, %d, %q\n", ws.String(), msgType.String(), len(msgBytes), message)
+	}
 	outbuff := make([]byte, 3+len(msgBytes))
 	outbuff[0] = byte(msgType)
 	outbuff[1] = byte((len(msgBytes) >> 8) & 0xFF)
