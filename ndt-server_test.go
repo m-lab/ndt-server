@@ -156,6 +156,11 @@ func Test_MainIntegrationTest(t *testing.T) {
 		//  /bin/web100clt-without-json-support --disablemid --disablesfw
 		//  /bin/libndt-client --download # No --json flag
 		//  /bin/libndt-client --upload   # No --json flag
+		// Legacy TLV-only clients.
+		{
+			name: "Connect with web100clt (legacy TLV)",
+			cmd:  "timeout 45s /bin/web100clt-without-json-support --name localhost --port " + legacyPort + " --disablemid --disablesfw",
+		},
 		// TODO(https://github.com/m-lab/ndt-server/issues/66)
 		//  /bin/web100clt-with-json-support    # No tests disabled.
 		//  /bin/web100clt-without-json-support # No tests disabled.

@@ -3,9 +3,12 @@ package plain
 import (
 	"bufio"
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -139,9 +142,34 @@ func (ps *plainServer) ListenAndServe(ctx context.Context, addr string) error {
 
 func (ps *plainServer) ConnectionType() ndt.ConnectionType { return ndt.Plain }
 func (ps *plainServer) DataDir() string                    { return ps.datadir }
-
-func (ps *plainServer) TestLength() time.Duration  { return 10 * time.Second }
-func (ps *plainServer) TestMaxTime() time.Duration { return 30 * time.Second }
+func (ps *plainServer) LoginCeremony(conn protocol.Connection) (int, error) {
+	flex, ok := conn.(protocol.MeasuredFlexibleConnection)
+	if !ok {
+		return 0, errors.New("the connection is unable to set its encoding dynamically - this is a bug")
+	}
+	b, t, err := protocol.ReadTLVMessage(conn, protocol.MsgLogin, protocol.MsgExtendedLogin)
+	if err != nil {
+		return 0, err
+	}
+	switch t {
+	case protocol.MsgExtendedLogin:
+		flex.SetEncoding(protocol.JSON)
+		msg := protocol.JSONMessage{}
+		err := json.Unmarshal(b, &msg)
+		if err != nil {
+			return 0, err
+		}
+		return strconv.Atoi(msg.Tests)
+	case protocol.MsgLogin:
+		flex.SetEncoding(protocol.TLV)
+		if len(b) != 1 {
+			return 0, errors.New("MsgLogin requires a 1-byte message")
+		}
+		return int(b[0]), nil
+	default:
+		return 0, errors.New("Uknown message type")
+	}
+}
 
 func (ps *plainServer) Addr() net.Addr {
 	return ps.listener.Addr()
@@ -163,7 +191,7 @@ func NewServer(datadir, wsAddr string) Server {
 		// The dialer is only contacting localhost. The timeout should be set to a
 		// small number.
 		dialer: &net.Dialer{
-			Timeout: 10 * time.Millisecond,
+			Timeout: 1 * time.Second,
 		},
 		datadir: datadir,
 	}

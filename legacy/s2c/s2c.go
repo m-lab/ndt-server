@@ -2,7 +2,6 @@ package s2c
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log"
 	"strconv"
@@ -39,18 +38,6 @@ type ArchivalData struct {
 	Error string `json:",omitempty"`
 }
 
-// result is the result object returned to S2C clients as JSON.
-type result struct {
-	ThroughputValue  string
-	UnsentDataAmount string
-	TotalSentByte    string
-}
-
-func (n *result) String() string {
-	b, _ := json.Marshal(n)
-	return string(b)
-}
-
 // ManageTest manages the s2c test lifecycle
 func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Server) (record *ArchivalData, err error) {
 	localCtx, localCancel := context.WithTimeout(ctx, 30*time.Second)
@@ -68,7 +55,8 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		metrics.ErrorCount.WithLabelValues("s2c", "StartSingleServingServer").Inc()
 		return record, err
 	}
-	err = protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(srv.Port()), controlConn)
+	m := controlConn.Messager()
+	err = m.SendMessage(protocol.TestPrepare, []byte(strconv.Itoa(srv.Port())))
 	if err != nil {
 		log.Println("Could not send TestPrepare", err)
 		metrics.ErrorCount.WithLabelValues("s2c", "TestPrepare").Inc()
@@ -94,7 +82,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		dataToSend[i] = byte(((i * 101) % (122 - 33)) + 33)
 	}
 
-	err = protocol.SendJSONMessage(protocol.TestStart, "", controlConn)
+	err = m.SendMessage(protocol.TestStart, []byte{})
 	if err != nil {
 		log.Println("Could not write TestStart", err)
 		metrics.ErrorCount.WithLabelValues("s2c", "TestStart").Inc()
@@ -123,28 +111,24 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	record.MinRTT = time.Duration(web100metrics.MinRTT) * time.Millisecond
 	record.MeanThroughputMbps = kbps / 1000 // Convert Kbps to Mbps
 
-	// Send additional download results to the client.
-	resultMsg := &result{
-		// TODO: clean up this logic to use socket stats rather than application-level counters.
-		ThroughputValue:  strconv.FormatInt(int64(kbps), 10),
-		UnsentDataAmount: "0",
-		TotalSentByte:    strconv.FormatInt(byteCount, 10), // TODO: use actual bytes sent.
-	}
-	err = protocol.WriteNDTMessage(controlConn, protocol.TestMsg, resultMsg)
+	// Send download results to the client.
+	// TODO: clean up this logic to use socket stats rather than application-level
+	// counters and the actual bytes sent.
+	err = m.SendS2CResults(int64(kbps), 0, byteCount)
 	if err != nil {
 		log.Println("Could not write a TestMsg", err)
 		metrics.ErrorCount.WithLabelValues("s2c", "TestMsgSend").Inc()
 		return record, err
 	}
 
-	clientRateMsg, err := protocol.ReceiveJSONMessage(controlConn, protocol.TestMsg)
+	clientRateMsg, err := m.ReceiveMessage(protocol.TestMsg)
 	if err != nil {
 		metrics.ErrorCount.WithLabelValues("s2c", "TestMsgRcv").Inc()
 		log.Println("Could not receive a TestMsg", err)
 		return record, err
 	}
 	log.Println("We measured", kbps, "and the client sent us", clientRateMsg)
-	clientRateKbps, err := strconv.ParseFloat(clientRateMsg.Msg, 64)
+	clientRateKbps, err := strconv.ParseFloat(string(clientRateMsg), 64)
 	if err == nil {
 		record.ClientReportedMbps = clientRateKbps / 1000
 	} else {
@@ -152,14 +136,14 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		// Being unable to parse the number should not be a fatal error, so continue.
 	}
 
-	err = protocol.SendMetrics(web100metrics, controlConn)
+	err = protocol.SendMetrics(web100metrics, m)
 	if err != nil {
 		log.Println("Could not SendMetrics", err)
 		metrics.ErrorCount.WithLabelValues("s2c", "SendMetrics").Inc()
 		return record, err
 	}
 
-	err = protocol.SendJSONMessage(protocol.TestFinalize, "", controlConn)
+	err = m.SendMessage(protocol.TestFinalize, []byte{})
 	if err != nil {
 		log.Println("Could not send TestFinalize", err)
 		metrics.ErrorCount.WithLabelValues("s2c", "TestFinalize").Inc()

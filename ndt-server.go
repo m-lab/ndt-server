@@ -107,7 +107,7 @@ func main() {
 
 	// The legacy protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
-	legacyServer := plain.NewServer(*dataDir+"/legacy", *legacyWsPort)
+	legacyServer := plain.NewServer(*dataDir+"/legacy", "127.0.0.1"+*legacyWsPort)
 	rtx.Must(
 		legacyServer.ListenAndServe(ctx, *legacyPort),
 		"Could not start raw server")
