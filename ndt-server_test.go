@@ -152,19 +152,23 @@ func Test_MainIntegrationTest(t *testing.T) {
 	}
 	tests := []testcase{
 		// Before we can throw out the C NDT codebase:
-		// TODO(https://github.com/m-lab/ndt-server/issues/65)
-		//  /bin/web100clt-without-json-support --disablemid --disablesfw
-		//  /bin/libndt-client --download # No --json flag
-		//  /bin/libndt-client --upload   # No --json flag
 		// Legacy TLV-only clients.
 		{
 			name: "Connect with web100clt (legacy TLV)",
 			cmd:  "timeout 45s /bin/web100clt-without-json-support --name localhost --port " + legacyPort + " --disablemid --disablesfw",
 		},
+		{
+			name: "Connect with libndt-client - legacy NDT with JSON, download test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyPort + " --download",
+		},
+		{
+			name: "Connect with libndt-client - legacy NDT with JSON, upload test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyPort + " --upload",
+		},
 		// TODO(https://github.com/m-lab/ndt-server/issues/66)
 		//  /bin/web100clt-with-json-support    # No tests disabled.
 		//  /bin/web100clt-without-json-support # No tests disabled.
-		// Test libndt clients
+		// Test libndt JSON clients
 		{
 			name: "Connect with libndt-client - legacy NDT with JSON, download test",
 			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyPort + " --json --download",
