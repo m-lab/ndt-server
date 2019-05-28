@@ -51,14 +51,19 @@ var (
 
 func defaultHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(`
+	w.Write([]byte(fmt.Sprintf(`
 This is an NDT server.
 
-It only works with Websockets and SSL.
+You can run an NDT7 test (recommended) by going here:
+   %s/static/ndt7.html
 
-You can run a test here: :3010/static/widget.html
+You can run a legacy test here: 
+   %s/static/widget.html
+   %s/static/widget.html
+or by pointing a legacy NDT client at:
+   %s
 You can monitor its status on port :9090/metrics.
-`))
+`, *ndt7Addr, *legacyAddr, *legacyWssAddr, *legacyAddr)))
 }
 
 func catchSigterm() {
