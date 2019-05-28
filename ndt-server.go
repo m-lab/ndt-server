@@ -58,12 +58,11 @@ You can run an NDT7 test (recommended) by going here:
    %s/static/ndt7.html
 
 You can run a legacy test here: 
-   %s/static/widget.html
-   %s/static/widget.html
-or by pointing a legacy NDT client at:
-   %s
+   %s/static/widget.html (over http and websockets)
+   %s/static/widget.html (over https and secure websockets)
+
 You can monitor its status on port :9090/metrics.
-`, *ndt7Addr, *legacyAddr, *legacyWssAddr, *legacyAddr)))
+`, *ndt7Addr, *legacyAddr, *legacyWssAddr)))
 }
 
 func catchSigterm() {
