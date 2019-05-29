@@ -65,9 +65,7 @@ func TestManageTest(t *testing.T) {
 			ctx:  context.Background(),
 			m: &fakeMessager{
 				recv: []recvMessage{
-					{
-						msg: []byte("a:b"),
-					},
+					{msg: []byte("a:b")},
 				},
 			},
 			want: []NameValue{
@@ -79,9 +77,7 @@ func TestManageTest(t *testing.T) {
 			ctx:  context.Background(),
 			m: &fakeMessager{
 				recv: []recvMessage{
-					{
-						msg: append(len64, []byte(":b")...),
-					},
+					{msg: append(len64, []byte(":b")...)},
 				},
 			},
 			want: []NameValue{
@@ -93,9 +89,7 @@ func TestManageTest(t *testing.T) {
 			ctx:  context.Background(),
 			m: &fakeMessager{
 				recv: []recvMessage{
-					{
-						msg: append([]byte("a:"), len256...),
-					},
+					{msg: append([]byte("a:"), len256...)},
 				},
 			},
 			want: []NameValue{
@@ -107,9 +101,7 @@ func TestManageTest(t *testing.T) {
 			ctx:  context.Background(),
 			m: &fakeMessager{
 				recv: []recvMessage{
-					{
-						err: fmt.Errorf("Fake failure to ReceiveMessage"),
-					},
+					{err: fmt.Errorf("Fake failure to ReceiveMessage")},
 				},
 			},
 			wantErr: true,
