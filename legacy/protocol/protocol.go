@@ -104,7 +104,7 @@ var badUUID = "ERROR_DISCOVERING_UUID"
 // UUIDToFile converts a UUID into a newly-created open file with the extension '.json'.
 func UUIDToFile(dir, uuid string) (*os.File, error) {
 	if uuid == badUUID {
-		f, err := ioutil.TempFile(dir, badUUID+"XXXXXX.json")
+		f, err := ioutil.TempFile(dir, badUUID+"*.json")
 		if err != nil {
 			log.Println("Could not create filename for data")
 			return nil, err
