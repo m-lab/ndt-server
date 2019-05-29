@@ -10,16 +10,10 @@ import (
 )
 
 // maxClientMessages is the maximum allowed messages we will accept from a client.
-var maxClientMessages = 10
-
-// NameValue is an individual meta response.
-type NameValue struct {
-	Name  string
-	Value string
-}
+var maxClientMessages = 20
 
 // ArchivalData contains all meta data reported by the client.
-type ArchivalData []NameValue
+type ArchivalData map[string]string
 
 type archiveErr struct {
 	archivalData ArchivalData
@@ -34,7 +28,6 @@ func ManageTest(ctx context.Context, m protocol.Messager) (ArchivalData, error) 
 
 	c := make(chan *archiveErr)
 	go collectMeta(m, c)
-	defer close(c)
 
 	select {
 	case <-localCtx.Done():
@@ -49,7 +42,8 @@ func ManageTest(ctx context.Context, m protocol.Messager) (ArchivalData, error) 
 func collectMeta(m protocol.Messager, c chan *archiveErr) {
 	var err error
 	var message []byte
-	results := []NameValue{}
+	results := map[string]string{}
+	defer close(c)
 
 	m.SendMessage(protocol.TestPrepare, []byte{})
 	m.SendMessage(protocol.TestStart, []byte{})
@@ -63,15 +57,18 @@ func collectMeta(m protocol.Messager, c chan *archiveErr) {
 
 		log.Println("Meta message: ", string(message))
 		s := strings.SplitN(string(message), ":", 2)
-		name := s[0]
+		if len(s) != 2 {
+			continue
+		}
+		name := strings.TrimSpace(s[0])
 		if len(name) > 63 {
 			name = name[:63]
 		}
-		value := s[1]
+		value := strings.TrimSpace(s[1])
 		if len(value) > 255 {
 			value = value[:255]
 		}
-		results = append(results, NameValue{Name: name, Value: value})
+		results[name] = value
 	}
 	if err != nil {
 		log.Println("Error reading JSON message:", err)
