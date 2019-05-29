@@ -26,8 +26,10 @@ import (
 )
 
 const (
+	cTestMID    = 1
 	cTestC2S    = 2
 	cTestS2C    = 4
+	cTestSFW    = 8
 	cTestStatus = 16
 	cTestMETA   = 32
 )
@@ -162,6 +164,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	runC2s := (tests & cTestC2S) != 0
 	runS2c := (tests & cTestS2C) != 0
 	runMeta := (tests & cTestMETA) != 0
+	// TODO: count cTestSFW & cTestMID requests.
 
 	if runC2s {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestC2S))
