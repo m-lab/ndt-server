@@ -58,6 +58,10 @@ func ManageTest(ctx context.Context, m protocol.Messager) (ArchivalData, error) 
 		}
 		results[name] = value
 	}
+	if localCtx.Err() != nil {
+		log.Println("META context error:", localCtx.Err())
+		return nil, localCtx.Err()
+	}
 	if err != nil {
 		log.Println("Error reading JSON message:", err)
 		return nil, err
