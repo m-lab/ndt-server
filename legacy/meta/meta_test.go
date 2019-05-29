@@ -68,9 +68,7 @@ func TestManageTest(t *testing.T) {
 					{msg: []byte("a:b")},
 				},
 			},
-			want: []NameValue{
-				{Name: "a", Value: "b"},
-			},
+			want: map[string]string{"a": "b"},
 		},
 		{
 			name: "truncate-name-to-63-bytes",
@@ -80,9 +78,7 @@ func TestManageTest(t *testing.T) {
 					{msg: append(len64, []byte(":b")...)},
 				},
 			},
-			want: []NameValue{
-				{Name: string(len64[:63]), Value: "b"},
-			},
+			want: map[string]string{string(len64[:63]): "b"},
 		},
 		{
 			name: "truncate-value-to-255-bytes",
@@ -92,9 +88,7 @@ func TestManageTest(t *testing.T) {
 					{msg: append([]byte("a:"), len256...)},
 				},
 			},
-			want: []NameValue{
-				{Name: "a", Value: string(len256[:255])},
-			},
+			want: map[string]string{"a": string(len256[:255])},
 		},
 		{
 			name: "receive-error",
@@ -105,6 +99,16 @@ func TestManageTest(t *testing.T) {
 				},
 			},
 			wantErr: true,
+		},
+		{
+			name: "skip-bad-key",
+			ctx:  context.Background(),
+			m: &fakeMessager{
+				recv: []recvMessage{
+					{msg: []byte("this-key-has-no-colon-separator")},
+				},
+			},
+			want: map[string]string{},
 		},
 	}
 	for _, tt := range tests {
