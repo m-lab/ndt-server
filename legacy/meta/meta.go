@@ -56,7 +56,6 @@ func collectMeta(m protocol.Messager, c chan *archiveErr) {
 	count := 0
 	for count < maxClientMessages {
 		message, err = m.ReceiveMessage(protocol.TestMsg)
-		// message, err = protocol.ReceiveJSONMessage(m, protocol.TestMsg)
 		if string(message) == "" || err != nil {
 			break
 		}
