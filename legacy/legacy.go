@@ -26,9 +26,12 @@ import (
 )
 
 const (
+	cTestMID    = 1
 	cTestC2S    = 2
 	cTestS2C    = 4
+	cTestSFW    = 8
 	cTestStatus = 16
+	cTestMETA   = 32
 )
 
 // NDTResult is the struct that is serialized as JSON to disk as the archival record of an NDT test.
@@ -51,9 +54,9 @@ type NDTResult struct {
 
 	StartTime time.Time
 	EndTime   time.Time
-	C2S       *c2s.ArchivalData  `json:",omitempty"`
-	S2C       *s2c.ArchivalData  `json:",omitempty"`
-	Meta      *meta.ArchivalData `json:",omitempty"`
+	C2S       *c2s.ArchivalData `json:",omitempty"`
+	S2C       *s2c.ArchivalData `json:",omitempty"`
+	Meta      meta.ArchivalData `json:",omitempty"`
 }
 
 // SaveData archives the data to disk.
@@ -160,12 +163,17 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	testsToRun := []string{}
 	runC2s := (tests & cTestC2S) != 0
 	runS2c := (tests & cTestS2C) != 0
+	runMeta := (tests & cTestMETA) != 0
+	// TODO: count cTestSFW & cTestMID requests.
 
 	if runC2s {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestC2S))
 	}
 	if runS2c {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestS2C))
+	}
+	if runMeta {
+		testsToRun = append(testsToRun, strconv.Itoa(cTestMETA))
 	}
 
 	m := conn.Messager()
@@ -196,6 +204,10 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 			s2cRate = record.S2C.MeanThroughputMbps
 			metrics.TestRate.WithLabelValues("s2c").Observe(s2cRate)
 		}
+	}
+	if runMeta {
+		record.Meta, err = meta.ManageTest(ctx, m)
+		rtx.PanicOnError(err, "META - Could not run meta test")
 	}
 	speedMsg := fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000)
 	log.Println(speedMsg)
