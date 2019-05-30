@@ -76,7 +76,7 @@ func loop(
 				Elapsed: elapsed.Seconds(),
 			}
 			measure(&measurement, sockfp)
-			if !sentConnectionInfo {
+			if sentConnectionInfo == false {
 				measurement.ConnectionInfo = &model.ConnectionInfo{
 					Client: conn.RemoteAddr().String(),
 					Server: conn.LocalAddr().String(),
