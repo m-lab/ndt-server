@@ -41,6 +41,13 @@ var (
 			Help: "The number of times we sniffed-then-proxied a websocket connection on the legacy channel.",
 		},
 	)
+	ClientRequestedTestSuites = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt_legacy_client_requested_suites_total",
+			Help: "The number of client request test suites (the combination of all test types as an integer 0-255).",
+		},
+		[]string{"suite"},
+	)
 	ClientRequestedTests = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt_legacy_client_requested_tests_total",
