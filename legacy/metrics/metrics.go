@@ -41,4 +41,20 @@ var (
 			Help: "The number of times we sniffed-then-proxied a websocket connection on the legacy channel.",
 		},
 	)
+	ClientRequestedTests = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt_legacy_client_requested_tests_total",
+			Help: "The number of client requests for each legacy test type.",
+		},
+		[]string{"type"},
+	)
+	SubmittedMetaValues = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name: "ndt_legacy_submitted_meta_values",
+			Help: "The number of meta values submitted by clients.",
+			Buckets: []float64{
+				0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+				11, 12, 13, 14, 15, 16, 17, 18, 19, 20},
+		},
+	)
 )
