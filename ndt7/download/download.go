@@ -21,7 +21,7 @@ func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File) {
 	// results in the loop below, we terminate the goroutines early
 	wholectx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	senderch := sender.Start(conn, measurer.Start(wholectx, conn))
+	senderch := sender.Start(conn, measurer.Start(wholectx, conn, resultfp))
 	receiverch := receiver.Start(wholectx, conn)
 	saver.SaveAll(resultfp, senderch, receiverch)
 }

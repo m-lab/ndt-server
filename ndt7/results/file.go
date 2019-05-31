@@ -22,6 +22,9 @@ type File struct {
 
 	// Fp is the underlying file
 	Fp *os.File
+
+	// UUID is the UUID of this subtest
+	UUID string
 }
 
 // newFile opens a measurements file in the current working
@@ -48,6 +51,7 @@ func newFile(datadir, what, uuid string) (*File, error) {
 	return &File{
 		Writer: writer,
 		Fp:     fp,
+		UUID:   uuid,
 	}, nil
 }
 
