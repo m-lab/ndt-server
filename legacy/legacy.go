@@ -164,16 +164,28 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	runC2s := (tests & cTestC2S) != 0
 	runS2c := (tests & cTestS2C) != 0
 	runMeta := (tests & cTestMETA) != 0
-	// TODO: count cTestSFW & cTestMID requests.
+	runSFW := (tests & cTestSFW) != 0
+	runMID := (tests & cTestMID) != 0
 
+	legacymetrics.ClientRequestedTestSuites.WithLabelValues(fmt.Sprintf("%d", 0xff&tests)).Inc()
+
+	if runMID {
+		legacymetrics.ClientRequestedTests.WithLabelValues("mid").Inc()
+	}
 	if runC2s {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestC2S))
+		legacymetrics.ClientRequestedTests.WithLabelValues("c2s").Inc()
 	}
 	if runS2c {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestS2C))
+		legacymetrics.ClientRequestedTests.WithLabelValues("s2c").Inc()
+	}
+	if runSFW {
+		legacymetrics.ClientRequestedTests.WithLabelValues("sfw").Inc()
 	}
 	if runMeta {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestMETA))
+		legacymetrics.ClientRequestedTests.WithLabelValues("meta").Inc()
 	}
 
 	m := conn.Messager()
