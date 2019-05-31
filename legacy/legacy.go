@@ -167,7 +167,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	runSFW := (tests & cTestSFW) != 0
 	runMID := (tests & cTestMID) != 0
 
-	legacymetrics.ClientRequestedTestSuites.WithLabelValues(fmt.Sprintf("0x%02x", 0xff&tests)).Inc()
+	legacymetrics.ClientRequestedTestSuites.WithLabelValues(fmt.Sprintf("%d", 0xff&tests)).Inc()
 
 	if runMID {
 		legacymetrics.ClientRequestedTests.WithLabelValues("mid").Inc()
