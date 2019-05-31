@@ -102,9 +102,7 @@ func SaveAll(resultfp *results.File, serverch, clientch <-chan model.Measurement
 		// We don't want to save connection_info on the server side because that's
 		// just convenience information provided to the client that is already
 		// duplicated into the "header" that we add as first line of a results file.
-		if imsg.m.ConnectionInfo != nil {
-			imsg.m.ConnectionInfo = nil
-		}
+		imsg.m.ConnectionInfo = nil
 		if err := resultfp.WriteMeasurement(imsg.m, imsg.o); err != nil {
 			logging.Logger.WithError(err).Warn(
 				"saver: resultfp.WriteMeasurement failed",
