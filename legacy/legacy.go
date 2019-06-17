@@ -184,7 +184,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	}
 	if runSFW {
 		legacymetrics.ClientRequestedTests.WithLabelValues("sfw").Inc()
-		suites = append(suites, "sf2")
+		suites = append(suites, "sfw")
 	}
 	if runMeta {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestMETA))
