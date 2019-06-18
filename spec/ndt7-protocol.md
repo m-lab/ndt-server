@@ -239,19 +239,19 @@ description of how a real request would look like);
 
 3. MUST set `User-Agent` to identify themselves;
 
-4. MUST correctly handle `3xx` redirects, interpret `200` as success, and
-any other status code as failure;
+4. MUST correctly handle `3xx` redirects, interpret `200` as success, `204`
+as the no-capacity signal (see below) and any other status as failure.
 
-5. MUST handle gracefully the case where M-Lab is out of capacity, which
-is identifiable by locate.measurementlab.net returning `200` along with an
-empty response.
+The no-capacity signal is emitted by the locate.measurementlab.net service
+when M-Lab is out of capacity. In such cases, the return code is `204`,
+to indicate that there is no (ndt7 server) content for the requesting client.
 
 The following example shows a request to locate.measurementlab.net originating
 from a well-behaved ndt7 client:
 
 ```
 * Connected to locate.measurementlab.net (216.58.205.84) port 443 (#0)
-> GET /ndt7 HTTP/2
+> GET /ndt7 HTTP/1.1
 > Host: locate.measurementlab.net
 > User-Agent: MKEngine/0.1.0
 > Accept: application/json
@@ -263,7 +263,7 @@ following (where some irrelevant JSON fields have been omitted for
 the sake of brevity and thus content-length is now wrong):
 
 ```
-< HTTP/2 200
+< HTTP/1.1 200
 < cache-control: no-cache
 < access-control-allow-origin: *
 < content-type: application/json
@@ -278,15 +278,14 @@ In case of capacity issues (as specified above), the server response
 would instead look like the following:
 
 ```
-< HTTP/2 200
+< HTTP/2 204
 < cache-control: no-cache
 < access-control-allow-origin: *
 < content-type: application/json
 < date: Thu, 02 May 2019 13:46:32 GMT
 < server: Google Frontend
-< content-length: 2
+< content-length: 0
 <
-{}
 ```
 
 ### Requirements for non-interactive clients
