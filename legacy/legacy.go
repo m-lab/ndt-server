@@ -164,17 +164,35 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	runC2s := (tests & cTestC2S) != 0
 	runS2c := (tests & cTestS2C) != 0
 	runMeta := (tests & cTestMETA) != 0
-	// TODO: count cTestSFW & cTestMID requests.
+	runSFW := (tests & cTestSFW) != 0
+	runMID := (tests & cTestMID) != 0
 
+	suites := []string{"status"}
+	if runMID {
+		legacymetrics.ClientRequestedTests.WithLabelValues("mid").Inc()
+		suites = append(suites, "mid")
+	}
 	if runC2s {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestC2S))
+		legacymetrics.ClientRequestedTests.WithLabelValues("c2s").Inc()
+		suites = append(suites, "c2s")
 	}
 	if runS2c {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestS2C))
+		legacymetrics.ClientRequestedTests.WithLabelValues("s2c").Inc()
+		suites = append(suites, "s2c")
+	}
+	if runSFW {
+		legacymetrics.ClientRequestedTests.WithLabelValues("sfw").Inc()
+		suites = append(suites, "sfw")
 	}
 	if runMeta {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestMETA))
+		legacymetrics.ClientRequestedTests.WithLabelValues("meta").Inc()
+		suites = append(suites, "meta")
 	}
+	// Count the combined test suites by name. i.e. "status-s2c-meta"
+	legacymetrics.ClientRequestedTestSuites.WithLabelValues(strings.Join(suites, "-")).Inc()
 
 	m := conn.Messager()
 	record.MessageProtocol = m.Encoding().String()
@@ -191,19 +209,19 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	var c2sRate, s2cRate float64
 	if runC2s {
 		record.C2S, err = c2s.ManageTest(ctx, conn, s)
-		rtx.PanicOnError(err, "C2S - Could not run c2s test")
 		if record.C2S != nil && record.C2S.MeanThroughputMbps != 0 {
 			c2sRate = record.C2S.MeanThroughputMbps
 			metrics.TestRate.WithLabelValues("c2s").Observe(c2sRate)
 		}
+		rtx.PanicOnError(err, "C2S - Could not run c2s test")
 	}
 	if runS2c {
 		record.S2C, err = s2c.ManageTest(ctx, conn, s)
-		rtx.PanicOnError(err, "S2C - Could not run s2c test")
 		if record.S2C != nil && record.S2C.MeanThroughputMbps != 0 {
 			s2cRate = record.S2C.MeanThroughputMbps
 			metrics.TestRate.WithLabelValues("s2c").Observe(s2cRate)
 		}
+		rtx.PanicOnError(err, "S2C - Could not run s2c test")
 	}
 	if runMeta {
 		record.Meta, err = meta.ManageTest(ctx, m)

@@ -152,8 +152,10 @@ func Test_MainIntegrationTest(t *testing.T) {
 	tests := []testcase{
 		// Legacy TLV-only clients.
 		{
+			// NOTE: we must disable the middle-box test in the legacy TLV client because it unconditionally expects
+			// that test to run irrespective of what the server supports.
 			name: "web100clt (legacy TLV)",
-			cmd:  "timeout 45s /bin/web100clt-without-json-support --name localhost --port " + legacyAddr + " --disablemid --disablesfw",
+			cmd:  "timeout 45s /bin/web100clt-without-json-support --name localhost --port " + legacyAddr + " --disablemid",
 		},
 		{
 			name: "libndt-client - legacy NDT with JSON, download test",
@@ -193,7 +195,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// Test legacy raw JSON clients
 		{
 			name: "web100clt (with JSON), no MID or SFW",
-			cmd:  "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyAddr + " --disablemid --disablesfw",
+			cmd:  "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyAddr,
 		},
 		// Test legacy WS clients connected to the HTTP port
 		{

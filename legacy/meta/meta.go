@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m-lab/ndt-server/legacy/metrics"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 )
 
 // maxClientMessages is the maximum allowed messages we will accept from a client.
-// TODO: add histogram (1-20) counting number of messages per client.
 var maxClientMessages = 20
 
 // ArchivalData contains all meta data reported by the client.
@@ -43,7 +43,6 @@ func ManageTest(ctx context.Context, m protocol.Messager) (ArchivalData, error) 
 		}
 		count++
 
-		log.Println("Meta message: ", string(message))
 		s := strings.SplitN(string(message), ":", 2)
 		if len(s) != 2 {
 			continue
@@ -66,6 +65,8 @@ func ManageTest(ctx context.Context, m protocol.Messager) (ArchivalData, error) 
 		log.Println("Error reading JSON message:", err)
 		return nil, err
 	}
+	// Count the number meta values sent by the client (when there are no errors).
+	metrics.SubmittedMetaValues.Observe(float64(count))
 	m.SendMessage(protocol.TestFinalize, []byte{})
 	return results, nil
 }
