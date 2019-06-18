@@ -1,101 +1,161 @@
 package legacy
 
 import (
-	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net"
-	"net/http"
+	"os"
+	"path"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/m-lab/go/rtx"
+
+	"github.com/m-lab/go/prometheusx"
+	"github.com/m-lab/go/warnonerror"
 
 	"github.com/m-lab/ndt-server/legacy/c2s"
+	"github.com/m-lab/ndt-server/legacy/meta"
 	legacymetrics "github.com/m-lab/ndt-server/legacy/metrics"
+	"github.com/m-lab/ndt-server/legacy/ndt"
 	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/legacy/s2c"
-	"github.com/m-lab/ndt-server/legacy/testresponder"
 	"github.com/m-lab/ndt-server/metrics"
 )
 
 const (
+	cTestMID    = 1
 	cTestC2S    = 2
 	cTestS2C    = 4
+	cTestSFW    = 8
 	cTestStatus = 16
+	cTestMETA   = 32
 )
 
-// BasicServer contains everything needed to start a new server on a random port.
-type BasicServer struct {
-	CertFile       string
-	KeyFile        string
-	ServerType     testresponder.ServerType
-	ForwardingAddr string
-	Labels         prometheus.Labels
+// NDTResult is the struct that is serialized as JSON to disk as the archival record of an NDT test.
+//
+// This struct is dual-purpose. It contains the necessary data to allow joining
+// with tcp-info data and traceroute-caller data as well as any other UUID-based
+// data. It also contains enough data for interested parties to perform
+// lightweight data analysis without needing to join with other tools.
+type NDTResult struct {
+	// GitShortCommit is the Git commit (short form) of the running server code.
+	GitShortCommit string
+
+	// These data members should all be self-describing. In the event of confusion,
+	// rename them to add clarity rather than adding a comment.
+	ControlChannelUUID string
+	Protocol           ndt.ConnectionType
+	MessageProtocol    string
+	ServerIP           string
+	ClientIP           string
+
+	StartTime time.Time
+	EndTime   time.Time
+	C2S       *c2s.ArchivalData `json:",omitempty"`
+	S2C       *s2c.ArchivalData `json:",omitempty"`
+	Meta      meta.ArchivalData `json:",omitempty"`
 }
 
-// TODO: run meta test.
-func runMetaTest(ws protocol.Connection) {
-	var err error
-	var message *protocol.JSONMessage
+// SaveData archives the data to disk.
+func SaveData(record *NDTResult, datadir string) {
+	if record == nil {
+		log.Println("nil record won't be saved")
+		return
+	}
+	dir := path.Join(datadir, record.StartTime.Format("2006/01/02"))
+	err := os.MkdirAll(dir, 0777)
+	if err != nil {
+		log.Printf("Could not create directory %s: %v\n", dir, err)
+		return
+	}
+	file, err := protocol.UUIDToFile(dir, record.ControlChannelUUID)
+	if err != nil {
+		log.Println("Could not open file:", err)
+		return
+	}
+	defer file.Close()
+	enc := json.NewEncoder(file)
+	err = enc.Encode(record)
+	if err != nil {
+		log.Println("Could not encode", record, "to", file.Name())
+		return
+	}
+	log.Println("Wrote", file.Name())
+}
 
-	protocol.SendJSONMessage(protocol.TestPrepare, "", ws)
-	protocol.SendJSONMessage(protocol.TestStart, "", ws)
-	for {
-		message, err = protocol.ReceiveJSONMessage(ws, protocol.TestMsg)
-		if message.Msg == "" || err != nil {
-			break
+func panicMsgToErrType(msg string) string {
+	okayWords := map[string]struct{}{
+		"Login":           {},
+		"ParseInt":        {},
+		"SrvQueue":        {},
+		"MsgLoginVersion": {},
+		"MsgLoginTests":   {},
+		"C2S":             {},
+		"S2C":             {},
+		"MsgResults":      {},
+		"MsgLogout":       {},
+	}
+	words := strings.SplitN(msg, " ", 1)
+	if len(words) >= 1 {
+		word := words[0]
+		if _, ok := okayWords[word]; ok {
+			return word
 		}
-		log.Println("Meta message: ", message)
 	}
-	if err != nil {
-		log.Println("Error reading JSON message:", err)
-		return
-	}
-	protocol.SendJSONMessage(protocol.TestFinalize, "", ws)
+	return "panic"
 }
 
-// ServeHTTP is the command channel for the NDT-WS or NDT-WSS test. All
-// subsequent client communication is synchronized with this method. Returning
-// closes the websocket connection, so only occurs after all tests complete or
-// an unrecoverable error. It is called ServeHTTP to make sure that the Server
-// implements the http.Handler interface.
-func (s *BasicServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	upgrader := testresponder.MakeNdtUpgrader([]string{"ndt"})
-	wsc, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("ERROR SERVER:", err)
-		return
-	}
-	ws := protocol.AdaptWsConn(wsc)
-	defer ws.Close()
-	s.handleControlChannel(ws)
-}
-
-// handleControlChannel is the "business logic" of an NDT test. It is designed
+// HandleControlChannel is the "business logic" of an NDT test. It is designed
 // to run every test, and to never need to know whether the underlying
-// connection is just a TCP socket, a WS connection, or a WSS connection.
-func (s *BasicServer) handleControlChannel(conn protocol.Connection) {
-	config := &testresponder.Config{
-		ServerType: s.ServerType,
-		CertFile:   s.CertFile,
-		KeyFile:    s.KeyFile,
-	}
+// connection is just a TCP socket, a WS connection, or a WSS connection. It
+// only needs a connection, and a factory for making single-use servers for
+// connections of that same type.
+func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
+	metrics.ActiveTests.WithLabelValues(string(s.ConnectionType())).Inc()
+	defer metrics.ActiveTests.WithLabelValues(string(s.ConnectionType())).Dec()
+	defer func(start time.Time) {
+		legacymetrics.ControlChannelDuration.WithLabelValues(string(s.ConnectionType())).Observe(
+			time.Since(start).Seconds())
+	}(time.Now())
+	defer func() {
+		r := recover()
+		if r != nil {
+			log.Println("Test failed, but we recovered:", r)
+			// All of our panic messages begin with an informative first word.  Use that as a label.
+			errType := panicMsgToErrType(fmt.Sprint(r))
+			metrics.ErrorCount.WithLabelValues(string(s.ConnectionType()), errType).Inc()
+		}
+	}()
+	handleControlChannel(conn, s)
+}
+func handleControlChannel(conn protocol.Connection, s ndt.Server) {
+	// Nothing should take more than 45 seconds, and exiting this method should
+	// cause all resources used by the test to be reclaimed.
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
 
-	message, err := protocol.ReceiveJSONMessage(conn, protocol.MsgExtendedLogin)
-	if err != nil {
-		log.Println("Error reading JSON message:", err)
-		return
+	log.Println("Handling connection", conn)
+	defer warnonerror.Close(conn, "Could not close "+conn.String())
+
+	record := &NDTResult{
+		GitShortCommit:     prometheusx.GitShortCommit,
+		StartTime:          time.Now(),
+		ControlChannelUUID: conn.UUID(),
+		ServerIP:           conn.ServerIP(),
+		ClientIP:           conn.ClientIP(),
+		Protocol:           s.ConnectionType(),
 	}
-	tests, err := strconv.ParseInt(message.Tests, 10, 64)
-	if err != nil {
-		log.Println("Failed to parse Tests integer:", err)
-		return
-	}
+	defer func() {
+		record.EndTime = time.Now()
+		SaveData(record, s.DataDir())
+	}()
+
+	tests, err := s.LoginCeremony(conn)
+	rtx.PanicOnError(err, "Login - error reading JSON message")
+
 	if (tests & cTestStatus) == 0 {
 		log.Println("We don't support clients that don't support TestStatus")
 		return
@@ -103,136 +163,77 @@ func (s *BasicServer) handleControlChannel(conn protocol.Connection) {
 	testsToRun := []string{}
 	runC2s := (tests & cTestC2S) != 0
 	runS2c := (tests & cTestS2C) != 0
+	runMeta := (tests & cTestMETA) != 0
+	runSFW := (tests & cTestSFW) != 0
+	runMID := (tests & cTestMID) != 0
 
+	suites := []string{"status"}
+	if runMID {
+		legacymetrics.ClientRequestedTests.WithLabelValues("mid").Inc()
+		suites = append(suites, "mid")
+	}
 	if runC2s {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestC2S))
+		legacymetrics.ClientRequestedTests.WithLabelValues("c2s").Inc()
+		suites = append(suites, "c2s")
 	}
 	if runS2c {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestS2C))
+		legacymetrics.ClientRequestedTests.WithLabelValues("s2c").Inc()
+		suites = append(suites, "s2c")
 	}
+	if runSFW {
+		legacymetrics.ClientRequestedTests.WithLabelValues("sfw").Inc()
+		suites = append(suites, "sfw")
+	}
+	if runMeta {
+		testsToRun = append(testsToRun, strconv.Itoa(cTestMETA))
+		legacymetrics.ClientRequestedTests.WithLabelValues("meta").Inc()
+		suites = append(suites, "meta")
+	}
+	// Count the combined test suites by name. i.e. "status-s2c-meta"
+	legacymetrics.ClientRequestedTestSuites.WithLabelValues(strings.Join(suites, "-")).Inc()
 
-	protocol.SendJSONMessage(protocol.SrvQueue, "0", conn)
-	protocol.SendJSONMessage(protocol.MsgLogin, "v5.0-NDTinGO", conn)
-	protocol.SendJSONMessage(protocol.MsgLogin, strings.Join(testsToRun, " "), conn)
+	m := conn.Messager()
+	record.MessageProtocol = m.Encoding().String()
+	rtx.PanicOnError(
+		m.SendMessage(protocol.SrvQueue, []byte("0")),
+		"SrvQueue - Could not send SrvQueue")
+	rtx.PanicOnError(
+		m.SendMessage(protocol.MsgLogin, []byte("v5.0-NDTinGO")),
+		"MsgLoginVersion - Could not send MsgLogin with version")
+	rtx.PanicOnError(
+		m.SendMessage(protocol.MsgLogin, []byte(strings.Join(testsToRun, " "))),
+		"MsgLoginTests - Could not send MsgLogin with the tests")
 
 	var c2sRate, s2cRate float64
 	if runC2s {
-		c2sRate, err = c2s.ManageTest(conn, config)
-		if err != nil {
-			log.Println("ERROR: manageC2sTest", err)
-		} else {
-			legacymetrics.TestRate.WithLabelValues("c2s").Observe(c2sRate / 1000.0)
+		record.C2S, err = c2s.ManageTest(ctx, conn, s)
+		if record.C2S != nil && record.C2S.MeanThroughputMbps != 0 {
+			c2sRate = record.C2S.MeanThroughputMbps
+			metrics.TestRate.WithLabelValues("c2s").Observe(c2sRate)
 		}
+		rtx.PanicOnError(err, "C2S - Could not run c2s test")
 	}
 	if runS2c {
-		s2cRate, err = s2c.ManageTest(conn, config)
-		if err != nil {
-			log.Println("ERROR: manageS2cTest", err)
-		} else {
-			legacymetrics.TestRate.WithLabelValues("s2c").Observe(s2cRate / 1000.0)
+		record.S2C, err = s2c.ManageTest(ctx, conn, s)
+		if record.S2C != nil && record.S2C.MeanThroughputMbps != 0 {
+			s2cRate = record.S2C.MeanThroughputMbps
+			metrics.TestRate.WithLabelValues("s2c").Observe(s2cRate)
 		}
+		rtx.PanicOnError(err, "S2C - Could not run s2c test")
 	}
-	log.Printf("NDT: uploaded at %.4f and downloaded at %.4f", c2sRate, s2cRate)
-	protocol.SendJSONMessage(protocol.MsgResults, fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate, s2cRate), conn)
-	protocol.SendJSONMessage(protocol.MsgLogout, "", conn)
-
-}
-
-// sniffThenHandle implements protocol sniffing to allow WS clients and just-TCP
-// clients to connect to the same port. This was a mistake to implement the
-// first time, but enough clients exist that need it that we are keeping it in
-// this code. In the future, if you are thinking of adding protocol sniffing to
-// your system, don't.
-func (s *BasicServer) sniffThenHandle(conn net.Conn) {
-	// Set up our observation of the duration of this function.
-	connectionType := "tcp" // This type may change. Don't close over its value until after the sniffing procedure.
-	startTime := time.Now()
-	defer func() {
-		endTime := time.Now()
-		metrics.TestDuration.WithLabelValues("legacy", connectionType).Observe(endTime.Sub(startTime).Seconds())
-	}()
-	// Peek at the first three bytes. If they are "GET", then this is an HTTP
-	// conversation and should be forwarded to the HTTP server.
-	input := bufio.NewReader(conn)
-	lead, err := input.Peek(3)
-	if err != nil {
-		log.Println("Could not handle connection", conn, "due to", err)
-		return
+	if runMeta {
+		record.Meta, err = meta.ManageTest(ctx, m)
+		rtx.PanicOnError(err, "META - Could not run meta test")
 	}
-	if string(lead) == "GET" {
-		// Forward HTTP-like handshakes to the HTTP server. Note that this does NOT
-		// introduce overhead for the s2c and c2s tests, because in those tests the
-		// HTTP server itself opens the testing port, and that server will not use
-		// this TCP proxy.
-		//
-		// We must forward instead of doing an HTTP redirect because existing deployed
-		// clients don't support redirects, e.g.
-		//    https://github.com/websockets/ws/issues/812
-		connectionType = "forwarded_ws"
-		fwd, err := net.Dial("tcp", s.ForwardingAddr)
-		if err != nil {
-			log.Println("Could not forward connection", err)
-			return
-		}
-		wg := sync.WaitGroup{}
-		wg.Add(2)
-		// Copy the input channel.
-		go func() {
-			io.Copy(fwd, input)
-			wg.Done()
-		}()
-		// Copy the ouput channel.
-		go func() {
-			io.Copy(conn, fwd)
-			wg.Done()
-		}()
-		// When both Copy calls are done, close everything.
-		go func() {
-			wg.Wait()
-			conn.Close()
-			fwd.Close()
-		}()
-		return
-	}
-	// If there was no error and there was no GET, then this should be treated as a
-	// legitimate attempt to perform a non-ws-based NDT test.
-
-	// First, send the kickoff message (which is only sent for non-WS clients),
-	// then transition to the protocol engine where everything should be the same
-	// for TCP, WS, and WSS.
-	kickoff := "123456 654321"
-	n, err := conn.Write([]byte(kickoff))
-	if n != len(kickoff) || err != nil {
-		log.Printf("Could not write %d byte kickoff string: %d bytes written err: %v\n", len(kickoff), n, err)
-	}
-	s.handleControlChannel(protocol.AdaptNetConn(conn, input))
-}
-
-// ListenAndServeRawAsync starts up the sniffing server that delegates to the
-// appropriate just-TCP or WS protocol.Connection.
-func (s *BasicServer) ListenAndServeRawAsync(ctx context.Context, addr string) error {
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return err
-	}
-	// Close the listener when the context is canceled. We do this in a separate
-	// goroutine to ensure that context cancellation interrupts the Accept() call.
-	go func() {
-		<-ctx.Done()
-		ln.Close()
-	}()
-	// Serve requests until the context is canceled.
-	go func() {
-		for ctx.Err() == nil {
-			conn, err := ln.Accept()
-			if err != nil {
-				log.Println("Failed to accept connection:", err)
-				continue
-			}
-			go func() {
-				s.sniffThenHandle(conn)
-			}()
-		}
-	}()
-	return nil
+	speedMsg := fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000)
+	log.Println(speedMsg)
+	// For historical reasons, clients expect results in kbps
+	rtx.PanicOnError(
+		m.SendMessage(protocol.MsgResults, []byte(speedMsg)),
+		"MsgResults - Could not send test results message")
+	rtx.PanicOnError(
+		m.SendMessage(protocol.MsgLogout, []byte{}),
+		"MsgLogout - Could not send MsgLogout")
 }

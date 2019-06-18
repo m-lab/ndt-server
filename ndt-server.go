@@ -15,29 +15,26 @@ import (
 	"github.com/m-lab/go/prometheusx"
 
 	"github.com/m-lab/go/flagx"
-	"github.com/m-lab/go/httpx"
 	"github.com/m-lab/go/rtx"
 
-	"github.com/m-lab/ndt-server/legacy"
-	"github.com/m-lab/ndt-server/legacy/testresponder"
+	legacyhandler "github.com/m-lab/ndt-server/legacy/handler"
+	"github.com/m-lab/ndt-server/legacy/plain"
 	"github.com/m-lab/ndt-server/logging"
-	"github.com/m-lab/ndt-server/metrics"
-	"github.com/m-lab/ndt-server/ndt7/listener"
 	"github.com/m-lab/ndt-server/ndt7/handler"
+	"github.com/m-lab/ndt-server/ndt7/listener"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/platformx"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
 	// Flags that can be passed in on the command line
-	ndt7Port      = flag.String("ndt7_port", ":443", "The address and port to use for the ndt7 test")
-	legacyPort    = flag.String("legacy_port", ":3001", "The address and port to use for the unencrypted legacy NDT test")
-	legacyWsPort  = flag.String("legacy_ws_port", ":3002", "The address and port to use for the legacy NDT Ws test")
-	legacyWssPort = flag.String("legacy_wss_port", ":3010", "The address and port to use for the legacy NDT WsS test")
+	ndt7Addr      = flag.String("ndt7_addr", ":443", "The address and port to use for the ndt7 test")
+	legacyAddr    = flag.String("legacy_addr", ":3001", "The address and port to use for the unencrypted legacy NDT test")
+	legacyWsAddr  = flag.String("legacy_ws_addr", "127.0.0.1:3002", "The address and port to use for the legacy NDT WS test")
+	legacyWssAddr = flag.String("legacy_wss_addr", ":3010", "The address and port to use for the legacy NDT WsS test")
 	certFile      = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile       = flag.String("key", "", "The file with server key in PEM format.")
 	dataDir       = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
@@ -54,14 +51,18 @@ var (
 
 func defaultHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(`
+	w.Write([]byte(fmt.Sprintf(`
 This is an NDT server.
 
-It only works with Websockets and SSL.
+You can run an NDT7 test (recommended) by going here:
+   %s/static/ndt7.html
 
-You can run a test here: :3010/static/widget.html
+You can run a legacy test here: 
+   %s/static/widget.html (over http and websockets)
+   %s/static/widget.html (over https and secure websockets)
+
 You can monitor its status on port :9090/metrics.
-`))
+`, *ndt7Addr, *legacyAddr, *legacyWssAddr)))
 }
 
 func catchSigterm() {
@@ -93,6 +94,10 @@ func catchSigterm() {
 	}
 }
 
+func init() {
+	log.SetFlags(log.LUTC | log.LstdFlags | log.Lshortfile)
+}
+
 func main() {
 	flag.Parse()
 	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse env args")
@@ -106,94 +111,59 @@ func main() {
 
 	// The legacy protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
-	legacyServer := legacy.BasicServer{
-		ForwardingAddr: *legacyWsPort, // This is the port to which connections are forwarded.
-		ServerType:     testresponder.RawJSON,
-	}
+	legacyServer := plain.NewServer(*dataDir+"/legacy", *legacyWsAddr)
 	rtx.Must(
-		legacyServer.ListenAndServeRawAsync(ctx, *legacyPort),
+		legacyServer.ListenAndServe(ctx, *legacyAddr),
 		"Could not start raw server")
 
 	// The legacy protocol serving Ws-based tests. Most clients are hard-coded to
 	// connect to the raw server, which will forward things along.
-	legacyWsLabel := prometheus.Labels{"type": "legacy_ws"}
 	legacyWsMux := http.NewServeMux()
 	legacyWsMux.HandleFunc("/", defaultHandler)
 	legacyWsMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
-	legacyWsMux.Handle(
-		"/ndt_protocol",
-		promhttp.InstrumentHandlerInFlight(
-			metrics.CurrentTests.With(legacyWsLabel),
-			promhttp.InstrumentHandlerDuration(
-				metrics.TestDuration.MustCurryWith(legacyWsLabel),
-				&legacy.BasicServer{ServerType: testresponder.WS})))
+	legacyWsMux.Handle("/ndt_protocol", legacyhandler.NewWS(*dataDir+"/legacy"))
 	legacyWsServer := &http.Server{
-		Addr:    *legacyWsPort,
+		Addr:    *legacyWsAddr,
 		Handler: logging.MakeAccessLogHandler(legacyWsMux),
 	}
-	log.Println("About to listen for unencrypted legacy NDT tests on " + *legacyWsPort)
-	rtx.Must(httpx.ListenAndServeAsync(legacyWsServer), "Could not start unencrypted legacy NDT server")
+	log.Println("About to listen for unencrypted legacy NDT tests on " + *legacyWsAddr)
+	rtx.Must(listener.ListenAndServeAsync(legacyWsServer), "Could not start unencrypted legacy NDT server")
 	defer legacyWsServer.Close()
 
 	// Only start TLS-based services if certs and keys are provided
 	if *certFile != "" && *keyFile != "" {
 		// The legacy protocol serving WsS-based tests.
-		legacyWssLabel := prometheus.Labels{"type": "legacy_wss"}
 		legacyWssMux := http.NewServeMux()
 		legacyWssMux.HandleFunc("/", defaultHandler)
 		legacyWssMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
-		legacyWssConfig := legacy.BasicServer{
-			CertFile:   *certFile,
-			KeyFile:    *keyFile,
-			ServerType: testresponder.WSS,
-		}
-		legacyWssMux.Handle(
-			"/ndt_protocol",
-			promhttp.InstrumentHandlerInFlight(
-				metrics.CurrentTests.With(legacyWssLabel),
-				promhttp.InstrumentHandlerDuration(
-					metrics.TestDuration.MustCurryWith(legacyWssLabel),
-					&legacyWssConfig)))
+		legacyWssMux.Handle("/ndt_protocol", legacyhandler.NewWSS(*dataDir+"/legacy", *certFile, *keyFile))
 		legacyWssServer := &http.Server{
-			Addr:    *legacyWssPort,
+			Addr:    *legacyWssAddr,
 			Handler: logging.MakeAccessLogHandler(legacyWssMux),
 		}
-		log.Println("About to listen for legacy WsS tests on " + *legacyWssPort)
-		rtx.Must(httpx.ListenAndServeTLSAsync(legacyWssServer, *certFile, *keyFile), "Could not start legacy WsS server")
+		log.Println("About to listen for legacy WsS tests on " + *legacyWssAddr)
+		rtx.Must(listener.ListenAndServeTLSAsync(legacyWssServer, *certFile, *keyFile), "Could not start legacy WsS server")
 		defer legacyWssServer.Close()
 
 		// The ndt7 listener serving up NDT7 tests, likely on standard ports.
-		ndt7Label := prometheus.Labels{"type": "ndt7"}
 		ndt7Mux := http.NewServeMux()
 		ndt7Mux.HandleFunc("/", defaultHandler)
 		ndt7Mux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
 		ndt7Handler := &handler.Handler{
-			DataDir: *dataDir,
+			DataDir: *dataDir + "/ndt7",
 			Upgrader: websocket.Upgrader{
 				CheckOrigin: func(r *http.Request) bool {
 					return true // Allow cross origin resource sharing
 				},
 			},
 		}
-		ndt7Mux.Handle(
-			spec.DownloadURLPath,
-			promhttp.InstrumentHandlerInFlight(
-				metrics.CurrentTests.With(ndt7Label),
-				promhttp.InstrumentHandlerDuration(
-					metrics.TestDuration.MustCurryWith(ndt7Label),
-					http.HandlerFunc(ndt7Handler.Download))))
-		ndt7Mux.Handle(
-			spec.UploadURLPath,
-			promhttp.InstrumentHandlerInFlight(
-				metrics.CurrentTests.With(ndt7Label),
-				promhttp.InstrumentHandlerDuration(
-					metrics.TestDuration.MustCurryWith(ndt7Label),
-					http.HandlerFunc(ndt7Handler.Upload))))
+		ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
+		ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
 		ndt7Server := &http.Server{
-			Addr:    *ndt7Port,
+			Addr:    *ndt7Addr,
 			Handler: logging.MakeAccessLogHandler(ndt7Mux),
 		}
-		log.Println("About to listen for ndt7 tests on " + *ndt7Port)
+		log.Println("About to listen for ndt7 tests on " + *ndt7Addr)
 		rtx.Must(listener.ListenAndServeTLSAsync(ndt7Server, *certFile, *keyFile), "Could not start ndt7 server")
 		defer ndt7Server.Close()
 	} else {

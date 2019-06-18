@@ -2,139 +2,192 @@ package c2s
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/m-lab/ndt-server/legacy/metrics"
+	"github.com/m-lab/ndt-server/metrics"
+
+	"github.com/m-lab/go/warnonerror"
+	"github.com/m-lab/ndt-server/legacy/ndt"
 	"github.com/m-lab/ndt-server/legacy/protocol"
-	"github.com/m-lab/ndt-server/legacy/testresponder"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const (
-	ready = float64(-1)
-)
+// ArchivalData is the data saved by the C2S test. If a researcher wants deeper
+// data, then they should use the UUID to get deeper data from tcp-info.
+type ArchivalData struct {
+	// The server and client IP are here as well as in the containing struct
+	// because happy eyeballs means that we may have a IPv4 control connection
+	// causing a IPv6 connection to the test port or vice versa.
+	ServerIP string
+	ClientIP string
 
-// Responder responds to c2s tests.
-type Responder struct {
-	testresponder.TestResponder
-	Response chan float64
-}
+	// This is the only field that is really required.
+	TestConnectionUUID string
 
-// TestServer performs the NDT c2s test.
-func (tr *Responder) TestServer(w http.ResponseWriter, r *http.Request) {
-	upgrader := testresponder.MakeNdtUpgrader([]string{"c2s"})
-	wsc, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		// Upgrade should have already returned an HTTP error code.
-		log.Println("ERROR C2S: upgrader", err)
-		return
-	}
-	ws := protocol.AdaptWsConn(wsc)
-	tr.performTest(ws)
-}
+	// These fields are here to enable analyses that don't require joining with tcp-info data.
+	StartTime          time.Time
+	EndTime            time.Time
+	MeanThroughputMbps float64
+	// TODO: Add TCPEngine (bbr, cubic, reno, etc.)
 
-func (tr *Responder) performTest(ws protocol.MeasuredConnection) {
-	tr.Response <- ready
-	bytesPerSecond := tr.recvC2SUntil(ws)
-	tr.Response <- bytesPerSecond
-	go func() {
-		// After the test is supposedly over, let the socket drain a bit to not
-		// confuse poorly-written clients by closing unexpectedly when there is still
-		// buffered data. We make the judgement call that if the clients are so poorly
-		// written that they still have data buffered after 5 seconds and are confused
-		// when the c2s socket closes when buffered data is still in flight, then it
-		// is okay to break them.
-		ws.DrainUntil(time.Now().Add(5 * time.Second))
-		ws.Close()
-	}()
-}
-
-func (tr *Responder) recvC2SUntil(ws protocol.Connection) float64 {
-	done := make(chan float64)
-
-	go func() {
-		startTime := time.Now()
-		endTime := startTime.Add(10 * time.Second)
-		totalBytes, err := ws.DrainUntil(endTime)
-		if err != nil {
-			tr.Close()
-			return
-		}
-		bytesPerSecond := float64(totalBytes) / float64(time.Since(startTime)/time.Second)
-		done <- bytesPerSecond
-	}()
-
-	log.Println("C2S: Waiting for test to complete or timeout")
-	select {
-	case <-tr.Ctx.Done():
-		log.Println("C2S: Context Done!", tr.Ctx.Err())
-		ws.Close()
-		// Return zero on error.
-		return 0
-	case bytesPerSecond := <-done:
-		return bytesPerSecond
-	}
+	Error string `json:",omitempty"`
 }
 
 // ManageTest manages the c2s test lifecycle.
-func ManageTest(ws protocol.Connection, config *testresponder.Config) (float64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Create a testResponder instance.
-	testResponder := &Responder{
-		Response: make(chan float64),
-	}
-	testResponder.Config = config
-
-	// Create a TLS server for running the C2S test.
-	serveMux := http.NewServeMux()
-	serveMux.HandleFunc("/ndt_protocol",
-		promhttp.InstrumentHandlerCounter(
-			metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": "c2s"}),
-			http.HandlerFunc(testResponder.TestServer)))
-	err := testResponder.StartAsync(ctx, serveMux, testResponder.performTest, "C2S")
-	if err != nil {
-		return 0, err
-	}
-	defer testResponder.Close()
-
-	done := make(chan float64)
-	go func() {
-		// Wait for test to run.
-		// Send the server port to the client.
-		protocol.SendJSONMessage(protocol.TestPrepare, strconv.Itoa(testResponder.Port), ws)
-		c2sReady := <-testResponder.Response
-		if c2sReady != ready {
-			log.Println("ERROR C2S: Bad value received on the c2s channel", c2sReady)
-			cancel()
-			return
+func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Server) (record *ArchivalData, err error) {
+	localContext, localCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer localCancel()
+	defer func() {
+		if err != nil && record != nil {
+			record.Error = err.Error()
 		}
-		// Tell the client to start the test.
-		protocol.SendJSONMessage(protocol.TestStart, "", ws)
+	}()
+	record = &ArchivalData{}
 
-		// Wait for results to be generated.
-		c2sBytesPerSecond := <-testResponder.Response
-		c2sKbps := 8 * c2sBytesPerSecond / 1000.0
+	m := controlConn.Messager()
 
-		// Finish the test.
-		protocol.SendJSONMessage(protocol.TestMsg, fmt.Sprintf("%.4f", c2sKbps), ws)
-		protocol.SendJSONMessage(protocol.TestFinalize, "", ws)
-		log.Println("C2S: server rate:", c2sKbps)
-		done <- c2sKbps
+	srv, err := s.SingleServingServer("c2s")
+	if err != nil {
+		log.Println("Could not start SingleServingServer", err)
+		metrics.ErrorCount.WithLabelValues("c2s", "StartSingleServingServer").Inc()
+		return record, err
+	}
+
+	err = m.SendMessage(protocol.TestPrepare, []byte(strconv.Itoa(srv.Port())))
+	if err != nil {
+		log.Println("Could not send TestPrepare", err)
+		metrics.ErrorCount.WithLabelValues("c2s", "TestPrepare").Inc()
+		return record, err
+	}
+
+	testConn, err := srv.ServeOnce(localContext)
+	if err != nil {
+		log.Println("Could not successfully ServeOnce", err)
+		metrics.ErrorCount.WithLabelValues("c2s", "ServeOnce").Inc()
+		return record, err
+	}
+
+	// When ManageTest exits, close the test connection.
+	defer func() {
+		// Allow the connection-draining goroutine to empty all buffers in support of
+		// poorly-written clients before we close the connection, but do not block the
+		// exit of ManageTest on waiting for the test connection to close.
+		go func() {
+			time.Sleep(3 * time.Second)
+			warnonerror.Close(testConn, "Could not close test connection")
+		}()
 	}()
 
-	select {
-	case <-ctx.Done():
-		log.Println("C2S: ctx Done!")
-		return 0, ctx.Err()
-	case value := <-done:
-		log.Println("C2S: finished ", value)
-		return value, nil
+	record.TestConnectionUUID = testConn.UUID()
+	record.ServerIP = testConn.ServerIP()
+	record.ClientIP = testConn.ClientIP()
+
+	err = m.SendMessage(protocol.TestStart, []byte{})
+	if err != nil {
+		log.Println("Could not send TestStart", err)
+		metrics.ErrorCount.WithLabelValues("c2s", "TestStart").Inc()
+		return record, err
 	}
+
+	record.StartTime = time.Now()
+	byteCount, err := drainForeverButMeasureFor(testConn, 10*time.Second)
+	record.EndTime = time.Now()
+	log.Println("Ended C2S test on", testConn)
+	if err != nil {
+		if byteCount == 0 {
+			log.Println("Could not drain the test connection", byteCount, err)
+			metrics.ErrorCount.WithLabelValues("c2s", "Drain").Inc()
+			return record, err
+		}
+		// It is possible for the client to reach 10 seconds slightly before the server does.
+		seconds := record.EndTime.Sub(record.StartTime).Seconds()
+		if seconds < 9 {
+			log.Printf("C2S test client only uploaded for %f seconds\n", seconds)
+			metrics.ErrorCount.WithLabelValues("c2s", "EarlyExit").Inc()
+			return record, err
+		}
+		// More than 9 seconds is fine.
+		log.Printf("C2S test had an error (%v) after %f seconds. We will continue with the test.\n", err, seconds)
+	}
+
+	throughputValue := 8 * float64(byteCount) / 1000 / 10
+	record.MeanThroughputMbps = throughputValue / 1000 // Convert Kbps to Mbps
+
+	log.Println(controlConn, "sent us", throughputValue, "Kbps")
+	err = m.SendMessage(protocol.TestMsg, []byte(strconv.FormatInt(int64(throughputValue), 10)))
+	if err != nil {
+		log.Println("Could not send TestMsg with C2S results", err)
+		metrics.ErrorCount.WithLabelValues("c2s", "TestMsg").Inc()
+		return record, err
+	}
+
+	err = m.SendMessage(protocol.TestFinalize, []byte{})
+	if err != nil {
+		log.Println("Could not send TestFinalize", err)
+		metrics.ErrorCount.WithLabelValues("c2s", "TestFinalize").Inc()
+		return record, err
+	}
+
+	return record, nil
+}
+
+// drainForeverButMeasureFor is a generic method for draining a connection while
+// measuring the connection for the first part of the drain. This method does
+// not close the passed-in Connection, and starts a goroutine which runs until
+// that Connection is closed.
+func drainForeverButMeasureFor(conn protocol.Connection, d time.Duration) (int64, error) {
+	type measurement struct {
+		totalByteCount int64
+		err            error
+	}
+	measurements := make(chan measurement)
+
+	// This is the "drain forever" part of this function. Read the passed-in
+	// connection until the passed-in connection is closed. Only send measurements
+	// on the measurement channel if the channel can be written to without
+	// blocking.
+	go func() {
+		var totalByteCount int64
+		var err error
+		// Read the connections until the connection is closed. Reading on a closed
+		// connection returns an error, which terminates the loop and the goroutine.
+		for err == nil {
+			var byteCount int64
+			byteCount, err = conn.ReadBytes()
+			totalByteCount += byteCount
+			// Only write to the channel if it won't block, to ensure the reading process
+			// goes as fast as possible.
+			select {
+			case measurements <- measurement{totalByteCount, err}:
+			default:
+			}
+		}
+		// After we get an error, drain the channel and then close it.
+		fullChannel := true
+		for fullChannel {
+			select {
+			case <-measurements:
+			default:
+				fullChannel = false
+			}
+		}
+		close(measurements)
+	}()
+
+	// Read the measurements channel until the timer goes off.
+	timer := time.NewTimer(d)
+	var bytesRead int64
+	var err error
+	timerActive := true
+	for timerActive {
+		select {
+		case m := <-measurements:
+			bytesRead = m.totalByteCount
+			err = m.err
+		case <-timer.C:
+			timerActive = false
+		}
+	}
+	return bytesRead, err
 }

@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.7.1 of the ndt7 specification.
+This is version v0.7.3 of the ndt7 specification.
 
 ## Protocol description
 
@@ -58,7 +58,11 @@ Connection: Upgrade\r\n
 Once the WebSocket channel is established, the client and the server
 exchange ndt7 messages using the WebSocket framing. An implementation MAY
 choose to limit the maximum WebSocket message size, but such limit MUST
-NOT be smaller than 1 << 17 bytes.
+NOT be smaller than 1 << 24 bytes. Note that this message size is a maximum. It
+is expected that most clients will complete the entire ndt7 test with much
+smaller messages and that large messages would only be sent to clients on
+very fast links.
+
 
 Both textual and binary WebSocket messages are allowed. Textual WebSocket
 messages will contain serialised JSON structures containing measurements
@@ -144,6 +148,11 @@ structure:
   "app_info": {
     "num_bytes": 17,
   },
+  "connection_info": {
+    "client": "1.2.3.4:5678",
+    "server": "[::1]:2345",
+    "uuid": "urn:<platform>:<platform-specific-string>"
+  },
   "bbr_info": {
     "max_bandwidth": 12345,
     "min_rtt": 123.4
@@ -165,6 +174,26 @@ Where:
       the beginning of the specific subtest. Note that this counter tracks the
       amount of data sent at application level. It does not account for the
       protocol overheaded of WebSockets, TLS, TCP, IP, and link layer;
+
+- `connection_info` is an _optional_ JSON object that the server SHOULD
+  provide as part of the first measurement message sent to clients to
+  inform them about:
+
+    - `client` (a `string`), which contains the serialization of the client
+      endpoint according to the server. Note that the general format of
+      this field is `<address>:<port>` where IPv4 addresses are provided
+      verbatim, while IPv6 addresses are quoted by `[` and `]` as shown
+      in the above example;
+
+    - `server` (a `string`), which contains the serialization of the server
+      endpoint according to the server, following the same general format
+      specified above for the client `field`;
+
+    - `uuid` (a `string`), which contains an internal unique identifier
+      for this test within the Measurement Lab platform, following the
+      following format `urn:<platform>:<platform-specific-string>` where
+      the `mlab` string is reserved for tests run in the Measurement
+      Lab platform.
 
 - `bbr_info` is an _optional_ JSON object only included in the measurement
   when it is possible to access `TCP_CC_INFO` stats for BBR:
