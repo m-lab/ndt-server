@@ -373,5 +373,11 @@ func tryPerformanceTest() {
 
 ## Reference implementation
 
-The reference implementation is [github.com/m-lab/ndt-server](
+The reference _server_ implementation is [github.com/m-lab/ndt-server](
 https://github.com/m-lab/ndt-server).
+
+The reference _Go client_ is [github.com/m-lab/ndt7-client-go](
+https://github.com/m-lab/ndt7-client-go).
+
+The reference _JavaScript client_ is [github.com/m-lab/ndt7-client-javascript](
+https://github.com/m-lab/ndt7-client-javascript).
