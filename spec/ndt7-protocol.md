@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.7.1 of the ndt7 specification.
+This is version v0.7.2 of the ndt7 specification.
 
 ## Protocol description
 
@@ -58,7 +58,11 @@ Connection: Upgrade\r\n
 Once the WebSocket channel is established, the client and the server
 exchange ndt7 messages using the WebSocket framing. An implementation MAY
 choose to limit the maximum WebSocket message size, but such limit MUST
-NOT be smaller than 1 << 17 bytes.
+NOT be smaller than 1 << 24 bytes. Note that this message size is a maximum. It
+is expected that most clients will complete the entire ndt7 test with much
+smaller messages and that large messages would only be sent to clients on
+very fast links.
+
 
 Both textual and binary WebSocket messages are allowed. Textual WebSocket
 messages will contain serialised JSON structures containing measurements
