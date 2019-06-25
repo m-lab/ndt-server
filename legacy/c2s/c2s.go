@@ -93,6 +93,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	record.StartTime = time.Now()
 	byteCount, err := drainForeverButMeasureFor(testConn, 10*time.Second)
 	record.EndTime = time.Now()
+	seconds := record.EndTime.Sub(record.StartTime).Seconds()
 	log.Println("Ended C2S test on", testConn)
 	if err != nil {
 		if byteCount == 0 {
@@ -101,7 +102,6 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 			return record, err
 		}
 		// It is possible for the client to reach 10 seconds slightly before the server does.
-		seconds := record.EndTime.Sub(record.StartTime).Seconds()
 		if seconds < 9 {
 			log.Printf("C2S test client only uploaded for %f seconds\n", seconds)
 			metrics.ErrorCount.WithLabelValues("c2s", "EarlyExit").Inc()
@@ -111,7 +111,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		log.Printf("C2S test had an error (%v) after %f seconds. We will continue with the test.\n", err, seconds)
 	}
 
-	throughputValue := 8 * float64(byteCount) / 1000 / 10
+	throughputValue := 8 * float64(byteCount) / 1000 / seconds
 	record.MeanThroughputMbps = throughputValue / 1000 // Convert Kbps to Mbps
 
 	log.Println(controlConn, "sent us", throughputValue, "Kbps")
