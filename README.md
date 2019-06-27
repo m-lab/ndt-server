@@ -9,8 +9,11 @@ docker build . -t ndt-server
 ```
 and
 ```bash
-docker run --net=host -v `pwd`:/certs -it -t ndt-server \
-    -cert /certs/cert.pem -key /certs/key.pem
+sudo chown root:root key.pem cert.pem
+sudo install -d datadir
+docker run --network=host -v `pwd`:/c:ro -v`pwd`/datadir:/d -it --cap-drop=all             \
+    --cap-add=net_bind_service --read-only -t ndt-server                                   \
+    -cert /c/cert.pem -key /c/key.pem -datadir /d
 ```
 
 Once you have done that, you should have a server running on port 3010 on
