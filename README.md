@@ -44,7 +44,8 @@ Once you have done that, you should have a ndt5 server running on ports
 port `443`), and metrics available on port 9090.
 
 Try running a test in your browser (certs will appear invalid to your
-browser, but everything is safe because this is a test deployment):
+browser, but everything is safe because this is a test deployment, hence
+you should ignore this warning and continue):
 
 * ndt5: https://localhost:3001/static/widget.html
 * ndt5+tls: https://localhost:3010/static/widget.html
