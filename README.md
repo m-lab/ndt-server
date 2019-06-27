@@ -2,17 +2,28 @@
 
 # ndt-server
 
-To run the server locally, first run `gen_local_test_certs.sh`, and then run the
-commands
+To run the server locally, generate local self signed certificates (`key.pem`
+and `cert.pem`) using bash and OpenSSL
+
+```bash
+./gen_local_test_certs.bash
+```
+
+build the docker container for `ndt-server`
+
 ```bash
 docker build . -t ndt-server
 ```
-and
+
+prepare the runtime environment
+
 ```bash
 install -d certs data
 mv key.pem cert.pem certs
 ```
-and
+
+and invoke the `ndt-server` binary container
+
 ```bash
 docker run --network=bridge                \
            --publish 443:4443              \
