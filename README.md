@@ -39,11 +39,16 @@ docker run --network=bridge                \
            -ndt7_addr :4443
 ```
 
-Once you have done that, you should have a server running on port 3010 on
-localhost with metrics available on port 9090.
+Once you have done that, you should have a ndt5 server running on ports
+`3001` (cleartext) and `3010` (encrypted), a ndt7 server running on
+port `443`), and metrics available on port 9090.
 
 Try running a test in your browser (certs will appear invalid to your
-browser, but everything is safe because it's running locally):
+browser, but everything is safe because this is a test deployment):
 
-* https://localhost:3010/static/widget.html
-* http://localhost:9090/metrics
+* ndt5: https://localhost:3001/static/widget.html
+* ndt5+tls: https://localhost:3010/static/widget.html
+* ndt7: https://localhost/static/ndt7.html
+* prometheus: http://localhost:9090/metrics
+
+Replace `localhost` with the IP of the server to access it externally.
