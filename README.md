@@ -2,6 +2,13 @@
 
 # ndt-server
 
+This repository contains a [ndt5](
+https://github.com/ndt-project/ndt/wiki/NDTProtocol) and [ndt7](
+spec/ndt7-protocol.md) server written in Go. This code may compile under
+many systems, including macOS and Windows, but is specifically designed
+and tested for running on Linux 4.17+. Other systems aren't officially
+supported.
+
 To run the server locally, generate local self signed certificates (`key.pem`
 and `cert.pem`) using bash and OpenSSL
 
@@ -42,6 +49,13 @@ docker run --network=bridge                \
 Once you have done that, you should have a ndt5 server running on ports
 `3001` (cleartext) and `3010` (encrypted), a ndt7 server running on
 port `443`), and metrics available on port 9090.
+
+Note that the ndt7 protocol works better with BBR enabled. Make sure you're
+on Linux 4.17+ and make BBR optionally available with:
+
+```
+sudo modprobe tcp_bbr
+```
 
 Try running a test in your browser (certs will appear invalid to your
 browser, but everything is safe because this is a test deployment, hence
