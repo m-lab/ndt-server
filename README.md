@@ -61,8 +61,7 @@ Try accessing these URLs in your browser (for URLs using HTTPS, certs will
 appear invalid to your browser, but everything is safe because this is a test
 deployment, hence you should ignore this warning and continue):
 
-* ndt5: https://localhost:3001/static/widget.html
-* ndt5+tls: https://localhost:3010/static/widget.html
+* ndt5+wss: https://localhost:3010/static/widget.html
 * ndt7: https://localhost/static/ndt7.html
 * prometheus: http://localhost:9090/metrics
 
