@@ -34,7 +34,7 @@ enable BBR (with which ndt7 works much better)
 sudo modprobe tcp_bbr
 ```
 
-and invoke the `ndt-server` binary container
+and run the `ndt-server` binary container
 
 ```bash
 docker run --network=bridge                \
