@@ -28,6 +28,12 @@ install -d certs data
 mv key.pem cert.pem certs
 ```
 
+enable BBR (with which ndt7 works much better):
+
+```
+sudo modprobe tcp_bbr
+```
+
 and invoke the `ndt-server` binary container
 
 ```bash
@@ -50,13 +56,6 @@ Once you have done that, you should have a ndt5 server running on ports
 (secure WebSocket flavour); a ndt7 server running on port `443` (over TLS
 and using the ndt7 WebSocket protocol); and Prometheus metrics available
 on port `9990`.
-
-Note that the ndt7 protocol works better with BBR enabled. Make sure you're
-on Linux 4.17+ and make BBR optionally available with:
-
-```
-sudo modprobe tcp_bbr
-```
 
 Try accessing these URLs in your browser (for URLs using HTTPS, certs will
 appear invalid to your browser, but everything is safe because this is a test
