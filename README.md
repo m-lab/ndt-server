@@ -46,9 +46,10 @@ docker run --network=bridge                \
 ```
 
 Once you have done that, you should have a ndt5 server running on ports
-`3001` (cleartext), `3002` (WebSocket), and `3010` (secure WebSocket); a
-ndt7 server running on port `443` (over TLS); and Prometheus metrics
-available on port `9990`.
+`3001` (legacy binary flavour), `3002` (WebSocket flavour), and `3010`
+(secure WebSocket flavour); a ndt7 server running on port `443` (over TLS
+and using the ndt7 WebSocket protocol); and Prometheus metrics available
+on port `9990`.
 
 Note that the ndt7 protocol works better with BBR enabled. Make sure you're
 on Linux 4.17+ and make BBR optionally available with:
@@ -57,13 +58,13 @@ on Linux 4.17+ and make BBR optionally available with:
 sudo modprobe tcp_bbr
 ```
 
-Try running a test in your browser (certs will appear invalid to your
-browser, but everything is safe because this is a test deployment, hence
-you should ignore this warning and continue):
+Try accessing these URLs in your browser (for URLs using HTTPS, certs will
+appear invalid to your browser, but everything is safe because this is a test
+deployment, hence you should ignore this warning and continue):
 
 * ndt5: https://localhost:3001/static/widget.html
 * ndt5+tls: https://localhost:3010/static/widget.html
 * ndt7: https://localhost/static/ndt7.html
 * prometheus: http://localhost:9090/metrics
 
-Replace `localhost` with the IP of the server to access it externally.
+Replace `localhost` with the IP of the server to access them externally.
