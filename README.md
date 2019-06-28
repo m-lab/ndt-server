@@ -28,7 +28,7 @@ install -d certs data
 mv key.pem cert.pem certs
 ```
 
-enable BBR (with which ndt7 works much better):
+enable BBR (with which ndt7 works much better)
 
 ```
 sudo modprobe tcp_bbr
