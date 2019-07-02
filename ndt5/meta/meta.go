@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m-lab/ndt-server/legacy/metrics"
-	"github.com/m-lab/ndt-server/legacy/protocol"
+	"github.com/m-lab/ndt-server/ndt5/metrics"
+	"github.com/m-lab/ndt-server/ndt5/protocol"
 )
 
 // maxClientMessages is the maximum allowed messages we will accept from a client.

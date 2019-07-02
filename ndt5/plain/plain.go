@@ -13,12 +13,12 @@ import (
 	"time"
 
 	"github.com/m-lab/go/warnonerror"
-	"github.com/m-lab/ndt-server/legacy"
-	legacymetrics "github.com/m-lab/ndt-server/legacy/metrics"
-	"github.com/m-lab/ndt-server/legacy/ndt"
-	"github.com/m-lab/ndt-server/legacy/protocol"
-	"github.com/m-lab/ndt-server/legacy/singleserving"
 	"github.com/m-lab/ndt-server/metrics"
+	"github.com/m-lab/ndt-server/ndt5"
+	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
+	"github.com/m-lab/ndt-server/ndt5/ndt"
+	"github.com/m-lab/ndt-server/ndt5/protocol"
+	"github.com/m-lab/ndt-server/ndt5/singleserving"
 )
 
 // plainServer handles requests that are TCP-based but not HTTP(S) based. If it
@@ -50,7 +50,7 @@ func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 		return
 	}
 	if string(lead) == "GET" {
-		legacymetrics.SniffedReverseProxyCount.Inc()
+		ndt5metrics.SniffedReverseProxyCount.Inc()
 		// Forward HTTP-like handshakes to the HTTP server. Note that this does NOT
 		// introduce overhead for the s2c and c2s tests, because in those tests the
 		// HTTP server itself opens the testing port, and that server will not use
@@ -98,7 +98,7 @@ func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 	if n != len(kickoff) || err != nil {
 		log.Printf("Could not write %d byte kickoff string: %d bytes written err: %v\n", len(kickoff), n, err)
 	}
-	legacy.HandleControlChannel(protocol.AdaptNetConn(conn, input), ps)
+	ndt5.HandleControlChannel(protocol.AdaptNetConn(conn, input), ps)
 }
 
 // ListenAndServe starts up the sniffing server that delegates to the

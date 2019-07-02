@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/m-lab/ndt-server/fdcache"
-	"github.com/m-lab/ndt-server/legacy/web100"
+	"github.com/m-lab/ndt-server/ndt5/web100"
 	"github.com/m-lab/uuid"
 
 	"github.com/gorilla/websocket"
