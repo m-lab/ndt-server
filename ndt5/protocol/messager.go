@@ -8,14 +8,14 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/m-lab/ndt-server/legacy/web100"
+	"github.com/m-lab/ndt-server/ndt5/web100"
 )
 
 // Encoding encodes the communication methods we support.
 type Encoding int
 
 // The different message types we support. This is initially Unknown for plain
-// legacy connections and becomes JSON or TLV depending on the whether we
+// ndt5 connections and becomes JSON or TLV depending on the whether we
 // receive MsgLogin or MsgExtendedLogin, but is always JSON for WS and WSS.
 const (
 	Unknown Encoding = iota // Unknown is the zero-value for Encoding

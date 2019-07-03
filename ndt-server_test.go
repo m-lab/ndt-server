@@ -72,9 +72,9 @@ func setupMain() func() {
 	ports := getOpenPorts(4)
 	for _, ev := range []struct{ key, value string }{
 		{"NDT7_ADDR", ports[0]},
-		{"LEGACY_ADDR", ports[1]},
-		{"LEGACY_WS_ADDR", ports[2]},
-		{"LEGACY_WSS_ADDR", ports[3]},
+		{"NDT5_ADDR", ports[1]},
+		{"NDT5_WS_ADDR", ports[2]},
+		{"NDT5_WSS_ADDR", ports[3]},
 		{"CERT", certFile},
 		{"KEY", keyFile},
 		{"DATADIR", dir},
@@ -133,9 +133,9 @@ func Test_MainIntegrationTest(t *testing.T) {
 	defer cancel()
 
 	// Get the ports but remove the leading ":"
-	legacyAddr := os.Getenv("LEGACY_ADDR")[1:]
-	wsAddr := os.Getenv("LEGACY_WS_ADDR")[1:]
-	wssAddr := os.Getenv("LEGACY_WSS_ADDR")[1:]
+	ndt5Addr := os.Getenv("NDT5_ADDR")[1:]
+	wsAddr := os.Getenv("NDT5_WS_ADDR")[1:]
+	wssAddr := os.Getenv("NDT5_WSS_ADDR")[1:]
 	ndt7Addr := os.Getenv("NDT7_ADDR")[1:]
 
 	// Get the datadir
@@ -150,41 +150,41 @@ func Test_MainIntegrationTest(t *testing.T) {
 		ignoreData bool
 	}
 	tests := []testcase{
-		// Legacy TLV-only clients.
+		// NDT5 TLV-only clients.
 		{
-			// NOTE: we must disable the middle-box test in the legacy TLV client because it unconditionally expects
+			// NOTE: we must disable the middle-box test in the ndt5 TLV client because it unconditionally expects
 			// that test to run irrespective of what the server supports.
-			name: "web100clt (legacy TLV)",
-			cmd:  "timeout 45s /bin/web100clt-without-json-support --name localhost --port " + legacyAddr + " --disablemid",
+			name: "web100clt (ndt5 TLV)",
+			cmd:  "timeout 45s /bin/web100clt-without-json-support --name localhost --port " + ndt5Addr + " --disablemid",
 		},
 		{
-			name: "libndt-client - legacy NDT with JSON, download test",
-			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyAddr + " --download",
+			name: "libndt-client - ndt5 NDT with JSON, download test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + ndt5Addr + " --download",
 		},
 		{
-			name: "libndt-client - legacy NDT with JSON, upload test",
-			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyAddr + " --upload",
+			name: "libndt-client - ndt5 NDT with JSON, upload test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + ndt5Addr + " --upload",
 		},
-		// Verify that legacy clients don't crash when we agree to only run a subset of the requested tests.
+		// Verify that ndt5 clients don't crash when we agree to only run a subset of the requested tests.
 		{
 			name: "Request all tests with web100clt (with JSON)",
-			cmd:  "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyAddr,
+			cmd:  "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + ndt5Addr,
 		},
-		// The legacy client without JSON support looks like it DOES crash, although
+		// The ndt5 client without JSON support looks like it DOES crash, although
 		// the exact cause has not been investigated.
 		// TODO(https://github.com/m-lab/ndt-server/issues/66) - make the following test case pass:
 		// 	{
-		// 		name: "Request all tests with web100clt (legacy TLV)",
-		// 		cmd:  "timeout 45s /bin/web100clt-without-json-support --name localhost --port " + legacyAddr,
+		// 		name: "Request all tests with web100clt (ndt5 TLV)",
+		// 		cmd:  "timeout 45s /bin/web100clt-without-json-support --name localhost --port " + ndt5Addr,
 		// 	},
 		// Test libndt JSON clients
 		{
-			name: "libndt-client - legacy NDT with JSON, download test",
-			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyAddr + " --json --download",
+			name: "libndt-client - ndt5 NDT with JSON, download test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + ndt5Addr + " --json --download",
 		},
 		{
-			name: "libndt-client - legacy NDT with JSON, upload test",
-			cmd:  "timeout 45s /bin/libndt-client localhost --port " + legacyAddr + " --json --upload",
+			name: "libndt-client - ndt5 NDT with JSON, upload test",
+			cmd:  "timeout 45s /bin/libndt-client localhost --port " + ndt5Addr + " --json --upload",
 		},
 		{
 			name: "libndt-client - ndt7, download test",
@@ -192,56 +192,56 @@ func Test_MainIntegrationTest(t *testing.T) {
 			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
 			ignoreData: true,
 		},
-		// Test legacy raw JSON clients
+		// Test ndt5 raw JSON clients
 		{
 			name: "web100clt (with JSON), no MID or SFW",
-			cmd:  "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + legacyAddr,
+			cmd:  "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + ndt5Addr,
 		},
-		// Test legacy WS clients connected to the HTTP port
+		// Test ndt5 WS clients connected to the HTTP port
 		{
-			name: "Upload & Download legacy WS",
+			name: "Upload & Download ndt5 WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsAddr + " --protocol=ws --tests=22",
 		},
 		{
-			name: "Upload legacy WS",
+			name: "Upload ndt5 WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsAddr + " --protocol=ws --tests=18",
 		},
 		{
-			name: "Download legacy WS",
+			name: "Download ndt5 WS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsAddr + " --protocol=ws --tests=20",
 		},
-		// Test legacy WS clients connecting to the raw port
+		// Test ndt5 WS clients connecting to the raw port
 		{
-			name: "Connect legacy WS (upload and download) to RAW port",
+			name: "Connect ndt5 WS (upload and download) to RAW port",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
-				" --port=" + legacyAddr + " --protocol=ws --tests=22",
+				" --port=" + ndt5Addr + " --protocol=ws --tests=22",
 		},
 		{
 			// Start both tests, but kill the client during the upload test.
 			// This causes the server to wait for a test that never comes. After the
 			// timeout, the server should have cleaned up all outstanding goroutines.
-			name: "Upload & Download legacy WS with S2C Timeout",
+			name: "Upload & Download ndt5 WS with S2C Timeout",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wsAddr +
 				" --protocol=ws --abort-c2s-early --tests=22 & " +
 				"sleep 25",
 		},
-		// Test WSS clients with the legacy protocol.
+		// Test WSS clients with the ndt5 protocol.
 		{
-			name: "Upload legacy WSS",
+			name: "Upload ndt5 WSS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssAddr + " --protocol=wss --acceptinvalidcerts --tests=18",
 		},
 		{
-			name: "Download legacy WSS",
+			name: "Download ndt5 WSS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssAddr + " --protocol=wss --acceptinvalidcerts --tests=20",
 		},
 		{
-			name: "Upload & Download legacy WSS",
+			name: "Upload & Download ndt5 WSS",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssAddr + " --protocol=wss --acceptinvalidcerts --tests=22",
 		},
@@ -249,7 +249,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 			// Start both tests, but kill the client during the upload test.
 			// This causes the server to wait for a test that never comes. After the
 			// timeout, the server should have cleaned up all outstanding goroutines.
-			name: "Upload & Download legacy WSS with S2C Timeout",
+			name: "Upload & Download ndt5 WSS with S2C Timeout",
 			cmd: "timeout 45s node ./testdata/unittest_client.js --server=localhost " +
 				" --port=" + wssAddr +
 				" --protocol=wss --acceptinvalidcerts --abort-c2s-early --tests=22 & " +
@@ -268,8 +268,8 @@ func Test_MainIntegrationTest(t *testing.T) {
 	time.Sleep(1 * time.Second) // Give main a little time to grab all the ports and start listening.
 
 	log.Printf(
-		"Legacy port: %s\n ws port: %s\nwss port: %s\nndt7 port: %s\n",
-		legacyAddr, wsAddr, wssAddr, ndt7Addr)
+		"ndt5 plain port: %s\nndt5 ws port: %s\nndt5 wss port: %s\nndt7 port: %s\n",
+		ndt5Addr, wsAddr, wssAddr, ndt7Addr)
 
 	wg := sync.WaitGroup{}
 	// Run every test in parallel (the server must handle parallel tests just fine)

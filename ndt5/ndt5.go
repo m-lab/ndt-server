@@ -1,4 +1,4 @@
-package legacy
+package ndt5
 
 import (
 	"context"
@@ -16,13 +16,15 @@ import (
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/warnonerror"
 
-	"github.com/m-lab/ndt-server/legacy/c2s"
-	"github.com/m-lab/ndt-server/legacy/meta"
-	legacymetrics "github.com/m-lab/ndt-server/legacy/metrics"
-	"github.com/m-lab/ndt-server/legacy/ndt"
-	"github.com/m-lab/ndt-server/legacy/protocol"
-	"github.com/m-lab/ndt-server/legacy/s2c"
+	"github.com/m-lab/ndt-server/data"
 	"github.com/m-lab/ndt-server/metrics"
+	"github.com/m-lab/ndt-server/ndt5/c2s"
+	ndt5data "github.com/m-lab/ndt-server/ndt5/data"
+	"github.com/m-lab/ndt-server/ndt5/meta"
+	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
+	"github.com/m-lab/ndt-server/ndt5/ndt"
+	"github.com/m-lab/ndt-server/ndt5/protocol"
+	"github.com/m-lab/ndt-server/ndt5/s2c"
 )
 
 const (
@@ -34,33 +36,8 @@ const (
 	cTestMETA   = 32
 )
 
-// NDTResult is the struct that is serialized as JSON to disk as the archival record of an NDT test.
-//
-// This struct is dual-purpose. It contains the necessary data to allow joining
-// with tcp-info data and traceroute-caller data as well as any other UUID-based
-// data. It also contains enough data for interested parties to perform
-// lightweight data analysis without needing to join with other tools.
-type NDTResult struct {
-	// GitShortCommit is the Git commit (short form) of the running server code.
-	GitShortCommit string
-
-	// These data members should all be self-describing. In the event of confusion,
-	// rename them to add clarity rather than adding a comment.
-	ControlChannelUUID string
-	Protocol           ndt.ConnectionType
-	MessageProtocol    string
-	ServerIP           string
-	ClientIP           string
-
-	StartTime time.Time
-	EndTime   time.Time
-	C2S       *c2s.ArchivalData `json:",omitempty"`
-	S2C       *s2c.ArchivalData `json:",omitempty"`
-	Meta      meta.ArchivalData `json:",omitempty"`
-}
-
 // SaveData archives the data to disk.
-func SaveData(record *NDTResult, datadir string) {
+func SaveData(record *data.NDTResult, datadir string) {
 	if record == nil {
 		log.Println("nil record won't be saved")
 		return
@@ -71,7 +48,7 @@ func SaveData(record *NDTResult, datadir string) {
 		log.Printf("Could not create directory %s: %v\n", dir, err)
 		return
 	}
-	file, err := protocol.UUIDToFile(dir, record.ControlChannelUUID)
+	file, err := protocol.UUIDToFile(dir, record.NDT5Metadata.ControlChannelUUID)
 	if err != nil {
 		log.Println("Could not open file:", err)
 		return
@@ -117,7 +94,7 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 	metrics.ActiveTests.WithLabelValues(string(s.ConnectionType())).Inc()
 	defer metrics.ActiveTests.WithLabelValues(string(s.ConnectionType())).Dec()
 	defer func(start time.Time) {
-		legacymetrics.ControlChannelDuration.WithLabelValues(string(s.ConnectionType())).Observe(
+		ndt5metrics.ControlChannelDuration.WithLabelValues(string(s.ConnectionType())).Observe(
 			time.Since(start).Seconds())
 	}(time.Now())
 	defer func() {
@@ -140,13 +117,15 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	log.Println("Handling connection", conn)
 	defer warnonerror.Close(conn, "Could not close "+conn.String())
 
-	record := &NDTResult{
-		GitShortCommit:     prometheusx.GitShortCommit,
-		StartTime:          time.Now(),
-		ControlChannelUUID: conn.UUID(),
-		ServerIP:           conn.ServerIP(),
-		ClientIP:           conn.ClientIP(),
-		Protocol:           s.ConnectionType(),
+	record := &data.NDTResult{
+		GitShortCommit: prometheusx.GitShortCommit,
+		StartTime:      time.Now(),
+		NDT5Metadata: &ndt5data.Metadata{
+			ControlChannelUUID: conn.UUID(),
+			Protocol:           s.ConnectionType(),
+		},
+		ServerIP: conn.ServerIP(),
+		ClientIP: conn.ClientIP(),
 	}
 	defer func() {
 		record.EndTime = time.Now()
@@ -169,33 +148,33 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 
 	suites := []string{"status"}
 	if runMID {
-		legacymetrics.ClientRequestedTests.WithLabelValues("mid").Inc()
+		ndt5metrics.ClientRequestedTests.WithLabelValues("mid").Inc()
 		suites = append(suites, "mid")
 	}
 	if runC2s {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestC2S))
-		legacymetrics.ClientRequestedTests.WithLabelValues("c2s").Inc()
+		ndt5metrics.ClientRequestedTests.WithLabelValues("c2s").Inc()
 		suites = append(suites, "c2s")
 	}
 	if runS2c {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestS2C))
-		legacymetrics.ClientRequestedTests.WithLabelValues("s2c").Inc()
+		ndt5metrics.ClientRequestedTests.WithLabelValues("s2c").Inc()
 		suites = append(suites, "s2c")
 	}
 	if runSFW {
-		legacymetrics.ClientRequestedTests.WithLabelValues("sfw").Inc()
+		ndt5metrics.ClientRequestedTests.WithLabelValues("sfw").Inc()
 		suites = append(suites, "sfw")
 	}
 	if runMeta {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestMETA))
-		legacymetrics.ClientRequestedTests.WithLabelValues("meta").Inc()
+		ndt5metrics.ClientRequestedTests.WithLabelValues("meta").Inc()
 		suites = append(suites, "meta")
 	}
 	// Count the combined test suites by name. i.e. "status-s2c-meta"
-	legacymetrics.ClientRequestedTestSuites.WithLabelValues(strings.Join(suites, "-")).Inc()
+	ndt5metrics.ClientRequestedTestSuites.WithLabelValues(strings.Join(suites, "-")).Inc()
 
 	m := conn.Messager()
-	record.MessageProtocol = m.Encoding().String()
+	record.NDT5Metadata.MessageProtocol = m.Encoding().String()
 	rtx.PanicOnError(
 		m.SendMessage(protocol.SrvQueue, []byte("0")),
 		"SrvQueue - Could not send SrvQueue")

@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/m-lab/ndt-server/legacy/protocol"
+	"github.com/m-lab/ndt-server/ndt5/protocol"
 )
 
 type sendMessage struct {

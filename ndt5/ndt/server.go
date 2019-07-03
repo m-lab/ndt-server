@@ -3,7 +3,7 @@ package ndt
 import (
 	"context"
 
-	"github.com/m-lab/ndt-server/legacy/protocol"
+	"github.com/m-lab/ndt-server/ndt5/protocol"
 )
 
 // ConnectionType records whether this test is performed over plain TCP,

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/m-lab/go/rtx"
-	"github.com/m-lab/ndt-server/legacy/protocol"
+	"github.com/m-lab/ndt-server/ndt5/protocol"
 )
 
 func Test_verifyStringConversions(t *testing.T) {

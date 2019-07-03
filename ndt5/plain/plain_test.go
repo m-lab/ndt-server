@@ -11,7 +11,7 @@ import (
 
 	"github.com/m-lab/go/httpx"
 	"github.com/m-lab/go/rtx"
-	"github.com/m-lab/ndt-server/legacy/plain"
+	"github.com/m-lab/ndt-server/ndt5/plain"
 )
 
 func TestNewPlainServer(t *testing.T) {

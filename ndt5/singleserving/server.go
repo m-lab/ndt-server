@@ -8,15 +8,15 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/m-lab/ndt-server/legacy/ndt"
+	"github.com/m-lab/ndt-server/ndt5/ndt"
 
-	"github.com/m-lab/ndt-server/legacy/ws"
+	"github.com/m-lab/ndt-server/ndt5/ws"
 	"github.com/m-lab/ndt-server/ndt7/listener"
 
-	legacymetrics "github.com/m-lab/ndt-server/legacy/metrics"
-	"github.com/m-lab/ndt-server/legacy/protocol"
-	"github.com/m-lab/ndt-server/legacy/tcplistener"
 	"github.com/m-lab/ndt-server/metrics"
+	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
+	"github.com/m-lab/ndt-server/ndt5/protocol"
+	"github.com/m-lab/ndt-server/ndt5/tcplistener"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -85,7 +85,7 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 
 func (s *wsServer) Close() {
 	s.once.Do(func() {
-		legacymetrics.MeasurementServerStop.WithLabelValues(string(s.kind)).Inc()
+		ndt5metrics.MeasurementServerStop.WithLabelValues(string(s.kind)).Inc()
 		s.listener.Close()
 		s.srv.Close()
 	})
@@ -98,7 +98,7 @@ func (s *wsServer) Close() {
 // not fail as long as ServeOnce is called soon ("soon" is defined by os-level
 // timeouts) after this returns.
 func ListenWS(direction string) (ndt.SingleMeasurementServer, error) {
-	legacymetrics.MeasurementServerStart.WithLabelValues(string(ndt.WS)).Inc()
+	ndt5metrics.MeasurementServerStart.WithLabelValues(string(ndt.WS)).Inc()
 	return listenWS(direction)
 }
 
@@ -140,7 +140,7 @@ type wssServer struct {
 // as long as ServeOnce is called soon ("soon" is defined by os-level timeouts)
 // after this returns.
 func ListenWSS(direction, certFile, keyFile string) (ndt.SingleMeasurementServer, error) {
-	legacymetrics.MeasurementServerStart.WithLabelValues(string(ndt.WSS)).Inc()
+	ndt5metrics.MeasurementServerStart.WithLabelValues(string(ndt.WSS)).Inc()
 	ws, err := listenWS(direction)
 	if err != nil {
 		return nil, err
@@ -164,7 +164,7 @@ type plainServer struct {
 }
 
 func (ps *plainServer) Close() {
-	legacymetrics.MeasurementServerStop.WithLabelValues(string(ndt.Plain)).Inc()
+	ndt5metrics.MeasurementServerStop.WithLabelValues(string(ndt.Plain)).Inc()
 	ps.listener.Close()
 }
 
@@ -197,7 +197,7 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 // not fail as long as ServeOnce is called soon ("soon" is defined by os-level
 // timeouts) after this returns.
 func ListenPlain() (ndt.SingleMeasurementServer, error) {
-	legacymetrics.MeasurementServerStart.WithLabelValues(string(ndt.Plain)).Inc()
+	ndt5metrics.MeasurementServerStart.WithLabelValues(string(ndt.Plain)).Inc()
 	// Start listening right away to ensure that subsequent connections succeed.
 	s := &plainServer{}
 	l, err := net.Listen("tcp", ":0")
