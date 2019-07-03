@@ -62,9 +62,11 @@ You can run an NDT5 test here:
    %s/static/widget.html (over https and secure websockets)
 or just by pointing an older NDT client at the addresses and ports serving those URLs.
 
-NDT7 is recommended for all new clients. NDT5 is for existing legacy clients.
-The version "NDT6" was skipped entirely. (IPv6 has been supported by NDT for
-many years, and the name NDT6 risked confusion with ping6 and the like).
+NDT7 is recommended for all new clients. NDT5 is for existing clients
+(including all versions before 5) that have not yet been ported to NDT7. The
+version "NDT6" was skipped entirely. (IPv6 has been supported by NDT for many
+years, and the name NDT6 risked confusion with the naming scheme used by
+ping6 and the like).
 
 You can monitor its status on port :9090/metrics.
 `, *ndt7Addr, *ndt5Addr, *ndt5WssAddr)))

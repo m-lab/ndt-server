@@ -72,9 +72,9 @@ func setupMain() func() {
 	ports := getOpenPorts(4)
 	for _, ev := range []struct{ key, value string }{
 		{"NDT7_ADDR", ports[0]},
-		{"LEGACY_ADDR", ports[1]},
-		{"LEGACY_WS_ADDR", ports[2]},
-		{"LEGACY_WSS_ADDR", ports[3]},
+		{"NDT5_ADDR", ports[1]},
+		{"NDT5_WS_ADDR", ports[2]},
+		{"NDT5_WSS_ADDR", ports[3]},
 		{"CERT", certFile},
 		{"KEY", keyFile},
 		{"DATADIR", dir},
@@ -133,9 +133,9 @@ func Test_MainIntegrationTest(t *testing.T) {
 	defer cancel()
 
 	// Get the ports but remove the leading ":"
-	ndt5Addr := os.Getenv("LEGACY_ADDR")[1:]
-	wsAddr := os.Getenv("LEGACY_WS_ADDR")[1:]
-	wssAddr := os.Getenv("LEGACY_WSS_ADDR")[1:]
+	ndt5Addr := os.Getenv("NDT5_ADDR")[1:]
+	wsAddr := os.Getenv("NDT5_WS_ADDR")[1:]
+	wssAddr := os.Getenv("NDT5_WSS_ADDR")[1:]
 	ndt7Addr := os.Getenv("NDT7_ADDR")[1:]
 
 	// Get the datadir
@@ -150,7 +150,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 		ignoreData bool
 	}
 	tests := []testcase{
-		// Legacy TLV-only clients.
+		// NDT5 TLV-only clients.
 		{
 			// NOTE: we must disable the middle-box test in the ndt5 TLV client because it unconditionally expects
 			// that test to run irrespective of what the server supports.
@@ -268,7 +268,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 	time.Sleep(1 * time.Second) // Give main a little time to grab all the ports and start listening.
 
 	log.Printf(
-		"Legacy port: %s\n ws port: %s\nwss port: %s\nndt7 port: %s\n",
+		"ndt5 plain port: %s\nndt5 ws port: %s\nndt5 wss port: %s\nndt7 port: %s\n",
 		ndt5Addr, wsAddr, wssAddr, ndt7Addr)
 
 	wg := sync.WaitGroup{}

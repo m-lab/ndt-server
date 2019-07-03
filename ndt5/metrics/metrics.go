@@ -38,7 +38,7 @@ var (
 	SniffedReverseProxyCount = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Name: "ndt5_sniffed_ws_total",
-			Help: "The number of times we sniffed-then-proxied a websocket connection on the legacy channel.",
+			Help: "The number of times we sniffed-then-proxied a websocket connection on the plain ndt5 channel.",
 		},
 	)
 	ClientRequestedTestSuites = promauto.NewCounterVec(
@@ -51,7 +51,7 @@ var (
 	ClientRequestedTests = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt5_client_requested_tests_total",
-			Help: "The number of client requests for each legacy test type.",
+			Help: "The number of client requests for each ndt5 test type.",
 		},
 		[]string{"type"},
 	)

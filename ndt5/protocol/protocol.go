@@ -21,7 +21,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var verbose = flag.Bool("legacy.protocol.verbose", false, "Print the contents of every message to the log")
+var verbose = flag.Bool("ndt5.protocol.verbose", false, "Print the contents of every message to the log")
 
 // MessageType is the full set opf NDT protocol messages we understand.
 type MessageType byte
@@ -85,7 +85,7 @@ func (m MessageType) String() string {
 
 // Connection is a general system over which we might be able to read an NDT
 // message. It contains a subset of the methods of websocket.Conn, in order to
-// allow non-websocket-based NDT tests in support of legacy clients.
+// allow non-websocket-based NDT tests in support of plain TCP clients.
 type Connection interface {
 	ReadMessage() (_ int, p []byte, err error) // The first value in the returned tuple should be ignored. It is included in the API for websocket.Conn compatibility.
 	ReadBytes() (count int64, err error)

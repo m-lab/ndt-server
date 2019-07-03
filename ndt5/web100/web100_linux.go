@@ -54,7 +54,7 @@ func MeasureViaPolling(ctx context.Context, fp *os.File, c chan *Metrics) {
 	}
 }
 
-// TODO: Implement BBR support for legacy clients.
+// TODO: Implement BBR support for ndt5 clients.
 /*
 func MeasureBBR(ctx context.Context, fp *os.File) (Metrics, error) {
 	return Metrics{}, errors.New("MeasureBBR is unimplemented")
