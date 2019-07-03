@@ -2,22 +2,67 @@
 
 # ndt-server
 
-To run the server locally, first run `gen_local_test_certs.sh`, and then run the
-commands
+This repository contains a [ndt5](
+https://github.com/ndt-project/ndt/wiki/NDTProtocol) and [ndt7](
+spec/ndt7-protocol.md) server written in Go. This code may compile under
+many systems, including macOS and Windows, but is specifically designed
+and tested for running on Linux 4.17+.
+
+To run the server locally, generate local self signed certificates (`key.pem`
+and `cert.pem`) using bash and OpenSSL
+
+```bash
+./gen_local_test_certs.bash
+```
+
+build the docker container for `ndt-server`
+
 ```bash
 docker build . -t ndt-server
 ```
-and
+
+prepare the runtime environment
+
 ```bash
-docker run --net=host -v `pwd`:/certs -it -t ndt-server \
-    -cert /certs/cert.pem -key /certs/key.pem
+install -d certs data
+mv key.pem cert.pem certs
 ```
 
-Once you have done that, you should have a server running on port 3010 on
-localhost with metrics available on port 9090.
+enable BBR (with which ndt7 works much better)
 
-Try running a test in your browser (certs will appear invalid to your
-browser, but everything is safe because it's running locally):
+```
+sudo modprobe tcp_bbr
+```
 
-* https://localhost:3010/static/widget.html
-* http://localhost:9090/metrics
+and run the `ndt-server` binary container
+
+```bash
+docker run --network=bridge                \
+           --publish 443:4443              \
+           --volume `pwd`/certs:/certs:ro  \
+           --volume `pwd`/data:/data       \
+           --read-only                     \
+           --user `id -u`:`id -g`          \
+           --cap-drop=all                  \
+           ndt-server                      \
+           -cert /certs/cert.pem           \
+           -key /certs/key.pem             \
+           -datadir /data                  \
+           -ndt7_addr :4443
+```
+
+Once you have done that, you should have a ndt5 server running on ports
+`3001` (legacy binary flavour), `3002` (WebSocket flavour), and `3010`
+(secure WebSocket flavour); a ndt7 server running on port `443` (over TLS
+and using the ndt7 WebSocket protocol); and Prometheus metrics available
+on port `9990`.
+
+Try accessing these URLs in your browser (for URLs using HTTPS, certs will
+appear invalid to your browser, but everything is safe because this is a test
+deployment, hence you should ignore this warning and continue):
+
+* ndt5+wss: https://localhost:3010/static/widget.html
+* ndt7: https://localhost/static/ndt7.html
+* prometheus: http://localhost:9090/metrics
+
+Replace `localhost` with the IP of the server to access them externally.
