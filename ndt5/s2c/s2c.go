@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/m-lab/go/warnonerror"
-	"github.com/m-lab/ndt-server/legacy/ndt"
-	"github.com/m-lab/ndt-server/legacy/protocol"
 	"github.com/m-lab/ndt-server/metrics"
+	"github.com/m-lab/ndt-server/ndt5/ndt"
+	"github.com/m-lab/ndt-server/ndt5/protocol"
 )
 
 // ArchivalData is the data saved by the S2C test. If a researcher wants deeper

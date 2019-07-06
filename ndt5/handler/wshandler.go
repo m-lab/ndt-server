@@ -6,11 +6,11 @@ import (
 	"strconv"
 
 	"github.com/m-lab/go/warnonerror"
-	"github.com/m-lab/ndt-server/legacy"
-	"github.com/m-lab/ndt-server/legacy/ndt"
-	"github.com/m-lab/ndt-server/legacy/protocol"
-	"github.com/m-lab/ndt-server/legacy/singleserving"
-	"github.com/m-lab/ndt-server/legacy/ws"
+	"github.com/m-lab/ndt-server/ndt5"
+	"github.com/m-lab/ndt-server/ndt5/ndt"
+	"github.com/m-lab/ndt-server/ndt5/protocol"
+	"github.com/m-lab/ndt-server/ndt5/singleserving"
+	"github.com/m-lab/ndt-server/ndt5/ws"
 )
 
 // WSHandler is both an ndt.Server and an http.Handler to allow websocket-based
@@ -64,7 +64,7 @@ func (s *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ws := protocol.AdaptWsConn(wsc)
 	defer warnonerror.Close(ws, "Could not close connection")
-	legacy.HandleControlChannel(ws, s)
+	ndt5.HandleControlChannel(ws, s)
 }
 
 // NewWS returns a handler suitable for http-based connections.

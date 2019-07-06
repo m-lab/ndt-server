@@ -5,7 +5,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-// Metrics for general use, in both the legacy server and in NDT7.
+// Metrics for general use, in both NDT5 and in NDT7.
 var (
 	ActiveTests = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
