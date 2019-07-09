@@ -6,22 +6,10 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
+	"github.com/m-lab/ndt-server/ndt7/closer"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
-
-// TODO(bassosimone): share this function rather than duplicating
-func startclosing(conn *websocket.Conn) {
-	msg := websocket.FormatCloseMessage(
-		websocket.CloseNormalClosure, "Done sending")
-	d := time.Now().Add(spec.DefaultRuntime) // Liveness!
-	err := conn.WriteControl(websocket.CloseMessage, msg, d)
-	if err != nil {
-		logging.Logger.WithError(err).Warn("sender: conn.WriteControl failed")
-		return
-	}
-	logging.Logger.Debug("sender: sending Close message")
-}
 
 func loop(
 	conn *websocket.Conn, src <-chan model.Measurement,
@@ -38,7 +26,7 @@ func loop(
 	for {
 		m, ok := <-src
 		if !ok { // This means that the previous step has terminated
-			startclosing(conn)
+			closer.StartClosing(conn)
 			return
 		}
 		conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
