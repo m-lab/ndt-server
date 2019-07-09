@@ -24,7 +24,7 @@ docker build . -t ndt-server
 prepare the runtime environment
 
 ```bash
-install -d certs data
+install -d certs datadir
 mv key.pem cert.pem certs
 ```
 
@@ -40,14 +40,14 @@ and run the `ndt-server` binary container
 docker run --network=bridge                \
            --publish 443:4443              \
            --volume `pwd`/certs:/certs:ro  \
-           --volume `pwd`/data:/data       \
+           --volume `pwd`/datadir:/datadir \
            --read-only                     \
            --user `id -u`:`id -g`          \
            --cap-drop=all                  \
            ndt-server                      \
            -cert /certs/cert.pem           \
            -key /certs/key.pem             \
-           -datadir /data                  \
+           -datadir /datadir               \
            -ndt7_addr :4443
 ```
 

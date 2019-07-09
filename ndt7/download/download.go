@@ -5,9 +5,9 @@ import (
 	"context"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-server/ndt7/download/measurer"
-	"github.com/m-lab/ndt-server/ndt7/download/receiver"
 	"github.com/m-lab/ndt-server/ndt7/download/sender"
+	"github.com/m-lab/ndt-server/ndt7/measurer"
+	"github.com/m-lab/ndt-server/ndt7/receiver"
 	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/saver"
 )
@@ -22,6 +22,6 @@ func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File) {
 	wholectx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	senderch := sender.Start(conn, measurer.Start(wholectx, conn, resultfp))
-	receiverch := receiver.Start(wholectx, conn)
+	receiverch := receiver.StartDownloadReceiver(wholectx, conn)
 	saver.SaveAll(resultfp, senderch, receiverch)
 }
