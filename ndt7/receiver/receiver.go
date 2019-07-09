@@ -47,9 +47,14 @@ func loop(
 			logging.Logger.WithError(err).Warn("receiver: conn.ReadMessage failed")
 			return
 		}
-		if mtype != websocket.TextMessage && kind == downloadReceiver {
-			logging.Logger.Warn("receiver: got non-Text message")
-			return
+		if mtype != websocket.TextMessage {
+			switch (kind) {
+			case downloadReceiver:
+				logging.Logger.Warn("receiver: got non-Text message")
+				return // Unexpected message type
+			default:
+				continue // No further processing required
+			}
 		}
 		var measurement model.Measurement
 		err = json.Unmarshal(mdata, &measurement)
