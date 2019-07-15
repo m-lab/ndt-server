@@ -23,7 +23,7 @@ func initMetadata(m *metadata, localEpnt, remoteEpnt, uuid string, values url.Va
 			continue // We MUST skip variables reserved to the server
 		}
 		if len(v) != 1 {
-			continue // We SHOULD ignore duplicate keys
+			continue // We SHOULD ignore duplicate values?
 		}
 		(*m)[k] = v[0]
 	}
