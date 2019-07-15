@@ -32,6 +32,13 @@ const (
 	maxDuration = 15 * time.Second
 )
 
+// ArchivalData saves all upload test measurements.
+type ArchivalData struct {
+	UUID           string
+	Measurements   []model.Measurement
+	ClientMetadata map[string]string
+}
+
 // getConnFile returns the connection to be used to gather low level stats.
 // It returns a file to use to gather TCP_INFO stats on success, an error
 // on failure.
