@@ -8,8 +8,7 @@ import (
 	"github.com/m-lab/ndt-server/ndt5/meta"
 	"github.com/m-lab/ndt-server/ndt5/s2c"
 
-	"github.com/m-lab/ndt-server/ndt7/download"
-	"github.com/m-lab/ndt-server/ndt7/upload"
+	"github.com/m-lab/ndt-server/ndt7/model"
 )
 
 // NDTResult is the struct that is serialized as JSON to disk as the archival
@@ -42,6 +41,6 @@ type NDTResult struct {
 	ClientMetadata meta.ArchivalData     `json:",omitempty"`
 
 	// ndt7
-	Upload   *upload.ArchivalData   `json:",omitempty"`
-	Download *download.ArchivalData `json:",omitempty"`
+	Upload   *model.ArchivalData `json:",omitempty"`
+	Download *model.ArchivalData `json:",omitempty"`
 }
