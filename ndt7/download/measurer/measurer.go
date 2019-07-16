@@ -62,6 +62,8 @@ func loop(
 	}
 	defer sockfp.Close()
 	t0 := time.Now()
+	resultsfp.StartTest()
+	defer resultsfp.EndTest()
 	ticker := time.NewTicker(spec.MinMeasurementInterval)
 	defer ticker.Stop()
 	sentConnectionInfo := false
@@ -77,6 +79,7 @@ func loop(
 			}
 			measure(&measurement, sockfp)
 			if sentConnectionInfo == false {
+				// TODO: eliminate ConnectionInfo from model.Measurement and send to client differently.
 				measurement.ConnectionInfo = &model.ConnectionInfo{
 					Client: conn.RemoteAddr().String(),
 					Server: conn.LocalAddr().String(),

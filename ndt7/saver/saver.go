@@ -103,11 +103,12 @@ func SaveAll(resultfp *results.File, serverch, clientch <-chan model.Measurement
 		// just convenience information provided to the client that is already
 		// duplicated into the "header" that we add as first line of a results file.
 		imsg.m.ConnectionInfo = nil
-		if err := resultfp.WriteMeasurement(imsg.m, imsg.o); err != nil {
-			logging.Logger.WithError(err).Warn(
-				"saver: resultfp.WriteMeasurement failed",
-			)
-			break
+		if imsg.o == "client" {
+			resultfp.SaveClientMeasurement(imsg.m)
+		} else if imsg.o == "server" {
+			resultfp.SaveServerMeasurement(imsg.m)
+		} else {
+			logging.Logger.Warn("saver: cannot save measurement from unknown origin: " + imsg.o)
 		}
 	}
 }

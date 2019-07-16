@@ -4,15 +4,20 @@ package handler
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/warnonerror"
+	"github.com/m-lab/ndt-server/data"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/download"
 	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/ndt7/upload"
+	"github.com/m-lab/ndt-server/version"
 )
 
 // Handler handles ndt7 subtests.
@@ -21,7 +26,7 @@ type Handler struct {
 	Upgrader websocket.Upgrader
 
 	// DataDir is the directory where results are saved.
-	DataDir  string
+	DataDir string
 }
 
 // warnAndClose emits message as a warning and the sends a Bad Request
@@ -71,7 +76,33 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 	if err != nil {
 		return // error already printed
 	}
-	defer warnonerror.Close(resultfp, "download: ignoring resultfp.Close result")
+
+	// Collect test metadata.
+	clientAddr := conn.RemoteAddr().(*net.TCPAddr)
+	serverAddr := conn.LocalAddr().(*net.TCPAddr)
+	result := &data.NDTResult{
+		GitShortCommit: prometheusx.GitShortCommit,
+		Version:        version.Version,
+		ClientIP:       clientAddr.IP.String(),
+		ClientPort:     clientAddr.Port,
+		ServerIP:       serverAddr.IP.String(),
+		ServerPort:     serverAddr.Port,
+		StartTime:      time.Now(),
+	}
+	// Guarantee that we record an end time, even if tester panics.
+	defer func() {
+		result.EndTime = time.Now()
+		if kind == spec.SubtestDownload {
+			result.Download = resultfp.Data
+		} else if kind == spec.SubtestUpload {
+			result.Upload = resultfp.Data
+		} else {
+			logging.Logger.WithError(err).Warn(string(kind) + ": data not saved")
+		}
+		resultfp.WriteResult(result)
+		warnonerror.Close(resultfp, string(kind)+": ignoring resultfp.Close error")
+	}()
+
 	tester(request.Context(), conn, resultfp)
 }
 

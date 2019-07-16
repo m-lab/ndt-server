@@ -8,17 +8,9 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/download/measurer"
 	"github.com/m-lab/ndt-server/ndt7/download/receiver"
 	"github.com/m-lab/ndt-server/ndt7/download/sender"
-	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/saver"
 )
-
-// ArchivalData saves all download test measurements.
-type ArchivalData struct {
-	UUID           string
-	Measurements   []model.Measurement
-	ClientMetadata map[string]string
-}
 
 // Do implements the download subtest. The ctx argument is the parent
 // context for the subtest. The conn argument is the open WebSocket
