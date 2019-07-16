@@ -79,7 +79,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		}()
 	}()
 
-	record.TestConnectionUUID = testConn.UUID()
+	record.UUID = testConn.UUID()
 	record.ServerIP = testConn.ServerIP()
 	record.ClientIP = testConn.ClientIP()
 

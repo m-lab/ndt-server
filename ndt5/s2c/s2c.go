@@ -73,7 +73,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		return record, err
 	}
 	defer warnonerror.Close(testConn, "Could not close test connection")
-	record.TestConnectionUUID = testConn.UUID()
+	record.UUID = testConn.UUID()
 	record.ServerIP = testConn.ServerIP()
 	record.ClientIP = testConn.ClientIP()
 
