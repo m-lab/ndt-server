@@ -218,7 +218,7 @@ Where:
 Note that JSON and JavaScript actually define integers as `int53` but existing
 implementations will likely round bigger (or smaller) numbers to the nearest
 `float64` value. A pedantic implementation MAY want to be overly defensive and
-make sure that it does not mit values that a `int53` cannot represent. The
+make sure that it does not emit values that a `int53` cannot represent. The
 proper action to take in this case is currently unspecified.
 
 # Reference implementation
