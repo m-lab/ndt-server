@@ -11,5 +11,5 @@ type ArchivalData struct {
 	EndTime            time.Time
 	ServerMeasurements []Measurement
 	ClientMeasurements []Measurement
-	ClientMetadata     map[string]string
+	ClientMetadata     map[string]string `json:",omitempty" bigquery:"-"`
 }

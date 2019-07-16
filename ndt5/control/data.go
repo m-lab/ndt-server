@@ -11,5 +11,5 @@ type ArchivalData struct {
 	UUID            string
 	Protocol        ndt.ConnectionType
 	MessageProtocol string
-	ClientMetadata  meta.ArchivalData `json:",omitempty"`
+	ClientMetadata  meta.ArchivalData `json:",omitempty" bigquery:"-"`
 }
