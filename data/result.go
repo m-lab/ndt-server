@@ -5,7 +5,6 @@ import (
 
 	"github.com/m-lab/ndt-server/ndt5/c2s"
 	"github.com/m-lab/ndt-server/ndt5/control"
-	"github.com/m-lab/ndt-server/ndt5/meta"
 	"github.com/m-lab/ndt-server/ndt5/s2c"
 
 	"github.com/m-lab/ndt-server/ndt7/model"
@@ -35,10 +34,9 @@ type NDTResult struct {
 	EndTime   time.Time
 
 	// ndt5
-	Control        *control.ArchivalData `json:",omitempty"`
-	C2S            *c2s.ArchivalData     `json:",omitempty"`
-	S2C            *s2c.ArchivalData     `json:",omitempty"`
-	ClientMetadata meta.ArchivalData     `json:",omitempty"`
+	Control *control.ArchivalData `json:",omitempty"`
+	C2S     *c2s.ArchivalData     `json:",omitempty"`
+	S2C     *s2c.ArchivalData     `json:",omitempty"`
 
 	// ndt7
 	Upload   *model.ArchivalData `json:",omitempty"`

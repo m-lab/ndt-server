@@ -118,6 +118,8 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	log.Println("Handling connection", conn)
 	defer warnonerror.Close(conn, "Could not close "+conn.String())
 
+	sIP, sPort := conn.ServerIPAndPort()
+	cIP, cPort := conn.ClientIPAndPort()
 	record := &data.NDTResult{
 		GitShortCommit: prometheusx.GitShortCommit,
 		Version:        version.Version,
@@ -126,8 +128,10 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 			UUID:     conn.UUID(),
 			Protocol: s.ConnectionType(),
 		},
-		ServerIP: conn.ServerIP(),
-		ClientIP: conn.ClientIP(),
+		ServerIP:   sIP,
+		ServerPort: sPort,
+		ClientIP:   cIP,
+		ClientPort: cPort,
 	}
 	defer func() {
 		record.EndTime = time.Now()
@@ -205,7 +209,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 		rtx.PanicOnError(err, "S2C - Could not run s2c test")
 	}
 	if runMeta {
-		record.ClientMetadata, err = meta.ManageTest(ctx, m)
+		record.Control.ClientMetadata, err = meta.ManageTest(ctx, m)
 		rtx.PanicOnError(err, "META - Could not run meta test")
 	}
 	speedMsg := fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000)

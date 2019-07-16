@@ -19,8 +19,10 @@ type ArchivalData struct {
 	// The server and client IP are here as well as in the containing struct
 	// because happy eyeballs means that we may have a IPv4 control connection
 	// causing a IPv6 connection to the test port or vice versa.
-	ServerIP string
-	ClientIP string
+	ServerIP   string
+	ServerPort int
+	ClientIP   string
+	ClientPort int
 
 	// This is the only field that is really required.
 	UUID string
@@ -80,8 +82,8 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	}()
 
 	record.UUID = testConn.UUID()
-	record.ServerIP = testConn.ServerIP()
-	record.ClientIP = testConn.ClientIP()
+	record.ServerIP, record.ServerPort = testConn.ServerIPAndPort()
+	record.ClientIP, record.ClientPort = testConn.ClientIPAndPort()
 
 	err = m.SendMessage(protocol.TestStart, []byte{})
 	if err != nil {
