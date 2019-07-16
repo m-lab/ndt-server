@@ -70,7 +70,7 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 	// and close(2), we'll end up keeping sockets that caused an error in the
 	// code above (e.g. because the handshake was not okay) alive for the time
 	// in which the corresponding *os.File is kept in cache.
-	defer warnonerror.Close(conn, "download: ignoring conn.Close result")
+	defer warnonerror.Close(conn, "downloadOrUpload: ignoring conn.Close result")
 	logging.Logger.Debug("downloadOrUpload: opening results file")
 	resultfp, err := results.OpenFor(request, conn, h.DataDir, kind)
 	if err != nil {
@@ -97,9 +97,11 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 		} else if kind == spec.SubtestUpload {
 			result.Upload = resultfp.Data
 		} else {
-			logging.Logger.WithError(err).Warn(string(kind) + ": data not saved")
+			logging.Logger.Warn(string(kind) + ": data not saved")
 		}
-		resultfp.WriteResult(result)
+		if err := resultfp.WriteResult(result); err != nil {
+			logging.Logger.WithError(err).Warn("failed to write result")
+		}
 		warnonerror.Close(resultfp, string(kind)+": ignoring resultfp.Close error")
 	}()
 
