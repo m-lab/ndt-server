@@ -49,7 +49,7 @@ func SaveData(record *data.NDTResult, datadir string) {
 		log.Printf("Could not create directory %s: %v\n", dir, err)
 		return
 	}
-	file, err := protocol.UUIDToFile(dir, record.Control.ChannelUUID)
+	file, err := protocol.UUIDToFile(dir, record.Control.UUID)
 	if err != nil {
 		log.Println("Could not open file:", err)
 		return
@@ -123,8 +123,8 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 		Version:        version.Version,
 		StartTime:      time.Now(),
 		Control: &control.ArchivalData{
-			ChannelUUID: conn.UUID(),
-			Protocol:    s.ConnectionType(),
+			UUID:     conn.UUID(),
+			Protocol: s.ConnectionType(),
 		},
 		ServerIP: conn.ServerIP(),
 		ClientIP: conn.ClientIP(),
