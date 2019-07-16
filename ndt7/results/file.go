@@ -54,7 +54,6 @@ func newFile(datadir, what, uuid string) (*File, error) {
 	return &File{
 		Writer: writer,
 		Fp:     fp,
-		UUID:   uuid,
 		Data: &model.ArchivalData{
 			UUID: uuid,
 		},
