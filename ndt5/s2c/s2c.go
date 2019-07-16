@@ -17,7 +17,7 @@ import (
 // data, then they should use the UUID to get deeper data from tcp-info.
 type ArchivalData struct {
 	// This is the only field that is really required.
-	TestConnectionUUID string
+	UUID string
 
 	// All subsequent fields are here to enable analyses that don't require joining
 	// with tcp-info data.

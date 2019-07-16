@@ -23,7 +23,7 @@ type ArchivalData struct {
 	ClientIP string
 
 	// This is the only field that is really required.
-	TestConnectionUUID string
+	UUID string
 
 	// These fields are here to enable analyses that don't require joining with tcp-info data.
 	StartTime          time.Time
