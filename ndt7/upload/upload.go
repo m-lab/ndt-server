@@ -149,7 +149,6 @@ func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File) {
 				}
 				return
 			}
-			// TODO(bassosimone): we should also save this message from the client.
 			if mt == websocket.TextMessage {
 				var m model.Measurement
 				err := json.Unmarshal(message, &m)
@@ -159,6 +158,7 @@ func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File) {
 					)
 					return
 				}
+				// Save this message from the client.
 				resultfp.SaveClientMeasurement(m)
 			}
 		}
