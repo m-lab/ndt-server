@@ -79,7 +79,6 @@ func loop(
 			}
 			measure(&measurement, sockfp)
 			if sentConnectionInfo == false {
-				// TODO: eliminate ConnectionInfo from model.Measurement and send to client differently.
 				measurement.ConnectionInfo = &model.ConnectionInfo{
 					Client: conn.RemoteAddr().String(),
 					Server: conn.LocalAddr().String(),
