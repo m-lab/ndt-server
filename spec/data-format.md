@@ -19,7 +19,7 @@ The only JSON value contains all metadata and measurements.
 
 The result JSON value is complete record of the test. It consists of an
 object with fields for client and server IP and port, start and end time, and
-for NDT7 either an upload or download summary data.
+for ndt7 either an upload or download summary data.
 
 Both upload and download data use the same schema. Only "Upload" is shown below.
 
@@ -38,13 +38,10 @@ Both upload and download data use the same schema. Only "Upload" is shown below.
         "EndTime": "2019-07-16T15:26:16.008677965-04:00",
         "UUID": "soltesz99.nyc.corp.google.com_1563200740_unsafe_00000000000157C6",
         "ClientMeasurements": [
-          ...
         ],
         "ClientMetadata": {
-          ...
         },
         "ServerMeasurements": [
-          ...
         ]
     }
 }
