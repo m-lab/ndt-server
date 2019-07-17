@@ -16,11 +16,6 @@ var maxClientMessages = 20
 // ArchivalData contains all meta data reported by the client.
 type ArchivalData map[string]string
 
-type archiveErr struct {
-	archivalData ArchivalData
-	err          error
-}
-
 // ManageTest runs the meta tests. If the given ctx is canceled or the meta test
 // takes longer than 15sec, then ManageTest will return after the next ReceiveMessage.
 // The given protocolMessager should have its own connection timeout to prevent

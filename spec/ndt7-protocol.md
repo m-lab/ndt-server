@@ -131,7 +131,9 @@ The following restrictions apply to the query string. It MUST NOT be
 longer than 4096 bytes. Of course, both the name and the value of the
 URL query string MUST be valid URL-encoded UTF-8 strings.
 
-Clients MUST NOT send duplicate keys; servers SHOULD ignore them.
+Clients MUST NOT send duplicate keys; servers SHOULD ignore them. Servers MAY
+interpret key names without values as having an empty value. Servers MAY
+discard key names without values.
 
 The `"^server_"` prefix is reserved for the server. Clients MUST not send any
 metadata starting with such prefix. Servers MUST ignore all the entries that
@@ -151,7 +153,7 @@ structure:
   "connection_info": {
     "client": "1.2.3.4:5678",
     "server": "[::1]:2345",
-    "uuid": "urn:<platform>:<platform-specific-string>"
+    "uuid": "<platform-specific-string>"
   },
   "bbr_info": {
     "max_bandwidth": 12345,
@@ -191,9 +193,7 @@ Where:
 
     - `uuid` (a `string`), which contains an internal unique identifier
       for this test within the Measurement Lab platform, following the
-      following format `urn:<platform>:<platform-specific-string>` where
-      the `mlab` string is reserved for tests run in the Measurement
-      Lab platform.
+      following format `<platform-specific-string>`.
 
 - `bbr_info` is an _optional_ JSON object only included in the measurement
   when it is possible to access `TCP_CC_INFO` stats for BBR:
@@ -218,7 +218,7 @@ Where:
 Note that JSON and JavaScript actually define integers as `int53` but existing
 implementations will likely round bigger (or smaller) numbers to the nearest
 `float64` value. A pedantic implementation MAY want to be overly defensive and
-make sure that it does not mit values that a `int53` cannot represent. The
+make sure that it does not emit values that a `int53` cannot represent. The
 proper action to take in this case is currently unspecified.
 
 # Reference implementation
