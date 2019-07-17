@@ -82,7 +82,7 @@ func loop(
 				measurement.ConnectionInfo = &model.ConnectionInfo{
 					Client: conn.RemoteAddr().String(),
 					Server: conn.LocalAddr().String(),
-					UUID:   "urn:mlab:" + resultsfp.Data.UUID,
+					UUID:   resultsfp.Data.UUID,
 				}
 				sentConnectionInfo = true
 			}

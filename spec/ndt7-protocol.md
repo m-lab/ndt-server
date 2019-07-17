@@ -153,7 +153,7 @@ structure:
   "connection_info": {
     "client": "1.2.3.4:5678",
     "server": "[::1]:2345",
-    "uuid": "urn:<platform>:<platform-specific-string>"
+    "uuid": "<platform-specific-string>"
   },
   "bbr_info": {
     "max_bandwidth": 12345,
@@ -193,9 +193,7 @@ Where:
 
     - `uuid` (a `string`), which contains an internal unique identifier
       for this test within the Measurement Lab platform, following the
-      following format `urn:<platform>:<platform-specific-string>` where
-      the `mlab` string is reserved for tests run in the Measurement
-      Lab platform.
+      following format `<platform-specific-string>`.
 
 - `bbr_info` is an _optional_ JSON object only included in the measurement
   when it is possible to access `TCP_CC_INFO` stats for BBR:
