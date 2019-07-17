@@ -78,8 +78,14 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// Collect test metadata.
-	clientAddr := conn.RemoteAddr().(*net.TCPAddr)
-	serverAddr := conn.LocalAddr().(*net.TCPAddr)
+	clientAddr, ok := conn.RemoteAddr().(*net.TCPAddr)
+	if !ok {
+		clientAddr = &net.TCPAddr{IP: net.ParseIP("::1"), Port: 1}
+	}
+	serverAddr, ok := conn.LocalAddr().(*net.TCPAddr)
+	if !ok {
+		serverAddr = &net.TCPAddr{IP: net.ParseIP("::1"), Port: 1}
+	}
 	result := &data.NDTResult{
 		GitShortCommit: prometheusx.GitShortCommit,
 		Version:        version.Version,
