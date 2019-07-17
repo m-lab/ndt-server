@@ -131,7 +131,9 @@ The following restrictions apply to the query string. It MUST NOT be
 longer than 4096 bytes. Of course, both the name and the value of the
 URL query string MUST be valid URL-encoded UTF-8 strings.
 
-Clients MUST NOT send duplicate keys; servers SHOULD ignore them.
+Clients MUST NOT send duplicate keys; servers SHOULD ignore them. Servers MAY
+interpret key names without values as having an empty value. Servers MAY
+discard key names without values.
 
 The `"^server_"` prefix is reserved for the server. Clients MUST not send any
 metadata starting with such prefix. Servers MUST ignore all the entries that
