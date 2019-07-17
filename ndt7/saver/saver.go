@@ -104,9 +104,9 @@ func SaveAll(resultfp *results.File, serverch, clientch <-chan model.Measurement
 		// duplicated into the "header" that we add as first line of a results file.
 		imsg.m.ConnectionInfo = nil
 		if imsg.o == "client" {
-			resultfp.SaveClientMeasurement(imsg.m)
+			resultfp.AppendClientMeasurement(imsg.m)
 		} else if imsg.o == "server" {
-			resultfp.SaveServerMeasurement(imsg.m)
+			resultfp.AppendServerMeasurement(imsg.m)
 		} else {
 			logging.Logger.Warn("saver: cannot save measurement from unknown origin: " + imsg.o)
 		}

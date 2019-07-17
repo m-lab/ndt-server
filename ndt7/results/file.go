@@ -26,7 +26,7 @@ type File struct {
 	// UUID is the UUID of this subtest
 	UUID string
 
-	// Result contains metadata about the complete measurement.
+	// Data contains metadata about the complete measurement.
 	Data *model.ArchivalData
 }
 
@@ -83,7 +83,7 @@ func OpenFor(request *http.Request, conn *websocket.Conn, datadir string, what s
 		return nil, err
 	}
 	// Save client metadata.
-	resultfp.SaveMetadata(meta)
+	resultfp.SetMetadata(meta)
 	return resultfp, nil
 }
 
@@ -97,30 +97,18 @@ func (fp *File) Close() error {
 	return fp.Fp.Close()
 }
 
-/*
-// savedMeasurement is a saved measurement.
-type savedMeasurement struct {
-	// Origin is either "client" or "server" depending on who performed
-	// the measurement that is currently being saved.
-
-	Origin string `json:"origin"`
-	// Measurement is the actual measurement to be saved.
-	Measurement model.Measurement `json:"measurement"`
-}
-*/
-
-// SaveClientMeasurement saves the |measurement| for archival data.
-func (fp *File) SaveClientMeasurement(measurement model.Measurement) {
+// AppendClientMeasurement saves the |measurement| for archival data.
+func (fp *File) AppendClientMeasurement(measurement model.Measurement) {
 	fp.Data.ClientMeasurements = append(fp.Data.ClientMeasurements, measurement)
 }
 
-// SaveServerMeasurement saves the |measurement| for archival data.
-func (fp *File) SaveServerMeasurement(measurement model.Measurement) {
+// AppendServerMeasurement saves the |measurement| for archival data.
+func (fp *File) AppendServerMeasurement(measurement model.Measurement) {
 	fp.Data.ServerMeasurements = append(fp.Data.ServerMeasurements, measurement)
 }
 
-// SaveMetadata writes |metadata| on the measurements file.
-func (fp *File) SaveMetadata(metadata metadata) {
+// SetMetadata writes |metadata| on the measurements file.
+func (fp *File) SetMetadata(metadata metadata) {
 	fp.Data.ClientMetadata = metadata
 }
 

@@ -51,7 +51,7 @@ func getConnFile(conn *websocket.Conn) (*os.File, error) {
 
 // gatherAndSaveTCPInfo gathers TCP info measurements from |sockfp| and stores
 // them into the |measurement| object. On error, the measurement.TCPInfo will remain unchanged.
-func gatherAndSaveTCPInfo(measurement *model.Measurement, sockfp *os.File) error {
+func gatherTCPInfo(measurement *model.Measurement, sockfp *os.File) error {
 	metrics, err := tcpinfox.GetTCPInfo(sockfp)
 	if err == nil {
 		measurement.TCPInfo = &metrics
@@ -91,7 +91,7 @@ func measuringLoop(ctx context.Context, conn *websocket.Conn, resultfp *results.
 			measurement := model.Measurement{
 				Elapsed: elapsed.Seconds(),
 			}
-			err = gatherAndSaveTCPInfo(&measurement, sockfp)
+			err = gatherTCPInfo(&measurement, sockfp)
 			if err != nil {
 				return // error printed already
 			}
@@ -139,7 +139,7 @@ func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File) {
 			if !ok {
 				return // the goroutine told us it's time to stop running
 			}
-			resultfp.SaveServerMeasurement(m)
+			resultfp.AppendServerMeasurement(m)
 		default:
 			conn.SetReadDeadline(time.Now().Add(defaultTimeout))
 			mt, message, err := conn.ReadMessage()
@@ -158,8 +158,7 @@ func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File) {
 					)
 					return
 				}
-				// Save this message from the client.
-				resultfp.SaveClientMeasurement(m)
+				resultfp.AppendClientMeasurement(m)
 			}
 		}
 	}
