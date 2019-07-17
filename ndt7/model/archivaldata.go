@@ -1,8 +1,6 @@
 package model
 
-import (
-	"time"
-)
+import "time"
 
 // ArchivalData saves all instantaneous measurements over the lifetime of a test.
 type ArchivalData struct {
@@ -11,5 +9,6 @@ type ArchivalData struct {
 	EndTime            time.Time
 	ServerMeasurements []Measurement
 	ClientMeasurements []Measurement
-	ClientMetadata     map[string]string `json:",omitempty" bigquery:"-"`
+	// TODO(m-lab/ndt-server/issues/151): remove bigquery tag.
+	ClientMetadata map[string]string `json:",omitempty" bigquery:"-"`
 }
