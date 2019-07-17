@@ -78,6 +78,8 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// Collect test metadata.
+	// NOTE: unless we plan to run the NDT server over different protocols than TCP,
+	// then we expect RemoteAddr and LocalAddr to always return net.TCPAddr types.
 	clientAddr, ok := conn.RemoteAddr().(*net.TCPAddr)
 	if !ok {
 		clientAddr = &net.TCPAddr{IP: net.ParseIP("::1"), Port: 1}
@@ -97,6 +99,7 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 	}
 	// Guarantee that we record an end time, even if tester panics.
 	defer func() {
+		// TODO(m-lab/ndt-server/issues/152): Simplify interface between result.File and data.NDTResult.
 		result.EndTime = time.Now()
 		if kind == spec.SubtestDownload {
 			result.Download = resultfp.Data
