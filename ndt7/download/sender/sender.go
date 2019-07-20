@@ -2,6 +2,7 @@
 package sender
 
 import (
+	"math"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -11,6 +12,16 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
+
+func castToPositiveInt32(orig int64) int {
+	if orig < 0 {
+		return 0
+	}
+	if orig >= math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int(orig)
+}
 
 func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.Measurement) {
 	logging.Logger.Debug("sender: start")
@@ -28,6 +39,20 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 			if !ok { // This means that the previous step has terminated
 				closer.StartClosing(conn)
 				return
+			}
+			if meas.BBRInfo != nil {
+				// Convert the bandwidth to bytes per second and then obtain the
+				// number of bytes per second we want to send for each measurement
+				// interval. This is the desired size of the next send. The real
+				// size will be clipped into the proper interval.
+				//
+				// Also note that SetDesiredSize does not cause a reallocation, so
+				// consecutive measurements don't cause reallocations. The real
+				// message will only be properly sized when we're sending.
+				n := castToPositiveInt32(meas.BBRInfo.MaxBandwidth)
+				n /= 8
+				n /= spec.MeasurementsPerSecond
+				bm.SetDesiredSize(n)
 			}
 			conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
 			if err := conn.WriteJSON(meas); err != nil {

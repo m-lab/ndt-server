@@ -21,8 +21,11 @@ const InitialMessageSize = 1 << 13
 // MaxMessageSize is the maximum message size.
 const MaxMessageSize = 1 << 24
 
+// MeasurementsPerSecond is the number of measurements per second.
+const MeasurementsPerSecond = 4
+
 // MinMeasurementInterval is the minimum interval between measurements.
-const MinMeasurementInterval = 250 * time.Millisecond
+const MinMeasurementInterval = (1000 / MeasurementsPerSecond) * time.Millisecond
 
 // DefaultRuntime is the default runtime of a subtest
 const DefaultRuntime = 10 * time.Second
