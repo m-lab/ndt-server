@@ -44,15 +44,13 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 				// Convert the bandwidth to bytes per second and then obtain the
 				// number of bytes per second we want to send for each measurement
 				// interval. This is the desired size of the next send. The real
-				// size will be clipped into the proper interval.
-				//
-				// Also note that SetDesiredSize does not cause a reallocation, so
-				// consecutive measurements don't cause reallocations. The real
-				// message will only be properly sized when we're sending.
+				// size will be clipped into the proper interval. Also, note that
+				// changing the prepared message size does not cause a reallocation
+				// until we're calling bm.Send().
 				n := castToPositiveInt32(meas.BBRInfo.MaxBandwidth)
 				n /= 8
 				n /= spec.MeasurementsPerSecond
-				bm.SetDesiredSize(n)
+				bm.PossiblyIncreaseSizeTo(n)
 			}
 			conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
 			if err := conn.WriteJSON(meas); err != nil {

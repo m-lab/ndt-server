@@ -38,8 +38,8 @@ func NewMessage() *Message {
 	}
 }
 
-// SetDesiredSize sets the desired message size. The real message size will
-// always be included between spec.{Min,Max}MessageSize.
+// SetDesiredSize indicates the desired prepared message size. We will never
+// allow size to go outside of [spec.MinMessageSize, spec.MaxMessageSize].
 func (m *Message) SetDesiredSize(size int) {
 	if size < spec.MinMessageSize {
 		m.size = spec.MinMessageSize
@@ -49,6 +49,17 @@ func (m *Message) SetDesiredSize(size int) {
 		m.size = spec.MaxMessageSize
 	}
 	m.pm = nil
+}
+
+// PossiblyIncreaseSizeTo is like SetDesiredSize except that it will never allow
+// the prepared message size to become smaller. We have empirically noticed
+// that never reducing the message size converges faster. Intuitively this is
+// reasonable, but maybe we want to run some A/B testing here?
+func (m *Message) PossiblyIncreaseSizeTo(size int) {
+	if size < m.size {
+		return
+	}
+	m.SetDesiredSize(size)
 }
 
 // Send sends the message over the specified websocket |conn|.
