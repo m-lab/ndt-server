@@ -25,6 +25,9 @@ type File struct {
 
 	// UUID is the UUID of this subtest
 	UUID string
+
+	// Data contains metadata about the complete measurement.
+	Data *model.ArchivalData
 }
 
 // newFile opens a measurements file in the current working
@@ -36,7 +39,7 @@ func newFile(datadir, what, uuid string) (*File, error) {
 	if err != nil {
 		return nil, err
 	}
-	name := dir + "/ndt7-" + what + "-" + timestamp.Format("20060102T150405.000000000Z") + "." + uuid + ".jsonl.gz"
+	name := dir + "/ndt7-" + what + "-" + timestamp.Format("20060102T150405.000000000Z") + "." + uuid + ".json.gz"
 	// My assumption here is that we have nanosecond precision and hence it's
 	// unlikely to have conflicts. If I'm wrong, O_EXCL will let us know.
 	fp, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
@@ -51,7 +54,9 @@ func newFile(datadir, what, uuid string) (*File, error) {
 	return &File{
 		Writer: writer,
 		Fp:     fp,
-		UUID:   uuid,
+		Data: &model.ArchivalData{
+			UUID: uuid,
+		},
 	}, nil
 }
 
@@ -71,18 +76,14 @@ func OpenFor(request *http.Request, conn *websocket.Conn, datadir string, what s
 		logging.Logger.WithError(err).Warn("fdcache.GetUUID failed")
 		return nil, err
 	}
-	initMetadata(&meta, conn.LocalAddr().String(), conn.RemoteAddr().String(), id,
-		request.URL.Query(), string(what))
+	initMetadata(&meta, request.URL.Query())
 	resultfp, err := newFile(datadir, string(what), id)
 	if err != nil {
 		logging.Logger.WithError(err).Warn("newFile failed")
 		return nil, err
 	}
-	if err := resultfp.WriteMetadata(meta); err != nil {
-		resultfp.Close()
-		logging.Logger.WithError(err).Warn("resultfp.WriteMetadata failed")
-		return nil, err
-	}
+	// Save client metadata.
+	resultfp.SetMetadata(meta)
 	return resultfp, nil
 }
 
@@ -96,36 +97,37 @@ func (fp *File) Close() error {
 	return fp.Fp.Close()
 }
 
-// savedMeasurement is a saved measurement.
-type savedMeasurement struct {
-	// Origin is either "client" or "server" depending on who performed
-	// the measurement that is currently being saved.
-
-	Origin string `json:"origin"`
-	// Measurement is the actual measurement to be saved.
-	Measurement model.Measurement `json:"measurement"`
+// AppendClientMeasurement saves the |measurement| for archival data.
+func (fp *File) AppendClientMeasurement(measurement model.Measurement) {
+	fp.Data.ClientMeasurements = append(fp.Data.ClientMeasurements, measurement)
 }
 
-// WriteMeasurement writes |measurement| on the measurements file.
-func (fp *File) WriteMeasurement(measurement model.Measurement, origin string) error {
-	return fp.writeInterface(savedMeasurement{
-		Origin:      origin,
-		Measurement: measurement,
-	})
+// AppendServerMeasurement saves the |measurement| for archival data.
+func (fp *File) AppendServerMeasurement(measurement model.Measurement) {
+	fp.Data.ServerMeasurements = append(fp.Data.ServerMeasurements, measurement)
 }
 
-// WriteMetadata writes |metadata| on the measurements file.
-func (fp *File) WriteMetadata(metadata metadata) error {
-	return fp.writeInterface(metadata)
+// SetMetadata writes |metadata| on the measurements file.
+func (fp *File) SetMetadata(metadata metadata) {
+	fp.Data.ClientMetadata = metadata
 }
 
-// writeInterface serializes |entry| as JSONL.
-func (fp *File) writeInterface(entry interface{}) error {
-	data, err := json.Marshal(entry)
+// StartTest records the test start time.
+func (fp *File) StartTest() {
+	fp.Data.StartTime = time.Now()
+}
+
+// EndTest records the test end time.
+func (fp *File) EndTest() {
+	fp.Data.EndTime = time.Now()
+}
+
+// WriteResult serializes |result| as JSON.
+func (fp *File) WriteResult(result interface{}) error {
+	data, err := json.Marshal(result)
 	if err != nil {
 		return err
 	}
-	data = append(data, byte('\n'))
 	_, err = fp.Writer.Write(data)
 	return err
 }

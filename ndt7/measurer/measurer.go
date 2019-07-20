@@ -63,6 +63,8 @@ func loop(
 	}
 	defer sockfp.Close()
 	t0 := time.Now()
+	resultsfp.StartTest()
+	defer resultsfp.EndTest()
 	ticker := time.NewTicker(spec.MinMeasurementInterval)
 	defer ticker.Stop()
 	sentConnectionInfo := false
@@ -81,7 +83,7 @@ func loop(
 				measurement.ConnectionInfo = &model.ConnectionInfo{
 					Client: conn.RemoteAddr().String(),
 					Server: conn.LocalAddr().String(),
-					UUID:   "urn:mlab:" + resultsfp.UUID,
+					UUID:   resultsfp.Data.UUID,
 				}
 				sentConnectionInfo = true
 			}

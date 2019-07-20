@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/m-lab/go/rtx"
+	"github.com/m-lab/ndt-server/ndt5/control"
+	"github.com/m-lab/ndt-server/version"
 
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/warnonerror"
@@ -19,7 +21,6 @@ import (
 	"github.com/m-lab/ndt-server/data"
 	"github.com/m-lab/ndt-server/metrics"
 	"github.com/m-lab/ndt-server/ndt5/c2s"
-	ndt5data "github.com/m-lab/ndt-server/ndt5/data"
 	"github.com/m-lab/ndt-server/ndt5/meta"
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
@@ -48,7 +49,7 @@ func SaveData(record *data.NDTResult, datadir string) {
 		log.Printf("Could not create directory %s: %v\n", dir, err)
 		return
 	}
-	file, err := protocol.UUIDToFile(dir, record.NDT5Metadata.ControlChannelUUID)
+	file, err := protocol.UUIDToFile(dir, record.Control.UUID)
 	if err != nil {
 		log.Println("Could not open file:", err)
 		return
@@ -117,15 +118,20 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	log.Println("Handling connection", conn)
 	defer warnonerror.Close(conn, "Could not close "+conn.String())
 
+	sIP, sPort := conn.ServerIPAndPort()
+	cIP, cPort := conn.ClientIPAndPort()
 	record := &data.NDTResult{
 		GitShortCommit: prometheusx.GitShortCommit,
+		Version:        version.Version,
 		StartTime:      time.Now(),
-		NDT5Metadata: &ndt5data.Metadata{
-			ControlChannelUUID: conn.UUID(),
-			Protocol:           s.ConnectionType(),
+		Control: &control.ArchivalData{
+			UUID:     conn.UUID(),
+			Protocol: s.ConnectionType(),
 		},
-		ServerIP: conn.ServerIP(),
-		ClientIP: conn.ClientIP(),
+		ServerIP:   sIP,
+		ServerPort: sPort,
+		ClientIP:   cIP,
+		ClientPort: cPort,
 	}
 	defer func() {
 		record.EndTime = time.Now()
@@ -174,7 +180,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	ndt5metrics.ClientRequestedTestSuites.WithLabelValues(strings.Join(suites, "-")).Inc()
 
 	m := conn.Messager()
-	record.NDT5Metadata.MessageProtocol = m.Encoding().String()
+	record.Control.MessageProtocol = m.Encoding().String()
 	rtx.PanicOnError(
 		m.SendMessage(protocol.SrvQueue, []byte("0")),
 		"SrvQueue - Could not send SrvQueue")
@@ -203,7 +209,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 		rtx.PanicOnError(err, "S2C - Could not run s2c test")
 	}
 	if runMeta {
-		record.Meta, err = meta.ManageTest(ctx, m)
+		record.Control.ClientMetadata, err = meta.ManageTest(ctx, m)
 		rtx.PanicOnError(err, "META - Could not run meta test")
 	}
 	speedMsg := fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000)

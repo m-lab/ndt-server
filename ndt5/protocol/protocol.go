@@ -91,8 +91,8 @@ type Connection interface {
 	ReadBytes() (count int64, err error)
 	WriteMessage(messageType int, data []byte) error
 	FillUntil(t time.Time, buffer []byte) (bytesWritten int64, err error)
-	ServerIP() string
-	ClientIP() string
+	ServerIPAndPort() (string, int)
+	ClientIPAndPort() (string, int)
 	Close() error
 	UUID() string
 	String() string
@@ -190,14 +190,14 @@ func (ws *wsConnection) UUID() string {
 	return id
 }
 
-func (ws *wsConnection) ServerIP() string {
+func (ws *wsConnection) ServerIPAndPort() (string, int) {
 	localAddr := ws.UnderlyingConn().LocalAddr().(*net.TCPAddr)
-	return localAddr.IP.String()
+	return localAddr.IP.String(), localAddr.Port
 }
 
-func (ws *wsConnection) ClientIP() string {
+func (ws *wsConnection) ClientIPAndPort() (string, int) {
 	remoteAddr := ws.UnderlyingConn().RemoteAddr().(*net.TCPAddr)
-	return remoteAddr.IP.String()
+	return remoteAddr.IP.String(), remoteAddr.Port
 }
 
 // ReadBytes reads some bytes and discards them. This method is in service of
@@ -283,14 +283,14 @@ func (nc *netConnection) UUID() string {
 	return id
 }
 
-func (nc *netConnection) ServerIP() string {
+func (nc *netConnection) ServerIPAndPort() (string, int) {
 	localAddr := nc.LocalAddr().(*net.TCPAddr)
-	return localAddr.IP.String()
+	return localAddr.IP.String(), localAddr.Port
 }
 
-func (nc *netConnection) ClientIP() string {
+func (nc *netConnection) ClientIPAndPort() (string, int) {
 	remoteAddr := nc.RemoteAddr().(*net.TCPAddr)
-	return remoteAddr.IP.String()
+	return remoteAddr.IP.String(), remoteAddr.Port
 }
 
 func (nc *netConnection) String() string {
