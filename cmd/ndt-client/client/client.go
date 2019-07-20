@@ -45,7 +45,7 @@ func (cl Client) Download() error {
 	if err != nil {
 		return err
 	}
-	conn.SetReadLimit(spec.MinMaxMessageSize)
+	conn.SetReadLimit(spec.MaxMessageSize)
 	defer conn.Close()
 	t0 := time.Now()
 	num := int64(0.0)

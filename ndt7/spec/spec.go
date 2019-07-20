@@ -12,10 +12,14 @@ const UploadURLPath = "/ndt/v7/upload"
 // SecWebSocketProtocol is the WebSocket subprotocol used by ndt7.
 const SecWebSocketProtocol = "net.measurementlab.ndt.v7"
 
-// MinMaxMessageSize is the minimum value of the maximum message size
-// that an implementation MAY want to configure. Messages smaller than this
-// threshold MUST always be accepted by an implementation.
-const MinMaxMessageSize = 1 << 24
+// MinMessageSize is the minimum message size.
+const MinMessageSize = 1 << 10
+
+// InitialMessageSize is the initial message size.
+const InitialMessageSize = 1 << 13
+
+// MaxMessageSize is the maximum message size.
+const MaxMessageSize = 1 << 24
 
 // MinMeasurementInterval is the minimum interval between measurements.
 const MinMeasurementInterval = 250 * time.Millisecond

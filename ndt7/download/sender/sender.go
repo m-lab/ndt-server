@@ -2,29 +2,15 @@
 package sender
 
 import (
-	"math/rand"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/closer"
+	"github.com/m-lab/ndt-server/ndt7/download/sender/binary"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
-
-func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
-	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	data := make([]byte, size)
-	// This is not the fastest algorithm to generate a random string, yet it
-	// is most likely good enough for our purposes. See [1] for a comprehensive
-	// discussion regarding how to generate a random string in Golang.
-	//
-	// .. [1] https://stackoverflow.com/a/31832326/4354461
-	for i := range data {
-		data[i] = letterBytes[rand.Intn(len(letterBytes))]
-	}
-	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
-}
 
 func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.Measurement) {
 	logging.Logger.Debug("sender: start")
@@ -35,32 +21,24 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 			// make sure we drain the channel
 		}
 	}()
-	logging.Logger.Debug("sender: generating random buffer")
-	const bulkMessageSize = 1 << 13
-	preparedMessage, err := makePreparedMessage(bulkMessageSize)
-	if err != nil {
-		logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
-		return
-	}
+	bm := binary.NewMessage()
 	for {
 		select {
-		case m, ok := <-src:
+		case meas, ok := <-src:
 			if !ok { // This means that the previous step has terminated
 				closer.StartClosing(conn)
 				return
 			}
 			conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
-			if err := conn.WriteJSON(m); err != nil {
+			if err := conn.WriteJSON(meas); err != nil {
 				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
 				return
 			}
-			dst <- m // Liveness: this is blocking
+			dst <- meas // Liveness: this is blocking
 		default:
 			conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
-			if err := conn.WritePreparedMessage(preparedMessage); err != nil {
-				logging.Logger.WithError(err).Warn(
-					"sender: conn.WritePreparedMessage failed",
-				)
+			if err := bm.Send(conn); err != nil {
+				logging.Logger.WithError(err).Warn("sender: m.Send(conn) failed")
 				return
 			}
 		}

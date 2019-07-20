@@ -27,7 +27,7 @@ func loop(
 	logging.Logger.Debug("receiver: start")
 	defer logging.Logger.Debug("receiver: stop")
 	defer close(dst)
-	conn.SetReadLimit(spec.MinMaxMessageSize)
+	conn.SetReadLimit(spec.MaxMessageSize)
 	receiverctx, cancel := context.WithTimeout(ctx, spec.MaxRuntime)
 	defer cancel()
 	for {
