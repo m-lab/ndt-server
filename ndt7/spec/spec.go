@@ -15,7 +15,7 @@ const SecWebSocketProtocol = "net.measurementlab.ndt.v7"
 // MinMaxMessageSize is the minimum value of the maximum message size
 // that an implementation MAY want to configure. Messages smaller than this
 // threshold MUST always be accepted by an implementation.
-const MinMaxMessageSize = 1 << 17
+const MinMaxMessageSize = 1 << 24
 
 // MinMeasurementInterval is the minimum interval between measurements.
 const MinMeasurementInterval = 250 * time.Millisecond
