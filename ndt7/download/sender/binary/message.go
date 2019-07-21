@@ -10,16 +10,13 @@ import (
 )
 
 func makeRandomData(size int) []byte {
-	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	data := make([]byte, size)
-	// This is not the fastest algorithm to generate a random string, yet it
-	// is most likely good enough for our purposes. See [1] for a comprehensive
-	// discussion regarding how to generate a random string in Golang.
+	gen := rand.New(rand.NewSource(time.Now().UnixNano()))
+	// "Read generates len(p) random bytes from the default Source and writes
+	// them into p. It always returns len(p) and a nil error."
 	//
-	// .. [1] https://stackoverflow.com/a/31832326/4354461
-	for i := range data {
-		data[i] = letterBytes[rand.Intn(len(letterBytes))]
-	}
+	// See <https://golang.org/pkg/math/rand/#Read>.
+	gen.Read(data)
 	return data
 }
 
