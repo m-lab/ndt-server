@@ -4,7 +4,9 @@ package model
 // without notice. You are welcome to use them as long as it is
 // clear that there's no API stability guarantee.
 type InternalInfo struct {
-	NumWritesDelta     int64
-	SenderElapsedDelta float64
-	WebSocketMsgSize   int64
+	LastMessagePrepareTime float64
+	NumWritesDelta         int64
+	RandomGenerationTime   float64
+	SenderElapsedDelta     float64
+	WebSocketMsgSize       int64
 }

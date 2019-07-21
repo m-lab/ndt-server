@@ -63,7 +63,9 @@ func loop(
 				return
 			}
 			meas.Internal = &model.InternalInfo{
+				LastMessagePrepareTime : bm.LastMessagePrepareTime().Seconds(),
 				NumWritesDelta:     numWrites,
+				RandomGenerationTime: bm.RandomGenerationTime().Seconds(),
 				SenderElapsedDelta: time.Now().Sub(begin).Seconds() - meas.Elapsed,
 				WebSocketMsgSize:   int64(bm.RealSize()),
 			}

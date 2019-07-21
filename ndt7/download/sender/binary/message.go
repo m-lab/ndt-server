@@ -3,6 +3,7 @@ package binary
 
 import (
 	"math/rand"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/ndt7/spec"
@@ -24,17 +25,22 @@ func makeRandomData(size int) []byte {
 
 // Message contains the binary message we send.
 type Message struct {
-	data []byte
-	pm   *websocket.PreparedMessage
-	size int
+	data            []byte
+	randGenDelta    time.Duration
+	msgPrepareDelta time.Duration
+	pm              *websocket.PreparedMessage
+	size            int
 }
 
 // NewMessage creates a new message.
 func NewMessage() *Message {
+	begin := time.Now()
+	data := makeRandomData(spec.MaxMessageSize)
 	return &Message{
-		data: makeRandomData(spec.MaxMessageSize),
-		pm:   nil,
-		size: spec.InitialMessageSize,
+		data:         data,
+		randGenDelta: time.Now().Sub(begin),
+		pm:           nil,
+		size:         spec.InitialMessageSize,
 	}
 }
 
@@ -68,12 +74,26 @@ func (m *Message) RealSize() int {
 	return m.size
 }
 
+// RandomGenerationTime returns the time required to generate the random
+// buffer used as starting point for all prepared messages.
+func (m *Message) RandomGenerationTime() time.Duration {
+	return m.randGenDelta
+}
+
+// LastMessagePrepareTime returns the time required to prepare the last
+// message to be sent over the WebSocket channel.
+func (m *Message) LastMessagePrepareTime() time.Duration {
+	return m.msgPrepareDelta
+}
+
 // Send sends the message over the specified websocket |conn|.
 func (m *Message) Send(conn *websocket.Conn) (err error) {
 	if m.pm == nil {
+		before := time.Now()
 		m.pm, err = websocket.NewPreparedMessage(
 			websocket.BinaryMessage, m.data[:m.size],
 		)
+		m.msgPrepareDelta = time.Now().Sub(before)
 		if err != nil {
 			return err
 		}
