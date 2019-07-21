@@ -1,10 +1,10 @@
 /* jshint esversion: 6, asi: true */
 /* globals importScripts, onmessage: true, postMessage, libndt7 */
 
-// ndt7-worker is a Web Worker that runs the ndt7 nettest in a background
+// libndt7-worker is a Web Worker that runs the ndt7 nettest in a background
 // thread of execution, so we do not block the user interface.
 
-importScripts('libndt7.js')
+importScripts('libndt7-core.js')
 
 // onmessage receives a key, value message requesting to start a ndt7
 // subtest. The key is the subtest type. The value is an object containing
