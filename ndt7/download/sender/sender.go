@@ -31,8 +31,9 @@ func loop(
 	defer logging.Logger.Debug("sender: stop")
 	defer close(dst)
 	defer func() {
-		for range src {
-			// make sure we drain the channel
+		for meas := range src {
+			// make sure we drain the channel and not loose measurements
+			dst <- meas
 		}
 	}()
 	begin := time.Now()

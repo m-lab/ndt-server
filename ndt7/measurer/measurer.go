@@ -77,11 +77,12 @@ func loop(
 	t0 := time.Now()
 	resultsfp.StartTest()
 	defer resultsfp.EndTest()
+	// Liveness: this is probably non blocking because of buffering
 	measureAndSendToChannel(t0, time.Now(), sockfp, dst, &model.ConnectionInfo{
 		Client: conn.RemoteAddr().String(),
 		Server: conn.LocalAddr().String(),
 		UUID:   resultsfp.Data.UUID,
-	}) // Liveness: this is blocking
+	})
 	ticker := time.NewTicker(spec.MinMeasurementInterval)
 	defer ticker.Stop()
 	for {
@@ -90,7 +91,8 @@ func loop(
 			logging.Logger.Debug("measurer: context done")
 			return
 		case now := <-ticker.C:
-			measureAndSendToChannel(t0, now, sockfp, dst, nil) // Liveness: blocking!
+			// Liveness: this is probably non blocking because of buffering
+			measureAndSendToChannel(t0, now, sockfp, dst, nil)
 		}
 	}
 }
@@ -104,7 +106,16 @@ func loop(
 func Start(
 	ctx context.Context, conn *websocket.Conn, resultsfp *results.File,
 ) <-chan model.Measurement {
-	dst := make(chan model.Measurement)
+	// We use buffering to make sure that the measurer can bufferise the total
+	// number of expected measurements without blocking. This allows us to obtain
+	// measurements even when the sender blocks for a long time. In principle it
+	// may still blocking for some time, but we'll get most measurements.
+	//
+	// Such measurements won't probably be sent to the client, since the sender
+	// would spent most of its time blocked. But it should still be possible for
+	// the sender to drain our channel when exiting. This way measurements will
+	// be saved on the disk and will be available for analysis.
+	dst := make(chan model.Measurement, spec.NumExpectedMeasurements)
 	go loop(ctx, conn, resultsfp, dst)
 	return dst
 }
