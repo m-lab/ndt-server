@@ -47,6 +47,18 @@ func measure(measurement *model.Measurement, sockfp *os.File) {
 	}
 }
 
+func measureAndSendToChannel(
+	t0, t1 time.Time, sockfp *os.File, dst chan<- model.Measurement,
+	connectionInfo *model.ConnectionInfo,
+) {
+	measurement := model.Measurement{
+		ConnectionInfo: connectionInfo,
+		Elapsed:        t1.Sub(t0).Seconds(),
+	}
+	measure(&measurement, sockfp)
+	dst <- measurement
+}
+
 func loop(
 	ctx context.Context, conn *websocket.Conn, resultsfp *results.File,
 	dst chan<- model.Measurement,
@@ -65,29 +77,20 @@ func loop(
 	t0 := time.Now()
 	resultsfp.StartTest()
 	defer resultsfp.EndTest()
+	measureAndSendToChannel(t0, time.Now(), sockfp, dst, &model.ConnectionInfo{
+		Client: conn.RemoteAddr().String(),
+		Server: conn.LocalAddr().String(),
+		UUID:   resultsfp.Data.UUID,
+	}) // Liveness: this is blocking
 	ticker := time.NewTicker(spec.MinMeasurementInterval)
 	defer ticker.Stop()
-	sentConnectionInfo := false
 	for {
 		select {
 		case <-measurerctx.Done(): // Liveness!
 			logging.Logger.Debug("measurer: context done")
 			return
 		case now := <-ticker.C:
-			elapsed := now.Sub(t0)
-			measurement := model.Measurement{
-				Elapsed: elapsed.Seconds(),
-			}
-			measure(&measurement, sockfp)
-			if sentConnectionInfo == false {
-				measurement.ConnectionInfo = &model.ConnectionInfo{
-					Client: conn.RemoteAddr().String(),
-					Server: conn.LocalAddr().String(),
-					UUID:   resultsfp.Data.UUID,
-				}
-				sentConnectionInfo = true
-			}
-			dst <- measurement // Liveness: this is blocking
+			measureAndSendToChannel(t0, now, sockfp, dst, nil) // Liveness: blocking!
 		}
 	}
 }
