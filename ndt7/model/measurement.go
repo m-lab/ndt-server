@@ -7,7 +7,7 @@ type Measurement struct {
 	AppInfo *AppInfo `json:"app_info,omitempty"`
 
 	// ConnectionInfo contains connection information.
-	ConnectionInfo *ConnectionInfo `json:"connection_info,omitempty"`
+	ConnectionInfo *ConnectionInfo `json:"connection_info,omitempty" bigquery:"-"`
 
 	// BBRInfo is the data measured using TCP BBR instrumentation.
 	BBRInfo *BBRInfo `json:"bbr_info,omitempty"`

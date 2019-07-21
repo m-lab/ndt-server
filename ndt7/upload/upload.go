@@ -50,18 +50,11 @@ func getConnFile(conn *websocket.Conn) (*os.File, error) {
 }
 
 // gatherAndSaveTCPInfo gathers TCP info measurements from |sockfp| and stores
-// them into the |measurement| object as well as into the |resultfp| file.
-// It returns an error on failure and nil in case of success.
-func gatherAndSaveTCPInfo(measurement *model.Measurement, sockfp *os.File, resultfp *results.File) error {
+// them into the |measurement| object. On error, the measurement.TCPInfo will remain unchanged.
+func gatherTCPInfo(measurement *model.Measurement, sockfp *os.File) error {
 	metrics, err := tcpinfox.GetTCPInfo(sockfp)
 	if err == nil {
 		measurement.TCPInfo = &metrics
-	}
-	if err := resultfp.WriteMeasurement(*measurement, "server"); err != nil {
-		logging.Logger.WithError(err).Warn(
-			"upload: cannot save measurement on disk",
-		)
-		return err
 	}
 	return nil
 }
@@ -82,6 +75,8 @@ func measuringLoop(ctx context.Context, conn *websocket.Conn, resultfp *results.
 	}
 	defer warnonerror.Close(sockfp, "upload: ignoring sockfp.Close error")
 	t0 := time.Now()
+	resultfp.StartTest()
+	defer resultfp.EndTest()
 	ticker := time.NewTicker(spec.MinMeasurementInterval)
 	for {
 		select {
@@ -96,7 +91,7 @@ func measuringLoop(ctx context.Context, conn *websocket.Conn, resultfp *results.
 			measurement := model.Measurement{
 				Elapsed: elapsed.Seconds(),
 			}
-			err = gatherAndSaveTCPInfo(&measurement, sockfp, resultfp)
+			err = gatherTCPInfo(&measurement, sockfp)
 			if err != nil {
 				return // error printed already
 			}
@@ -140,10 +135,11 @@ func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File) {
 	logging.Logger.Debug("upload: starting receiving data from the client")
 	for {
 		select {
-		case _, ok := <-measurements:
+		case m, ok := <-measurements:
 			if !ok {
 				return // the goroutine told us it's time to stop running
 			}
+			resultfp.AppendServerMeasurement(m)
 		default:
 			conn.SetReadDeadline(time.Now().Add(defaultTimeout))
 			mt, message, err := conn.ReadMessage()
@@ -153,16 +149,16 @@ func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File) {
 				}
 				return
 			}
-			// TODO(bassosimone): we should also save this message from the client.
 			if mt == websocket.TextMessage {
-				var mdata model.Measurement
-				err := json.Unmarshal(message, &mdata)
+				var m model.Measurement
+				err := json.Unmarshal(message, &m)
 				if err != nil {
 					logging.Logger.Errorf(
 						"upload: unable to unmarshal JSON message: %s", message,
 					)
 					return
 				}
+				resultfp.AppendClientMeasurement(m)
 			}
 		}
 	}
