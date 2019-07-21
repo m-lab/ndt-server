@@ -25,7 +25,7 @@ const MaxMessageSize = 1 << 24
 const MeasurementsPerSecond = 4
 
 // defaultRuntimeSeconds is the default runtime in seconds.
-const defaultRuntimeSecoonds = 10
+const defaultRuntimeSeconds = 10
 
 // NumExpectedMeasurements is the expected number of measurements.
 const NumExpectedMeasurements = defaultRuntimeSeconds * MeasurementsPerSecond
