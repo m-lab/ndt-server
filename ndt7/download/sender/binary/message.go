@@ -62,6 +62,12 @@ func (m *Message) PossiblyIncreaseSizeTo(size int) {
 	m.SetDesiredSize(size)
 }
 
+// RealSize is the real size we're using for outgoing binary messages. It is
+// related to the size set by the user, but not necessarily equal to that.
+func (m *Message) RealSize() int {
+	return m.size
+}
+
 // Send sends the message over the specified websocket |conn|.
 func (m *Message) Send(conn *websocket.Conn) (err error) {
 	if m.pm == nil {

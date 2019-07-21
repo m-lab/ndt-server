@@ -23,7 +23,10 @@ func castToPositiveInt32(orig int64) int {
 	return int(orig)
 }
 
-func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.Measurement) {
+func loop(
+	conn *websocket.Conn, src <-chan model.Measurement,
+	dst chan<- model.Measurement,
+) {
 	logging.Logger.Debug("sender: start")
 	defer logging.Logger.Debug("sender: stop")
 	defer close(dst)
@@ -32,7 +35,9 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 			// make sure we drain the channel
 		}
 	}()
+	begin := time.Now()
 	bm := binary.NewMessage()
+	var numWrites int64
 	for {
 		select {
 		case meas, ok := <-src:
@@ -57,6 +62,12 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
 				return
 			}
+			meas.Internal = &model.InternalInfo{
+				NumWritesDelta:     numWrites,
+				SenderElapsedDelta: time.Now().Sub(begin).Seconds() - meas.Elapsed,
+				WebSocketMsgSize:   int64(bm.RealSize()),
+			}
+			numWrites = 0
 			dst <- meas // Liveness: this is blocking
 		default:
 			conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
@@ -64,6 +75,7 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 				logging.Logger.WithError(err).Warn("sender: m.Send(conn) failed")
 				return
 			}
+			numWrites++
 		}
 	}
 }

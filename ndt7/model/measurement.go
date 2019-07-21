@@ -15,6 +15,10 @@ type Measurement struct {
 	// Elapsed is the number of seconds elapsed since the beginning.
 	Elapsed float64 `json:"elapsed"`
 
+	// Internal contains internal fields. They may change at any commit without
+	// prior notice, and they are not bound by the ndt7 spec.
+	Internal *InternalInfo `json:"internal,omitempty"`
+
 	// TCPInfo contains metrics measured using TCP_INFO instrumentation.
 	TCPInfo *TCPInfo `json:"tcp_info,omitempty"`
 }

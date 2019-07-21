@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.7.2 of the ndt7 specification.
+This is version v0.7.3 of the ndt7 specification.
 
 ## Protocol description
 
@@ -62,7 +62,6 @@ NOT be smaller than 1 << 24 bytes. Note that this message size is a maximum. It
 is expected that most clients will complete the entire ndt7 test with much
 smaller messages and that large messages would only be sent to clients on
 very fast links.
-
 
 Both textual and binary WebSocket messages are allowed. Textual WebSocket
 messages will contain serialised JSON structures containing measurements
@@ -160,6 +159,7 @@ structure:
     "min_rtt": 123.4
   },
   "elapsed": 1.2345,
+  "internal": {},
   "tcp_info": {
     "rtt_var": 123.4,
     "smoothed_rtt": 567.8
@@ -207,6 +207,10 @@ Where:
 - `elapsed` (a `float64`) is the number of seconds elapsed since the beginning
   of the specific subtest and marks the moment in which the measurement has
   been performed by the client or by the server;
+
+- `internal` is an _optional_ JSON object containing arbitrary keys and
+  values. You are welcome to use fields inside internal, but know that they
+  may change at any commit and without notice;
 
 - `tcp_info` is an _optional_ JSON object only included in the measurement
   when it is possible to access `TCP_INFO` stats:
