@@ -45,6 +45,7 @@ func loop(
 				closer.StartClosing(conn)
 				return
 			}
+			realSize := int64(bm.RealSize())
 			if meas.BBRInfo != nil {
 				// Convert the bandwidth to bytes per second and then obtain the
 				// number of bytes per second we want to send for each measurement
@@ -63,11 +64,11 @@ func loop(
 				return
 			}
 			meas.Internal = &model.InternalInfo{
-				LastMessagePrepareTime : bm.LastMessagePrepareTime().Seconds(),
-				NumWritesDelta:     numWrites,
-				RandomGenerationTime: bm.RandomGenerationTime().Seconds(),
-				SenderElapsedDelta: time.Now().Sub(begin).Seconds() - meas.Elapsed,
-				WebSocketMsgSize:   int64(bm.RealSize()),
+				LastMessagePrepareTime: bm.LastMessagePrepareTime().Seconds(),
+				NumWritesDelta:         numWrites,
+				RandomGenerationTime:   bm.RandomGenerationTime().Seconds(),
+				SenderElapsedDelta:     time.Now().Sub(begin).Seconds() - meas.Elapsed,
+				WebSocketMsgSize:       realSize,
 			}
 			numWrites = 0
 			dst <- meas // Liveness: this is blocking
