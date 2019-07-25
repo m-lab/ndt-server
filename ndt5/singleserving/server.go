@@ -187,6 +187,9 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 	if err != nil {
 		return nil, err
 	}
+	if conn == nil {
+		return nil, errors.New("nil conn, nil err: " + derivedCtx.Err().Error())
+	}
 	return protocol.AdaptNetConn(conn, conn), nil
 }
 
