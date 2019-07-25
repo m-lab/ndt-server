@@ -7,6 +7,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
+	"github.com/m-lab/ndt-server/ndt7/closer"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
@@ -23,18 +24,6 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 		data[i] = letterBytes[rand.Intn(len(letterBytes))]
 	}
 	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
-}
-
-func startclosing(conn *websocket.Conn) {
-	msg := websocket.FormatCloseMessage(
-		websocket.CloseNormalClosure, "Done sending")
-	d := time.Now().Add(spec.DefaultRuntime) // Liveness!
-	err := conn.WriteControl(websocket.CloseMessage, msg, d)
-	if err != nil {
-		logging.Logger.WithError(err).Warn("sender: conn.WriteControl failed")
-		return
-	}
-	logging.Logger.Debug("sender: sending Close message")
 }
 
 func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.Measurement) {
@@ -57,7 +46,7 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 		select {
 		case m, ok := <-src:
 			if !ok { // This means that the previous step has terminated
-				startclosing(conn)
+				closer.StartClosing(conn)
 				return
 			}
 			conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!

@@ -1,4 +1,5 @@
-// Package measurer contains the downloader measurer
+// Package measurer collects metrics from a socket connection
+// and returns them for consumption.
 package measurer
 
 import (
