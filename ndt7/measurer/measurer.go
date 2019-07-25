@@ -1,5 +1,5 @@
-// Package measurer contains the measurer. Its job is to collect metrics
-// from a socket connection and return them for consumption.
+// Package measurer collects metrics from a socket connection
+// and returns them for consumption.
 package measurer
 
 import (

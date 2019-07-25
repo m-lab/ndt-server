@@ -66,9 +66,7 @@ func loop(
 	}
 }
 
-func start(
-	ctx context.Context, conn *websocket.Conn, kind receiverKind,
-) <-chan model.Measurement {
+func start(ctx context.Context, conn *websocket.Conn, kind receiverKind) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
 	go loop(ctx, conn, kind, dst)
 	return dst
@@ -83,17 +81,13 @@ func start(
 // Liveness guarantee: the goroutine will always terminate after a
 // MaxRuntime timeout, provided that the consumer will keep reading
 // from the returned channel.
-func StartDownloadReceiver(
-	ctx context.Context, conn *websocket.Conn,
-) <-chan model.Measurement {
+func StartDownloadReceiver(ctx context.Context, conn *websocket.Conn) <-chan model.Measurement {
 	return start(ctx, conn, downloadReceiver)
 }
 
 // StartUploadReceiver is like StartDownloadReceiver except that it
-// tolerates incoming binary messages, which are indeeed sent to cause
+// tolerates incoming binary messages, which are sent to cause
 // network load, and therefore must not be rejected.
-func StartUploadReceiver(
-	ctx context.Context, conn *websocket.Conn,
-) <-chan model.Measurement {
+func StartUploadReceiver(ctx context.Context, conn *websocket.Conn) <-chan model.Measurement {
 	return start(ctx, conn, uploadReceiver)
 }

@@ -45,9 +45,7 @@ func loop(
 // Liveness guarantee: the sender will not be stuck sending for more then
 // the DefaultRuntime of the subtest, provided that the consumer will
 // continue reading from the returned channel.
-func Start(
-	conn *websocket.Conn, src <-chan model.Measurement,
-) <-chan model.Measurement {
+func Start(conn *websocket.Conn, src <-chan model.Measurement) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
 	go loop(conn, src, dst)
 	return dst
