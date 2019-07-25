@@ -225,7 +225,163 @@ implementations will likely round bigger (or smaller) numbers to the nearest
 make sure that it does not emit values that a `int53` cannot represent. The
 proper action to take in this case is currently unspecified.
 
-# Reference implementation
+## Server discovery
 
-The reference implementation is [github.com/m-lab/ndt-server](
+This section explains how a client can get the FQDN of a ndt7-enabled
+M-Lab server for the purpose of running tests. Of course, this
+section only applies to clients using M-Lab infrastructure. Clients
+using other server infrastructure MUST refer to the documentation
+provided by such infrastructure instead.
+
+Clients:
+
+1. SHOULD use the [locate.measurementlab.net](
+https://locate.measurementlab.net/) server-discovery web API;
+
+2. MUST query for the `ndt7` locate.measurementlab.net tool (see below for a
+description of how a real request would look like);
+
+3. MUST set `User-Agent` to identify themselves;
+
+4. MUST correctly handle `3xx` redirects, interpret `200` as success, `204`
+as the no-capacity signal (see below) and any other status as failure.
+
+The no-capacity signal is emitted by the locate.measurementlab.net service
+when M-Lab is out of capacity. In such cases, the return code is `204`,
+to indicate that there is no (ndt7 server) content for the requesting client.
+
+The following example shows a request to locate.measurementlab.net originating
+from a well-behaved ndt7 client:
+
+```
+* Connected to locate.measurementlab.net (216.58.205.84) port 443 (#0)
+> GET /ndt7 HTTP/1.1
+> Host: locate.measurementlab.net
+> User-Agent: MKEngine/0.1.0
+> Accept: application/json
+>
+```
+
+A possible successful response from a server could look like the
+following (where some irrelevant JSON fields have been omitted for
+the sake of brevity and thus content-length is now wrong):
+
+```
+< HTTP/1.1 200
+< cache-control: no-cache
+< access-control-allow-origin: *
+< content-type: application/json
+< date: Thu, 02 May 2019 13:46:32 GMT
+< server: Google Frontend
+< content-length: 622
+<
+{ "fqdn": "ndt-iupui-mlab2-tun01.measurement-lab.org" }
+```
+
+In case of capacity issues (as specified above), the server response
+would instead look like the following:
+
+```
+< HTTP/2 204
+< cache-control: no-cache
+< access-control-allow-origin: *
+< content-type: application/json
+< date: Thu, 02 May 2019 13:46:32 GMT
+< server: Google Frontend
+< content-length: 0
+<
+```
+
+### Requirements for non-interactive clients
+
+Non-interactive clients SHOULD schedule tests according
+to the following algorithm:
+
+1. run a test
+
+2. make sure that the RNG is correctly seeded;
+
+3. extract `t` from an exponential distribution with average
+equal to 21600 seconds (i.e. six hours);
+
+4. if `t` is smaller than 2160 seconds, set `t` to 2160 seconds;
+
+5. if `t` is larger 54000 seconds, set `t` to 54000 seconds;
+
+6. sleep for `t` seconds;
+
+7. goto step 1.
+
+An hypothetical non-interactive ndt7 client written in Go SHOULD do:
+
+```Go
+import (
+	"math/rand"
+	"sync"
+	"time"
+)
+
+var once sync.Once
+
+func sleepTime() time.Duration {
+	once.Do(func() {
+		rand.Seed(time.Now().UTC().UnixNano())
+	})
+	t := rand.ExpFloat64() * 21600
+	if t < 2160 {
+		t = 2160
+	} else if t > 54000 {
+		t = 54000
+	}
+	return time.Duration(t * float64(time.Second))
+}
+
+func mainLoop() {
+	for {
+		tryPerformanceTest()
+		time.Sleep(sleepTime())
+	}
+}
+```
+
+The locate.measurementlab.net service will return an empty result if
+M-Lab is out of capacity, as mentioned above. In such case, a non-interactive
+client SHOULD:
+
+1. either skip the test and wait until it's time to run the next test; or
+
+2. retry contacting locate.measurementlab.net applying an exponential
+backoff by extracting from a normal distribution with increasing average (60,
+120, 240, 480, 960, ... seconds) and standard deviation equal to 5% of
+the average value.
+
+In our hypotethical Go client, the exponential backoff would be
+implementation like this:
+
+```Go
+func tryPerformanceTest() {
+	for mean := 60.0; mean <= 960.0; mean *= 2.0 {
+		fqdn, err := locateServer()
+		if err != nil {
+			// Note: RNG already seeded as shown above
+			stdev := 0.05 * mean
+			seconds := rand.NormFloat64() * stdev + mean
+			time.Sleep(time.Duration(seconds * float64(time.Second)))
+			continue
+		}
+		runWithServer(fqdn)
+		return
+	}
+}
+```
+
+## Reference implementation
+
+The reference _server_ implementation is [github.com/m-lab/ndt-server](
 https://github.com/m-lab/ndt-server).
+
+The reference _Go client_ is [github.com/m-lab/ndt7-client-go](
+https://github.com/m-lab/ndt7-client-go).
+
+The reference _JavaScript client_ is [github.com/m-lab/ndt7-client-javascript](
+https://github.com/m-lab/ndt7-client-javascript).
