@@ -298,11 +298,11 @@ to the following algorithm:
 2. make sure that the RNG is correctly seeded;
 
 3. extract `t` from an exponential distribution with average
-equal to 21'600 seconds (i.e. six hours);
+equal to 21600 seconds (i.e. six hours);
 
-4. if `t` is smaller than 2'160 seconds, set `t` to 2'160 seconds;
+4. if `t` is smaller than 2160 seconds, set `t` to 2160 seconds;
 
-5. if `t` is larger 54'000 seconds, set `t` to 54'000 seconds;
+5. if `t` is larger 54000 seconds, set `t` to 54000 seconds;
 
 6. sleep for `t` seconds;
 
