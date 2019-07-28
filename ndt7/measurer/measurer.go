@@ -62,7 +62,7 @@ func loop(
 		return
 	}
 	defer sockfp.Close()
-	t0 := time.Now()
+	start := time.Now()
 	resultsfp.StartTest()
 	defer resultsfp.EndTest()
 	ticker := time.NewTicker(spec.MinMeasurementInterval)
@@ -74,7 +74,7 @@ func loop(
 	}
 	for measurerctx.Err() == nil { // Liveness!
 		now := <-ticker.C
-		elapsed := now.Sub(t0)
+		elapsed := now.Sub(start)
 		measurement := model.Measurement{
 			Elapsed: elapsed.Seconds(),
 		}
