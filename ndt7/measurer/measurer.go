@@ -13,7 +13,6 @@ import (
 	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
-	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/tcpinfox"
 )
@@ -47,10 +46,7 @@ func measure(measurement *model.Measurement, sockfp *os.File) {
 	}
 }
 
-func loop(
-	ctx context.Context, conn *websocket.Conn, resultsfp *results.File,
-	dst chan<- model.Measurement,
-) {
+func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- model.Measurement) {
 	logging.Logger.Debug("measurer: start")
 	defer logging.Logger.Debug("measurer: stop")
 	defer close(dst)
@@ -63,14 +59,12 @@ func loop(
 	}
 	defer sockfp.Close()
 	start := time.Now()
-	resultsfp.StartTest()
-	defer resultsfp.EndTest()
 	ticker := time.NewTicker(spec.MinMeasurementInterval)
 	defer ticker.Stop()
 	connectionInfo := &model.ConnectionInfo{
 		Client: conn.RemoteAddr().String(),
 		Server: conn.LocalAddr().String(),
-		UUID:   resultsfp.Data.UUID,
+		UUID:   UUID,
 	}
 	for measurerctx.Err() == nil { // Liveness!
 		now := <-ticker.C
@@ -92,9 +86,9 @@ func loop(
 // a timeout of DefaultRuntime seconds, provided that the consumer
 // continues reading from the returned channel.
 func Start(
-	ctx context.Context, conn *websocket.Conn, resultsfp *results.File,
+	ctx context.Context, conn *websocket.Conn, UUID string,
 ) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
-	go loop(ctx, conn, resultsfp, dst)
+	go loop(ctx, conn, UUID, dst)
 	return dst
 }
