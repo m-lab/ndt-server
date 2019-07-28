@@ -72,21 +72,16 @@ func loop(
 		Server: conn.LocalAddr().String(),
 		UUID:   resultsfp.Data.UUID,
 	}
-	for {
-		select {
-		case <-measurerctx.Done(): // Liveness!
-			logging.Logger.Debug("measurer: context done")
-			return
-		case now := <-ticker.C:
-			elapsed := now.Sub(t0)
-			measurement := model.Measurement{
-				Elapsed: elapsed.Seconds(),
-			}
-			measure(&measurement, sockfp)
-			measurement.ConnectionInfo = connectionInfo
-			connectionInfo = nil
-			dst <- measurement // Liveness: this is blocking
+	for measurerctx.Err() == nil { // Liveness!
+		now := <-ticker.C
+		elapsed := now.Sub(t0)
+		measurement := model.Measurement{
+			Elapsed: elapsed.Seconds(),
 		}
+		measure(&measurement, sockfp)
+		measurement.ConnectionInfo = connectionInfo
+		connectionInfo = nil
+		dst <- measurement // Liveness: this is blocking
 	}
 }
 
