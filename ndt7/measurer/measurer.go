@@ -67,7 +67,11 @@ func loop(
 	defer resultsfp.EndTest()
 	ticker := time.NewTicker(spec.MinMeasurementInterval)
 	defer ticker.Stop()
-	sentConnectionInfo := false
+	connectionInfo := &model.ConnectionInfo{
+		Client: conn.RemoteAddr().String(),
+		Server: conn.LocalAddr().String(),
+		UUID:   resultsfp.Data.UUID,
+	}
 	for {
 		select {
 		case <-measurerctx.Done(): // Liveness!
@@ -79,14 +83,8 @@ func loop(
 				Elapsed: elapsed.Seconds(),
 			}
 			measure(&measurement, sockfp)
-			if sentConnectionInfo == false {
-				measurement.ConnectionInfo = &model.ConnectionInfo{
-					Client: conn.RemoteAddr().String(),
-					Server: conn.LocalAddr().String(),
-					UUID:   resultsfp.Data.UUID,
-				}
-				sentConnectionInfo = true
-			}
+			measurement.ConnectionInfo = connectionInfo
+			connectionInfo = nil
 			dst <- measurement // Liveness: this is blocking
 		}
 	}
