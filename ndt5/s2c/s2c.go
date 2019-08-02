@@ -111,7 +111,10 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	}
 
 	// Close the test connection to signal to single-threaded clients that the
-	// download has completed.
+	// download has completed. Note: a possible optimisation is to wait for
+	// one-two seconds for the client to close the connection and then close
+	// it anyway. This gives us the advantage that the client will retain
+	// the state assciated with initiating the close.
 	warnonerror.Close(testConn, "Could not close testConnection")
 
 	bps := 8 * float64(byteCount) / 10
