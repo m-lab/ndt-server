@@ -29,6 +29,7 @@ func summarize(snaps []*unix.TCPInfo) (*Metrics, error) {
 // non-BBR connections because MinRTT is one of our critical metrics.
 func MeasureViaPolling(ctx context.Context, fp *os.File, c chan *Metrics) {
 	defer close(c)
+	defer fp.Close()
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	snaps := make([]*unix.TCPInfo, 0, 100)
