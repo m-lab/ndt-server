@@ -74,7 +74,6 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		}
 		return record, err
 	}
-	defer warnonerror.Close(testConn, "Could not close test connection")
 	record.UUID = testConn.UUID()
 	record.ServerIP, record.ServerPort = testConn.ServerIPAndPort()
 	record.ClientIP, record.ClientPort = testConn.ClientIPAndPort()
@@ -86,6 +85,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 
 	err = m.SendMessage(protocol.TestStart, []byte{})
 	if err != nil {
+		warnonerror.Close(testConn, "Could not close test connection")
 		log.Println("Could not write TestStart", err)
 		metrics.ErrorCount.WithLabelValues("s2c", "TestStart").Inc()
 		return record, err
@@ -96,6 +96,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	byteCount, err := testConn.FillUntil(time.Now().Add(10*time.Second), dataToSend)
 	record.EndTime = time.Now()
 	if err != nil {
+		warnonerror.Close(testConn, "Could not close test connection")
 		log.Println("Could not FillUntil", err)
 		metrics.ErrorCount.WithLabelValues("s2c", "FillUntil").Inc()
 		return record, err
@@ -103,10 +104,15 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 
 	web100metrics, err := testConn.StopMeasuring()
 	if err != nil {
+		warnonerror.Close(testConn, "Could not close test connection")
 		log.Println("Could not read metrics", err)
 		metrics.ErrorCount.WithLabelValues("s2c", "web100Metrics").Inc()
 		return record, err
 	}
+
+	// Close the test connection to signal to single-threaded clients that the
+	// download has completed.
+	warnonerror.Close(testConn, "Could not close testConnection")
 
 	bps := 8 * float64(byteCount) / 10
 	kbps := bps / 1000
