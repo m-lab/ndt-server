@@ -13,7 +13,8 @@
 # A base image with some helpful tools and libraries installed.
 FROM golang:1.12-buster AS ndtbuild
 WORKDIR /
-RUN apt-get update && apt-get install -y build-essential autotools-dev automake zlib1g-dev git cmake libssl-dev libcurl4-openssl-dev
+RUN apt-get update && apt-get install -y build-essential autotools-dev \
+    automake zlib1g-dev git cmake libssl-dev libcurl4-openssl-dev
 RUN git clone --recursive https://github.com/m-lab/ndt/
 
 
