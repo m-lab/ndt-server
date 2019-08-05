@@ -133,11 +133,16 @@ type measurer struct {
 	cancelMeasurementContext context.CancelFunc
 }
 
+// StartMeasuring starts a polling measurement goroutine that runs until the ctx
+// expires. After measurement is complete, the given `fd` is closed.
 func (m *measurer) StartMeasuring(ctx context.Context, fd *os.File) {
 	m.measurements = make(chan *web100.Metrics)
 	var newctx context.Context
 	newctx, m.cancelMeasurementContext = context.WithCancel(ctx)
-	go web100.MeasureViaPolling(newctx, fd, m.measurements)
+	go func() {
+		defer fd.Close()
+		web100.MeasureViaPolling(newctx, fd, m.measurements)
+	}()
 }
 
 func (m *measurer) StopMeasuring() (*web100.Metrics, error) {
