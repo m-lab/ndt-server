@@ -177,6 +177,7 @@ func (ws *wsConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64
 }
 
 func (ws *wsConnection) StartMeasuring(ctx context.Context) {
+	// Measurer closes the fd returned by GetAndForgetFile.
 	ws.measurer.StartMeasuring(ctx, fdcache.GetAndForgetFile(ws.UnderlyingConn()))
 }
 
@@ -265,6 +266,7 @@ func (nc *netConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int6
 }
 
 func (nc *netConnection) StartMeasuring(ctx context.Context) {
+	// Measurer closes the fd returned by GetAndForgetFile.
 	nc.measurer.StartMeasuring(ctx, fdcache.GetAndForgetFile(nc))
 }
 
