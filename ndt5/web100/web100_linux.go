@@ -27,10 +27,8 @@ func summarize(snaps []*unix.TCPInfo) (*Metrics, error) {
 
 // MeasureViaPolling collects all required data by polling. It is required for
 // non-BBR connections because MinRTT is one of our critical metrics.
-// MeasureViaPolling closes `fp` on return.
 func MeasureViaPolling(ctx context.Context, fp *os.File, c chan *Metrics) {
 	defer close(c)
-	defer fp.Close()
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	snaps := make([]*unix.TCPInfo, 0, 100)
