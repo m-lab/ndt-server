@@ -32,7 +32,7 @@ type plainServer struct {
 }
 
 func (ps *plainServer) SingleServingServer(direction string) (ndt.SingleMeasurementServer, error) {
-	return singleserving.ListenPlain()
+	return singleserving.ListenPlain(direction)
 }
 
 // sniffThenHandle implements protocol sniffing to allow WS clients and just-TCP

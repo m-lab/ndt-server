@@ -75,6 +75,7 @@ func panicMsgToErrType(msg string) string {
 		"S2C":             {},
 		"MsgResults":      {},
 		"MsgLogout":       {},
+		"META":            {},
 	}
 	words := strings.SplitN(msg, " ", 1)
 	if len(words) >= 1 {
