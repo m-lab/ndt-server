@@ -201,7 +201,7 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 // timeouts) after this returns.
 func ListenPlain(direction string) (ndt.SingleMeasurementServer, error) {
 	ndt5metrics.MeasurementServerStart.WithLabelValues(string(ndt.Plain)).Inc()
-	// Simulate "code" for raw connections to account for all tests.
+	// The "code" label is required for the TestCount metric. The code value is hardcoded.
 	metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": direction, "code": "200"})
 	// Start listening right away to ensure that subsequent connections succeed.
 	s := &plainServer{}
