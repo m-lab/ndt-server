@@ -262,6 +262,11 @@ func Test_MainIntegrationTest(t *testing.T) {
 			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
 			ignoreData: true,
 		},
+		// Measurement Kit client
+		{
+			name: "measurement_kit testing ndt5 protocol",
+			cmd:  "timeout 45s measurement_kit --no-bouncer --no-collector --no-json --no-geoip ndt -p " + ndt5Addr + " localhost",
+		},
 	}
 
 	go main()

@@ -1,6 +1,19 @@
+# TestDockerfile for running ndt-server integration tests.
+#
+# BUILD STEPS:
+# * Setup a base build environment based on the same image as the final image.
+# * Build libndt, measurement-kit, ndtrawjson, ndtrawnojson clients
+# * Setup the final image by copying clients.
+#
+# Because client binaries are dynamically linked, the versions must be
+# available during build and in the final image. The simplest way to guarantee
+# that is to use the same base image.
+
+
 # A base image with some helpful tools and libraries installed.
-FROM ubuntu AS ndtbuild
-RUN apt-get update && apt-get install -y build-essential autotools-dev automake zlib1g-dev git cmake libssl-dev
+FROM golang:1.12-buster AS ndtbuild
+WORKDIR /
+RUN apt-get update && apt-get install -y build-essential autotools-dev automake zlib1g-dev git cmake libssl-dev libcurl4-openssl-dev
 RUN git clone --recursive https://github.com/m-lab/ndt/
 
 
@@ -10,6 +23,20 @@ RUN git clone --recursive https://github.com/measurement-kit/libndt
 WORKDIR /libndt
 RUN cmake .
 RUN cmake --build .
+
+
+# Build a measurement_kit client.
+FROM ndtbuild AS mk
+RUN apt-get install -y libmaxminddb-dev libmaxminddb0 libevent-dev \
+    libevent-2.1-6 libevent-core-2.1-6 libevent-extra-2.1-6 \
+	libevent-openssl-2.1-6 libevent-pthreads-2.1-6 curl libtool-bin \
+	libtool
+RUN git clone https://github.com/measurement-kit/measurement-kit.git
+WORKDIR /measurement-kit
+RUN ./autogen.sh
+RUN ./configure
+RUN make
+RUN make install
 
 
 # Build a version of web100clt that uses JSON.
@@ -43,12 +70,15 @@ RUN make web100clt
 
 
 # Build the image in which the server will be tested.
-FROM golang:1.12 AS build
+FROM golang:1.12-buster AS build
 COPY --from=ndtrawjson /ndt/src/web100clt /bin/web100clt-with-json-support
 COPY --from=ndtrawnojson /ndt/src/web100clt /bin/web100clt-without-json-support
 COPY --from=libndt /libndt/libndt-client /bin/libndt-client
+COPY --from=mk /usr/local/bin/measurement_kit /bin/measurement_kit
 RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
-RUN apt-get update && apt-get install -y nodejs libjansson4 libssl1.1 libssl1.0
+RUN apt-get update && apt-get install -y nodejs libjansson4 libssl1.1 \
+    libssl1.0 libmaxminddb0 libevent-2.1-6 libevent-core-2.1-6 \
+	libevent-extra-2.1-6 libevent-openssl-2.1-6 libevent-pthreads-2.1-6
 ENV GOPATH=/go
 RUN go get github.com/mattn/goveralls
 ADD . /go/src/github.com/m-lab/ndt-server
