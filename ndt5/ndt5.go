@@ -93,10 +93,10 @@ func panicMsgToErrType(msg string) string {
 // only needs a connection, and a factory for making single-use servers for
 // connections of that same type.
 func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
-	metrics.ActiveTests.WithLabelValues(string(s.ConnectionType())).Inc()
-	defer metrics.ActiveTests.WithLabelValues(string(s.ConnectionType())).Dec()
+	metrics.ActiveTests.WithLabelValues(s.ConnectionType().String()).Inc()
+	defer metrics.ActiveTests.WithLabelValues(s.ConnectionType().String()).Dec()
 	defer func(start time.Time) {
-		ndt5metrics.ControlChannelDuration.WithLabelValues(string(s.ConnectionType())).Observe(
+		ndt5metrics.ControlChannelDuration.WithLabelValues(s.ConnectionType().String()).Observe(
 			time.Since(start).Seconds())
 	}(time.Now())
 	defer func() {
@@ -105,7 +105,7 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 			log.Println("Test failed, but we recovered:", r)
 			// All of our panic messages begin with an informative first word.  Use that as a label.
 			errType := panicMsgToErrType(fmt.Sprint(r))
-			metrics.ErrorCount.WithLabelValues(string(s.ConnectionType()), errType).Inc()
+			metrics.PanicCount.WithLabelValues(s.ConnectionType().String(), errType).Inc()
 		}
 	}()
 	handleControlChannel(conn, s)

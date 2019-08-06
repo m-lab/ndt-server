@@ -38,6 +38,13 @@ var (
 			Name: "ndt_test_errors_total",
 			Help: "Number of test errors of each type for each test.",
 		},
-		[]string{"test", "error"},
+		[]string{"direction", "error"},
+	)
+	PanicCount = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt_test_panics_total",
+			Help: "Number of test panics recovered for each type of test.",
+		},
+		[]string{"type", "error"},
 	)
 )

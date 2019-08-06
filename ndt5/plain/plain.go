@@ -62,7 +62,7 @@ func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 		fwd, err := ps.dialer.Dial("tcp", ps.wsAddr)
 		if err != nil {
 			log.Println("Could not forward connection", err)
-			metrics.ErrorCount.WithLabelValues(string(ndt.WS), "forwarding").Inc()
+			metrics.ErrorCount.WithLabelValues(ndt.WS, "forwarding").Inc()
 			return
 		}
 		wg := sync.WaitGroup{}
