@@ -77,7 +77,7 @@ func panicMsgToErrType(msg string) string {
 		"MsgLogout":       {},
 		"META":            {},
 	}
-	words := strings.SplitN(msg, " ", 1)
+	words := strings.SplitN(msg, " ", 2)
 	if len(words) >= 1 {
 		word := words[0]
 		if _, ok := okayWords[word]; ok {
