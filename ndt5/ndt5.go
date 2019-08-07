@@ -105,7 +105,7 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 			log.Println("Test failed, but we recovered:", r)
 			// All of our panic messages begin with an informative first word.  Use that as a label.
 			errType := panicMsgToErrType(fmt.Sprint(r))
-			metrics.PanicCount.WithLabelValues(s.ConnectionType().String(), errType).Inc()
+			ndt5metrics.ControlPanicCount.WithLabelValues(s.ConnectionType().String(), errType).Inc()
 		}
 	}()
 	handleControlChannel(conn, s)
