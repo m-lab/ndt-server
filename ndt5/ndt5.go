@@ -140,10 +140,14 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	}()
 
 	tests, err := s.LoginCeremony(conn)
+	if err != nil {
+		metrics.ErrorCount.WithLabelValues("control", "LoginCeremony").Inc()
+	}
 	rtx.PanicOnError(err, "Login - error reading JSON message")
 
 	if (tests & cTestStatus) == 0 {
 		log.Println("We don't support clients that don't support TestStatus")
+		metrics.ErrorCount.WithLabelValues("control", "TestStatus").Inc()
 		return
 	}
 	testsToRun := []string{}
