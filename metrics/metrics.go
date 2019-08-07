@@ -29,9 +29,9 @@ var (
 	TestCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt_test_total",
-			Help: "Number of NDT tests run by this server.",
+			Help: "Number of client-connections for NDT tests run by this server.",
 		},
-		[]string{"direction", "code"},
+		[]string{"direction"},
 	)
 	ErrorCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
@@ -39,12 +39,5 @@ var (
 			Help: "Number of test errors of each type for each test.",
 		},
 		[]string{"direction", "error"},
-	)
-	PanicCount = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "ndt_panics_total",
-			Help: "Number of recovered panics in the control channel.",
-		},
-		[]string{"type", "error"},
 	)
 )

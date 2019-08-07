@@ -21,6 +21,13 @@ var (
 		},
 		[]string{"protocol"},
 	)
+	ControlPanicCount = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt5_control_panic_total",
+			Help: "Number of recovered panics in the control channel.",
+		},
+		[]string{"type", "error"},
+	)
 	MeasurementServerStart = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt5_measurementserver_start_total",
