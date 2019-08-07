@@ -17,8 +17,6 @@ import (
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
 	"github.com/m-lab/ndt-server/ndt5/tcplistener"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // wsServer is a single-serving server for unencrypted websockets.
@@ -80,6 +78,8 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 	if s.newConn == nil && s.newConnErr == nil {
 		return nil, errors.New("No connection created")
 	}
+	// Because the client has contacted the test server successfully, count the test.
+	metrics.TestCount.WithLabelValues(s.direction)
 	return s.newConn, s.newConnErr
 }
 
@@ -112,8 +112,7 @@ func listenWS(direction string) (*wsServer, error) {
 		kind:      ndt.WS,
 	}
 	s.serve = s.srv.Serve
-	mux.HandleFunc("/ndt_protocol",
-		promhttp.InstrumentHandlerCounter(metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": direction}), s))
+	mux.Handle("/ndt_protocol", s)
 
 	// Start listening right away to ensure that subsequent connections succeed.
 	l, err := net.Listen("tcp", ":0")
@@ -159,8 +158,9 @@ func ListenWSS(direction, certFile, keyFile string) (ndt.SingleMeasurementServer
 
 // plainServer is a single-serving server for plain TCP sockets.
 type plainServer struct {
-	listener net.Listener
-	port     int
+	listener  net.Listener
+	port      int
+	direction string
 }
 
 func (ps *plainServer) Close() {
@@ -190,6 +190,8 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 	if conn == nil {
 		return nil, errors.New("nil conn, nil err: " + derivedCtx.Err().Error())
 	}
+	// Because the client has contacted the test server successfully, count the test.
+	metrics.TestCount.WithLabelValues(ps.direction)
 	return protocol.AdaptNetConn(conn, conn), nil
 }
 
@@ -201,10 +203,10 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 // timeouts) after this returns.
 func ListenPlain(direction string) (ndt.SingleMeasurementServer, error) {
 	ndt5metrics.MeasurementServerStart.WithLabelValues(string(ndt.Plain)).Inc()
-	// The "code" label is required for the TestCount metric. The code value is hardcoded.
-	metrics.TestCount.MustCurryWith(prometheus.Labels{"direction": direction, "code": "200"})
 	// Start listening right away to ensure that subsequent connections succeed.
-	s := &plainServer{}
+	s := &plainServer{
+		direction: direction,
+	}
 	l, err := net.Listen("tcp", ":0")
 	if err != nil {
 		return nil, err
