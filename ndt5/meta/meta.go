@@ -75,6 +75,11 @@ func ManageTest(ctx context.Context, m protocol.Messager) (ArchivalData, error) 
 	}
 	// Count the number meta values sent by the client (when there are no errors).
 	ndt5metrics.SubmittedMetaValues.Observe(float64(count))
-	m.SendMessage(protocol.TestFinalize, []byte{})
+	err = m.SendMessage(protocol.TestFinalize, []byte{})
+	if err != nil {
+		log.Println("META TestFinalize:", err)
+		metrics.ErrorCount.WithLabelValues("meta", "TestFinalize").Inc()
+		return nil, err
+	}
 	return results, nil
 }
