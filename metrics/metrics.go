@@ -42,8 +42,8 @@ var (
 	)
 	PanicCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "ndt_test_panics_total",
-			Help: "Number of test panics recovered for each type of test.",
+			Name: "ndt_panics_total",
+			Help: "Number of recovered panics in the control channel.",
 		},
 		[]string{"type", "error"},
 	)
