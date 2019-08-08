@@ -51,24 +51,26 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		}
 	}()
 
+	connType := s.ConnectionType().String()
+
 	srv, err := s.SingleServingServer("s2c")
 	if err != nil {
 		log.Println("Could not start single serving server", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "StartSingleServingServer").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "s2c", "StartSingleServingServer").Inc()
 		return record, err
 	}
 	m := controlConn.Messager()
 	err = m.SendMessage(protocol.TestPrepare, []byte(strconv.Itoa(srv.Port())))
 	if err != nil {
 		log.Println("Could not send TestPrepare", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "TestPrepare").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "s2c", "TestPrepare").Inc()
 		return record, err
 	}
 
 	testConn, err := srv.ServeOnce(localCtx)
 	if err != nil || testConn == nil {
 		log.Println("Could not successfully ServeOnce", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "ServeOnce").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "s2c", "ServeOnce").Inc()
 		if err == nil {
 			err = errors.New("nil testConn, but also a nil error")
 		}
@@ -87,7 +89,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	if err != nil {
 		warnonerror.Close(testConn, "Could not close test connection")
 		log.Println("Could not write TestStart", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "TestStart").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "s2c", "TestStart").Inc()
 		return record, err
 	}
 
@@ -98,7 +100,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	if err != nil {
 		warnonerror.Close(testConn, "Could not close test connection")
 		log.Println("Could not FillUntil", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "FillUntil").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "s2c", "FillUntil").Inc()
 		return record, err
 	}
 
@@ -106,12 +108,12 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	if err != nil {
 		warnonerror.Close(testConn, "Could not close test connection")
 		log.Println("Could not read metrics", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "web100Metrics").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "s2c", "web100Metrics").Inc()
 		return record, err
 	}
 
 	// Close the test connection to signal to single-threaded clients that the
-	// download has completed. Note: a possible optimisation is to wait for
+	// download has completed. Note: a possible optimization is to wait for
 	// one-two seconds for the client to close the connection and then close
 	// it anyway. This gives us the advantage that the client will retain
 	// the state assciated with initiating the close.
@@ -128,13 +130,13 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	err = m.SendS2CResults(int64(kbps), 0, byteCount)
 	if err != nil {
 		log.Println("Could not write a TestMsg", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "TestMsgSend").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "s2c", "TestMsgSend").Inc()
 		return record, err
 	}
 
 	clientRateMsg, err := m.ReceiveMessage(protocol.TestMsg)
 	if err != nil {
-		metrics.ErrorCount.WithLabelValues("s2c", "TestMsgRcv").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "s2c", "TestMsgRcv").Inc()
 		log.Println("Could not receive a TestMsg", err)
 		return record, err
 	}
@@ -150,14 +152,14 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	err = protocol.SendMetrics(web100metrics, m)
 	if err != nil {
 		log.Println("Could not SendMetrics", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "SendMetrics").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "s2c", "SendMetrics").Inc()
 		return record, err
 	}
 
 	err = m.SendMessage(protocol.TestFinalize, []byte{})
 	if err != nil {
 		log.Println("Could not send TestFinalize", err)
-		metrics.ErrorCount.WithLabelValues("s2c", "TestFinalize").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "s2c", "TestFinalize").Inc()
 		return record, err
 	}
 

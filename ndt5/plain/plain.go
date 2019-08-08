@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/m-lab/go/warnonerror"
-	"github.com/m-lab/ndt-server/metrics"
 	"github.com/m-lab/ndt-server/ndt5"
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
@@ -47,7 +46,6 @@ func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 	lead, err := input.Peek(3)
 	if err != nil {
 		log.Println("Could not handle connection", conn, "due to", err)
-		metrics.ErrorCount.WithLabelValues("control", "peek").Inc()
 		return
 	}
 	if string(lead) == "GET" {
@@ -63,7 +61,6 @@ func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 		fwd, err := ps.dialer.Dial("tcp", ps.wsAddr)
 		if err != nil {
 			log.Println("Could not forward connection", err)
-			metrics.ErrorCount.WithLabelValues("control", "forwarding").Inc()
 			return
 		}
 		wg := sync.WaitGroup{}

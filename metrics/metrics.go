@@ -24,20 +24,20 @@ var (
 				100, 150, 250, 400, 600,
 				1000},
 		},
-		[]string{"direction"},
+		[]string{"type", "direction"},
 	)
 	TestCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt_test_total",
 			Help: "Number of client-connections for NDT tests run by this server.",
 		},
-		[]string{"direction"},
+		[]string{"type", "direction"},
 	)
 	ErrorCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt_test_errors_total",
 			Help: "Number of test errors of each type for each test.",
 		},
-		[]string{"direction", "error"},
+		[]string{"type", "direction", "error"},
 	)
 )

@@ -8,6 +8,7 @@ import (
 
 	"github.com/m-lab/ndt-server/metrics"
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
+	"github.com/m-lab/ndt-server/ndt5/ndt"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
 )
 
@@ -21,24 +22,25 @@ type ArchivalData map[string]string
 // takes longer than 15sec, then ManageTest will return after the next ReceiveMessage.
 // The given protocolMessager should have its own connection timeout to prevent
 // "slow drip" clients holding the connection open indefinitely.
-func ManageTest(ctx context.Context, m protocol.Messager) (ArchivalData, error) {
+func ManageTest(ctx context.Context, m protocol.Messager, s ndt.Server) (ArchivalData, error) {
 	localCtx, localCancel := context.WithTimeout(ctx, 15*time.Second)
 	defer localCancel()
 
 	var err error
 	var message []byte
 	results := map[string]string{}
+	connType := s.ConnectionType().String()
 
 	err = m.SendMessage(protocol.TestPrepare, []byte{})
 	if err != nil {
 		log.Println("META TestPrepare:", err)
-		metrics.ErrorCount.WithLabelValues("meta", "TestPrepare").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "meta", "TestPrepare").Inc()
 		return nil, err
 	}
 	err = m.SendMessage(protocol.TestStart, []byte{})
 	if err != nil {
 		log.Println("META TestStart:", err)
-		metrics.ErrorCount.WithLabelValues("meta", "TestStart").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "meta", "TestStart").Inc()
 		return nil, err
 	}
 	count := 0
@@ -65,12 +67,12 @@ func ManageTest(ctx context.Context, m protocol.Messager) (ArchivalData, error) 
 	}
 	if localCtx.Err() != nil {
 		log.Println("META context error:", localCtx.Err())
-		metrics.ErrorCount.WithLabelValues("meta", "context.Err").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "meta", "context").Inc()
 		return nil, localCtx.Err()
 	}
 	if err != nil {
 		log.Println("Error reading JSON message:", err)
-		metrics.ErrorCount.WithLabelValues("meta", "ReceiveMessage").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "meta", "ReceiveMessage").Inc()
 		return nil, err
 	}
 	// Count the number meta values sent by the client (when there are no errors).
@@ -78,7 +80,7 @@ func ManageTest(ctx context.Context, m protocol.Messager) (ArchivalData, error) 
 	err = m.SendMessage(protocol.TestFinalize, []byte{})
 	if err != nil {
 		log.Println("META TestFinalize:", err)
-		metrics.ErrorCount.WithLabelValues("meta", "TestFinalize").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "meta", "TestFinalize").Inc()
 		return nil, err
 	}
 	return results, nil

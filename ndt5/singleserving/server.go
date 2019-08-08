@@ -79,7 +79,7 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 		return nil, errors.New("No connection created")
 	}
 	// Because the client has contacted the test server successfully, count the test.
-	metrics.TestCount.WithLabelValues(s.direction)
+	metrics.TestCount.WithLabelValues(s.kind.String(), s.direction)
 	return s.newConn, s.newConnErr
 }
 
@@ -191,7 +191,7 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 		return nil, errors.New("nil conn, nil err: " + derivedCtx.Err().Error())
 	}
 	// Because the client has contacted the test server successfully, count the test.
-	metrics.TestCount.WithLabelValues(ps.direction)
+	metrics.TestCount.WithLabelValues(ndt.Plain.String(), ps.direction)
 	return protocol.AdaptNetConn(conn, conn), nil
 }
 

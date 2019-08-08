@@ -93,10 +93,11 @@ func panicMsgToErrType(msg string) string {
 // only needs a connection, and a factory for making single-use servers for
 // connections of that same type.
 func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
-	metrics.ActiveTests.WithLabelValues(s.ConnectionType().String()).Inc()
-	defer metrics.ActiveTests.WithLabelValues(s.ConnectionType().String()).Dec()
+	connType := s.ConnectionType().String()
+	metrics.ActiveTests.WithLabelValues(connType).Inc()
+	defer metrics.ActiveTests.WithLabelValues(connType).Dec()
 	defer func(start time.Time) {
-		ndt5metrics.ControlChannelDuration.WithLabelValues(s.ConnectionType().String()).Observe(
+		ndt5metrics.ControlChannelDuration.WithLabelValues(connType).Observe(
 			time.Since(start).Seconds())
 	}(time.Now())
 	defer func() {
@@ -105,7 +106,7 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 			log.Println("Test failed, but we recovered:", r)
 			// All of our panic messages begin with an informative first word.  Use that as a label.
 			errType := panicMsgToErrType(fmt.Sprint(r))
-			ndt5metrics.ControlPanicCount.WithLabelValues(s.ConnectionType().String(), errType).Inc()
+			ndt5metrics.ControlPanicCount.WithLabelValues(connType, errType).Inc()
 		}
 	}()
 	handleControlChannel(conn, s)
@@ -118,7 +119,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 
 	log.Println("Handling connection", conn)
 	defer warnonerror.Close(conn, "Could not close "+conn.String())
-
+	connType := s.ConnectionType().String()
 	sIP, sPort := conn.ServerIPAndPort()
 	cIP, cPort := conn.ClientIPAndPort()
 	record := &data.NDTResult{
@@ -141,13 +142,13 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 
 	tests, err := s.LoginCeremony(conn)
 	if err != nil {
-		metrics.ErrorCount.WithLabelValues("control", "LoginCeremony").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "control", "LoginCeremony").Inc()
 	}
 	rtx.PanicOnError(err, "Login - error reading JSON message")
 
 	if (tests & cTestStatus) == 0 {
 		log.Println("We don't support clients that don't support TestStatus")
-		metrics.ErrorCount.WithLabelValues("control", "TestStatus").Inc()
+		metrics.ErrorCount.WithLabelValues(connType, "control", "TestStatus").Inc()
 		return
 	}
 	testsToRun := []string{}
@@ -201,7 +202,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 		record.C2S, err = c2s.ManageTest(ctx, conn, s)
 		if record.C2S != nil && record.C2S.MeanThroughputMbps != 0 {
 			c2sRate = record.C2S.MeanThroughputMbps
-			metrics.TestRate.WithLabelValues("c2s").Observe(c2sRate)
+			metrics.TestRate.WithLabelValues(connType, "c2s").Observe(c2sRate)
 		}
 		rtx.PanicOnError(err, "C2S - Could not run c2s test")
 	}
@@ -209,12 +210,12 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 		record.S2C, err = s2c.ManageTest(ctx, conn, s)
 		if record.S2C != nil && record.S2C.MeanThroughputMbps != 0 {
 			s2cRate = record.S2C.MeanThroughputMbps
-			metrics.TestRate.WithLabelValues("s2c").Observe(s2cRate)
+			metrics.TestRate.WithLabelValues(connType, "s2c").Observe(s2cRate)
 		}
 		rtx.PanicOnError(err, "S2C - Could not run s2c test")
 	}
 	if runMeta {
-		record.Control.ClientMetadata, err = meta.ManageTest(ctx, m)
+		record.Control.ClientMetadata, err = meta.ManageTest(ctx, m, s)
 		rtx.PanicOnError(err, "META - Could not run meta test")
 	}
 	speedMsg := fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000)
