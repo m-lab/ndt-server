@@ -26,7 +26,14 @@ var (
 			Name: "ndt5_control_panic_total",
 			Help: "Number of recovered panics in the control channel.",
 		},
-		[]string{"type", "error"},
+		[]string{"protocol", "error"},
+	)
+	ControlCount = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt5_control_total",
+			Help: "Number of control channel requests that results for each protocol and test type.",
+		},
+		[]string{"protocol", "result"},
 	)
 	MeasurementServerStart = promauto.NewCounterVec(
 		prometheus.CounterOpts{
@@ -34,6 +41,13 @@ var (
 			Help: "The number of times a single-serving server was started.",
 		},
 		[]string{"protocol"},
+	)
+	MeasurementServerAccept = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt5_measurementserver_accept_total",
+			Help: "The number of times a single-serving server received a successful client connections.",
+		},
+		[]string{"protocol", "direction"},
 	)
 	MeasurementServerStop = promauto.NewCounterVec(
 		prometheus.CounterOpts{
@@ -53,14 +67,28 @@ var (
 			Name: "ndt5_client_requested_suites_total",
 			Help: "The number of client request test suites (the combination of all test types as an integer 0-255).",
 		},
-		[]string{"suite"},
+		[]string{"protocol", "suite"},
 	)
 	ClientRequestedTests = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "ndt5_client_requested_tests_total",
+			Name: "ndt5_client_test_requested_total",
 			Help: "The number of client requests for each ndt5 test type.",
 		},
-		[]string{"type"},
+		[]string{"protocol", "direction"},
+	)
+	ClientTestResults = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt5_client_test_results_total",
+			Help: "Number of client-connections for NDT tests run by this server.",
+		},
+		[]string{"protocol", "direction", "result"},
+	)
+	ClientTestErrors = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt5_client_test_errors_total",
+			Help: "Number of test errors of each type for each test.",
+		},
+		[]string{"protocol", "direction", "error"},
 	)
 	SubmittedMetaValues = promauto.NewHistogram(
 		prometheus.HistogramOpts{
