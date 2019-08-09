@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/m-lab/ndt-server/ndt5/ndt"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
 )
 
@@ -21,6 +22,20 @@ type fakeMessager struct {
 	sent []sendMessage
 	recv []recvMessage
 	c    int
+}
+type fakeServer struct{}
+
+func (s *fakeServer) SingleServingServer(direction string) (ndt.SingleMeasurementServer, error) {
+	return nil, nil
+}
+func (s *fakeServer) ConnectionType() ndt.ConnectionType {
+	return ndt.Plain
+}
+func (s *fakeServer) DataDir() string {
+	return ""
+}
+func (s *fakeServer) LoginCeremony(protocol.Connection) (int, error) {
+	return 0, nil
 }
 
 func (m *fakeMessager) SendMessage(t protocol.MessageType, msg []byte) error {
@@ -112,8 +127,9 @@ func TestManageTest(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		s := &fakeServer{}
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ManageTest(tt.ctx, tt.m)
+			got, err := ManageTest(tt.ctx, tt.m, s)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ManageTest() error = %v, wantErr %v", err, tt.wantErr)
 				return
