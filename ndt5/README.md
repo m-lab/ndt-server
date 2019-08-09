@@ -53,9 +53,9 @@ Summary of metrics useful for monitoring client request, success, and error rate
 
 Expected invariants:
 
-* sum(ndt5_control_channel_duration_count) == sum(ndt5_control_total)
-* sum(ndt5_control_total{result="panic"}) == sum(ndt5_control_panic_total)
-* sum(ndt5_client_test_results_total{result=~"error.*"}) == sum(ndt5_client_test_errors_total)
+* `sum(ndt5_control_channel_duration_count) == sum(ndt5_control_total)`
+* `sum(ndt5_control_total{result="panic"}) == sum(ndt5_control_panic_total)`
+* `sum(ndt5_client_test_results_total{result=~"error.*"}) == sum(ndt5_client_test_errors_total)`
 
 NOTE:
 
