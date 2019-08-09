@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/m-lab/go/warnonerror"
-	"github.com/m-lab/ndt-server/metrics"
 	"github.com/m-lab/ndt-server/ndt5"
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
@@ -62,7 +61,6 @@ func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 		fwd, err := ps.dialer.Dial("tcp", ps.wsAddr)
 		if err != nil {
 			log.Println("Could not forward connection", err)
-			metrics.ErrorCount.WithLabelValues(string(ndt.WS), "forwarding").Inc()
 			return
 		}
 		wg := sync.WaitGroup{}

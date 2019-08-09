@@ -12,7 +12,7 @@ var (
 			Name: "ndt_active_tests",
 			Help: "A gauge of requests currently being served by the NDT server.",
 		},
-		[]string{"type"})
+		[]string{"protocol"})
 	TestRate = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "ndt_test_rate_mbps",
@@ -24,20 +24,6 @@ var (
 				100, 150, 250, 400, 600,
 				1000},
 		},
-		[]string{"direction"},
-	)
-	TestCount = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "ndt_test_total",
-			Help: "Number of NDT tests run by this server.",
-		},
-		[]string{"direction", "code"},
-	)
-	ErrorCount = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "ndt_test_errors_total",
-			Help: "Number of test errors of each type for each test.",
-		},
-		[]string{"test", "error"},
+		[]string{"protocol", "direction"},
 	)
 )

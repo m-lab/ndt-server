@@ -10,6 +10,10 @@ import (
 // websockets, or secure websockets.
 type ConnectionType string
 
+func (c ConnectionType) String() string {
+	return string(c)
+}
+
 // The types of connections we support.
 var (
 	WS    = ConnectionType("WS")
