@@ -13,7 +13,6 @@ import (
 	"github.com/m-lab/ndt-server/ndt5/ws"
 	"github.com/m-lab/ndt-server/ndt7/listener"
 
-	"github.com/m-lab/ndt-server/metrics"
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
 	"github.com/m-lab/ndt-server/ndt5/tcplistener"
@@ -79,7 +78,7 @@ func (s *wsServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, 
 		return nil, errors.New("No connection created")
 	}
 	// Because the client has contacted the test server successfully, count the test.
-	metrics.TestCount.WithLabelValues(s.kind.String(), s.direction)
+	ndt5metrics.MeasurementServerAccept.WithLabelValues(s.kind.String(), s.direction)
 	return s.newConn, s.newConnErr
 }
 
@@ -191,7 +190,7 @@ func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnecti
 		return nil, errors.New("nil conn, nil err: " + derivedCtx.Err().Error())
 	}
 	// Because the client has contacted the test server successfully, count the test.
-	metrics.TestCount.WithLabelValues(ndt.Plain.String(), ps.direction)
+	ndt5metrics.MeasurementServerAccept.WithLabelValues(ndt.Plain.String(), ps.direction)
 	return protocol.AdaptNetConn(conn, conn), nil
 }
 
