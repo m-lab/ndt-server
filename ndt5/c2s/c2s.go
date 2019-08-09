@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/m-lab/ndt-server/metrics"
+	"github.com/m-lab/ndt-server/ndt5/metrics"
 
 	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
@@ -53,21 +53,21 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	srv, err := s.SingleServingServer("c2s")
 	if err != nil {
 		log.Println("Could not start SingleServingServer", err)
-		metrics.ErrorCount.WithLabelValues(connType, "c2s", "StartSingleServingServer").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "c2s", "StartSingleServingServer").Inc()
 		return record, err
 	}
 
 	err = m.SendMessage(protocol.TestPrepare, []byte(strconv.Itoa(srv.Port())))
 	if err != nil {
 		log.Println("Could not send TestPrepare", err)
-		metrics.ErrorCount.WithLabelValues(connType, "c2s", "TestPrepare").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "c2s", "TestPrepare").Inc()
 		return record, err
 	}
 
 	testConn, err := srv.ServeOnce(localContext)
 	if err != nil {
 		log.Println("Could not successfully ServeOnce", err)
-		metrics.ErrorCount.WithLabelValues(connType, "c2s", "ServeOnce").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "c2s", "ServeOnce").Inc()
 		return record, err
 	}
 
@@ -89,7 +89,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	err = m.SendMessage(protocol.TestStart, []byte{})
 	if err != nil {
 		log.Println("Could not send TestStart", err)
-		metrics.ErrorCount.WithLabelValues(connType, "c2s", "TestStart").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "c2s", "TestStart").Inc()
 		return record, err
 	}
 
@@ -101,13 +101,13 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	if err != nil {
 		if byteCount == 0 {
 			log.Println("Could not drain the test connection", byteCount, err)
-			metrics.ErrorCount.WithLabelValues(connType, "c2s", "Drain").Inc()
+			metrics.ClientTestErrors.WithLabelValues(connType, "c2s", "Drain").Inc()
 			return record, err
 		}
 		// It is possible for the client to reach 10 seconds slightly before the server does.
 		if seconds < 9 {
 			log.Printf("C2S test client only uploaded for %f seconds\n", seconds)
-			metrics.ErrorCount.WithLabelValues(connType, "c2s", "EarlyExit").Inc()
+			metrics.ClientTestErrors.WithLabelValues(connType, "c2s", "EarlyExit").Inc()
 			return record, err
 		}
 		// More than 9 seconds is fine.
@@ -121,14 +121,14 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	err = m.SendMessage(protocol.TestMsg, []byte(strconv.FormatInt(int64(throughputValue), 10)))
 	if err != nil {
 		log.Println("Could not send TestMsg with C2S results", err)
-		metrics.ErrorCount.WithLabelValues(connType, "c2s", "TestMsg").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "c2s", "TestMsg").Inc()
 		return record, err
 	}
 
 	err = m.SendMessage(protocol.TestFinalize, []byte{})
 	if err != nil {
 		log.Println("Could not send TestFinalize", err)
-		metrics.ErrorCount.WithLabelValues(connType, "c2s", "TestFinalize").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "c2s", "TestFinalize").Inc()
 		return record, err
 	}
 

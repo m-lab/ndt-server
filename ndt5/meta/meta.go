@@ -6,8 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m-lab/ndt-server/metrics"
-	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
+	"github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
 )
@@ -34,13 +33,13 @@ func ManageTest(ctx context.Context, m protocol.Messager, s ndt.Server) (Archiva
 	err = m.SendMessage(protocol.TestPrepare, []byte{})
 	if err != nil {
 		log.Println("META TestPrepare:", err)
-		metrics.ErrorCount.WithLabelValues(connType, "meta", "TestPrepare").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "meta", "TestPrepare").Inc()
 		return nil, err
 	}
 	err = m.SendMessage(protocol.TestStart, []byte{})
 	if err != nil {
 		log.Println("META TestStart:", err)
-		metrics.ErrorCount.WithLabelValues(connType, "meta", "TestStart").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "meta", "TestStart").Inc()
 		return nil, err
 	}
 	count := 0
@@ -67,20 +66,20 @@ func ManageTest(ctx context.Context, m protocol.Messager, s ndt.Server) (Archiva
 	}
 	if localCtx.Err() != nil {
 		log.Println("META context error:", localCtx.Err())
-		metrics.ErrorCount.WithLabelValues(connType, "meta", "context").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "meta", "context").Inc()
 		return nil, localCtx.Err()
 	}
 	if err != nil {
 		log.Println("Error reading JSON message:", err)
-		metrics.ErrorCount.WithLabelValues(connType, "meta", "ReceiveMessage").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "meta", "ReceiveMessage").Inc()
 		return nil, err
 	}
 	// Count the number meta values sent by the client (when there are no errors).
-	ndt5metrics.SubmittedMetaValues.Observe(float64(count))
+	metrics.SubmittedMetaValues.Observe(float64(count))
 	err = m.SendMessage(protocol.TestFinalize, []byte{})
 	if err != nil {
 		log.Println("META TestFinalize:", err)
-		metrics.ErrorCount.WithLabelValues(connType, "meta", "TestFinalize").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "meta", "TestFinalize").Inc()
 		return nil, err
 	}
 	return results, nil

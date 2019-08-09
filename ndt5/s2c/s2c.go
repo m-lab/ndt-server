@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/m-lab/go/warnonerror"
-	"github.com/m-lab/ndt-server/metrics"
+	"github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
 )
@@ -56,21 +56,21 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	srv, err := s.SingleServingServer("s2c")
 	if err != nil {
 		log.Println("Could not start single serving server", err)
-		metrics.ErrorCount.WithLabelValues(connType, "s2c", "StartSingleServingServer").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "StartSingleServingServer").Inc()
 		return record, err
 	}
 	m := controlConn.Messager()
 	err = m.SendMessage(protocol.TestPrepare, []byte(strconv.Itoa(srv.Port())))
 	if err != nil {
 		log.Println("Could not send TestPrepare", err)
-		metrics.ErrorCount.WithLabelValues(connType, "s2c", "TestPrepare").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "TestPrepare").Inc()
 		return record, err
 	}
 
 	testConn, err := srv.ServeOnce(localCtx)
 	if err != nil || testConn == nil {
 		log.Println("Could not successfully ServeOnce", err)
-		metrics.ErrorCount.WithLabelValues(connType, "s2c", "ServeOnce").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "ServeOnce").Inc()
 		if err == nil {
 			err = errors.New("nil testConn, but also a nil error")
 		}
@@ -89,7 +89,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	if err != nil {
 		warnonerror.Close(testConn, "Could not close test connection")
 		log.Println("Could not write TestStart", err)
-		metrics.ErrorCount.WithLabelValues(connType, "s2c", "TestStart").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "TestStart").Inc()
 		return record, err
 	}
 
@@ -100,7 +100,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	if err != nil {
 		warnonerror.Close(testConn, "Could not close test connection")
 		log.Println("Could not FillUntil", err)
-		metrics.ErrorCount.WithLabelValues(connType, "s2c", "FillUntil").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "FillUntil").Inc()
 		return record, err
 	}
 
@@ -108,7 +108,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	if err != nil {
 		warnonerror.Close(testConn, "Could not close test connection")
 		log.Println("Could not read metrics", err)
-		metrics.ErrorCount.WithLabelValues(connType, "s2c", "web100Metrics").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "web100Metrics").Inc()
 		return record, err
 	}
 
@@ -130,13 +130,13 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	err = m.SendS2CResults(int64(kbps), 0, byteCount)
 	if err != nil {
 		log.Println("Could not write a TestMsg", err)
-		metrics.ErrorCount.WithLabelValues(connType, "s2c", "TestMsgSend").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "TestMsgSend").Inc()
 		return record, err
 	}
 
 	clientRateMsg, err := m.ReceiveMessage(protocol.TestMsg)
 	if err != nil {
-		metrics.ErrorCount.WithLabelValues(connType, "s2c", "TestMsgRcv").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "TestMsgRcv").Inc()
 		log.Println("Could not receive a TestMsg", err)
 		return record, err
 	}
@@ -152,14 +152,14 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	err = protocol.SendMetrics(web100metrics, m)
 	if err != nil {
 		log.Println("Could not SendMetrics", err)
-		metrics.ErrorCount.WithLabelValues(connType, "s2c", "SendMetrics").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "SendMetrics").Inc()
 		return record, err
 	}
 
 	err = m.SendMessage(protocol.TestFinalize, []byte{})
 	if err != nil {
 		log.Println("Could not send TestFinalize", err)
-		metrics.ErrorCount.WithLabelValues(connType, "s2c", "TestFinalize").Inc()
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "TestFinalize").Inc()
 		return record, err
 	}
 
