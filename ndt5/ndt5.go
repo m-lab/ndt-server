@@ -101,13 +101,16 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server) {
 			time.Since(start).Seconds())
 	}(time.Now())
 	defer func() {
+		completed := "okay"
 		r := recover()
 		if r != nil {
 			log.Println("Test failed, but we recovered:", r)
 			// All of our panic messages begin with an informative first word.  Use that as a label.
 			errType := panicMsgToErrType(fmt.Sprint(r))
 			ndt5metrics.ControlPanicCount.WithLabelValues(connType, errType).Inc()
+			completed = "panic"
 		}
+		ndt5metrics.ControlCount.WithLabelValues(connType, completed).Inc()
 	}()
 	handleControlChannel(conn, s)
 }
@@ -142,13 +145,13 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 
 	tests, err := s.LoginCeremony(conn)
 	if err != nil {
-		metrics.ErrorCount.WithLabelValues(connType, "control", "LoginCeremony").Inc()
+		ndt5metrics.ClientTestErrors.WithLabelValues(connType, "control", "LoginCeremony").Inc()
 	}
 	rtx.PanicOnError(err, "Login - error reading JSON message")
 
 	if (tests & cTestStatus) == 0 {
 		log.Println("We don't support clients that don't support TestStatus")
-		metrics.ErrorCount.WithLabelValues(connType, "control", "TestStatus").Inc()
+		ndt5metrics.ClientTestErrors.WithLabelValues(connType, "control", "TestStatus").Inc()
 		return
 	}
 	testsToRun := []string{}
@@ -160,30 +163,30 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 
 	suites := []string{"status"}
 	if runMID {
-		ndt5metrics.ClientRequestedTests.WithLabelValues("mid").Inc()
+		ndt5metrics.ClientRequestedTests.WithLabelValues(connType, "mid").Inc()
 		suites = append(suites, "mid")
 	}
 	if runC2s {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestC2S))
-		ndt5metrics.ClientRequestedTests.WithLabelValues("c2s").Inc()
+		ndt5metrics.ClientRequestedTests.WithLabelValues(connType, "c2s").Inc()
 		suites = append(suites, "c2s")
 	}
 	if runS2c {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestS2C))
-		ndt5metrics.ClientRequestedTests.WithLabelValues("s2c").Inc()
+		ndt5metrics.ClientRequestedTests.WithLabelValues(connType, "s2c").Inc()
 		suites = append(suites, "s2c")
 	}
 	if runSFW {
-		ndt5metrics.ClientRequestedTests.WithLabelValues("sfw").Inc()
+		ndt5metrics.ClientRequestedTests.WithLabelValues(connType, "sfw").Inc()
 		suites = append(suites, "sfw")
 	}
 	if runMeta {
 		testsToRun = append(testsToRun, strconv.Itoa(cTestMETA))
-		ndt5metrics.ClientRequestedTests.WithLabelValues("meta").Inc()
+		ndt5metrics.ClientRequestedTests.WithLabelValues(connType, "meta").Inc()
 		suites = append(suites, "meta")
 	}
 	// Count the combined test suites by name. i.e. "status-s2c-meta"
-	ndt5metrics.ClientRequestedTestSuites.WithLabelValues(strings.Join(suites, "-")).Inc()
+	ndt5metrics.ClientRequestedTestSuites.WithLabelValues(connType, strings.Join(suites, "-")).Inc()
 
 	m := conn.Messager()
 	record.Control.MessageProtocol = m.Encoding().String()
@@ -204,6 +207,15 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 			c2sRate = record.C2S.MeanThroughputMbps
 			metrics.TestRate.WithLabelValues(connType, "c2s").Observe(c2sRate)
 		}
+		withErr := "okay"
+		if err != nil {
+			withErr = "error"
+		}
+		withResult := "-with-rate"
+		if record.C2S.MeanThroughputMbps == 0 {
+			withResult = "-without-rate"
+		}
+		ndt5metrics.ClientTestResults.WithLabelValues(connType, "c2s", withErr+withResult).Inc()
 		rtx.PanicOnError(err, "C2S - Could not run c2s test")
 	}
 	if runS2c {
@@ -212,6 +224,15 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 			s2cRate = record.S2C.MeanThroughputMbps
 			metrics.TestRate.WithLabelValues(connType, "s2c").Observe(s2cRate)
 		}
+		withErr := "okay"
+		if err != nil {
+			withErr = "error"
+		}
+		withResult := "-with-rate"
+		if record.S2C.MeanThroughputMbps == 0 {
+			withResult = "-without-rate"
+		}
+		ndt5metrics.ClientTestResults.WithLabelValues(connType, "s2c", withErr+withResult).Inc()
 		rtx.PanicOnError(err, "S2C - Could not run s2c test")
 	}
 	if runMeta {
