@@ -69,7 +69,7 @@ function NDTjs(server, serverPort, serverProtocol, serverPath, callbacks,
 /**
  * Provide feedback to the console or the DOM.
  * @param {string} logMessage Message to pass to output mechanism.
- * @param {!boolean=} debugging Optional (may be undefined) Determines whether 
+ * @param {!boolean=} debugging Optional (may be undefined) Determines whether
  *  to output messages or to operate silently.
  */
 NDTjs.prototype.logger = function (logMessage, debugging) {
@@ -118,7 +118,7 @@ NDTjs.prototype.makeLoginMessage = function (desiredTests) {
 /**
  * A generic message creation system for NDT.
  * (messageType, message body length [2], message body)
- * @params {number} messageType The type of message according to NDT's 
+ * @params {number} messageType The type of message according to NDT's
  *  specification.
  * @params {string} messageContent The message body.
  * @returns {array} An array of bytes suitable for sending on a binary
@@ -225,7 +225,7 @@ NDTjs.prototype.createBulkWebsocket = function (serverProtocol, serverAddress,
 /**
  * NDT's Client-to-Server (C2S) Upload Test
  * Serves as a closure that will process all messages for the C2S NDT test.
- * @returns {boolean} The test is complete and the closure should no longer 
+ * @returns {boolean} The test is complete and the closure should no longer
  *    be called.
  */
 NDTjs.prototype.ndtC2sTest = function () {
@@ -236,7 +236,8 @@ NDTjs.prototype.ndtC2sTest = function () {
     totalSent = 0,
     nextCallback = that.updateInterval,
     keepSendingData,
-    makeconn;
+    startNow = false,
+    waitToStart;
 
   for (i = 0; i < dataToSend.length; i += 1) {
     // All the characters must be printable, and the printable range of
@@ -269,8 +270,17 @@ NDTjs.prototype.ndtC2sTest = function () {
     }
   };
 
+  // Do not start the test until the connection is confirmed open.
+  waitToStart = function() {
+    if (startNow) {
+      testStart = Date.now() / 1000;
+      keepSendingData();
+      return
+    }
+    setTimeout(waitToStart, 0);
+  };
   /**
-   * The closure that processes messages on the control socket for the 
+   * The closure that processes messages on the control socket for the
    * C2S test.
    */
   return function (messageType, messageContent) {
@@ -280,24 +290,20 @@ NDTjs.prototype.ndtC2sTest = function () {
     if (state === 'WAIT_FOR_TEST_PREPARE' &&
         messageType === that.TEST_PREPARE) {
       that.callbacks.onstatechange('preparing_c2s', that.results);
-      // Defer making the connection until we need to make it such that we can
-      // register the `onopen` handler in the same event loop cycle
-      makeconn = function() {
-        serverPort = Number(messageContent.msg);
-        return that.createWebsocket(that.serverProtocol, that.server,
-                                    serverPort, that.serverPath, 'c2s');
+      // Register the `onopen` handler on websocket in the same event loop cycle
+      // that will "waitToStart" until the server sends TEST_START.
+      serverPort = Number(messageContent.msg);
+      testConnection = that.createWebsocket(
+        that.serverProtocol, that.server, serverPort, that.serverPath, 'c2s');
+      testConnection.onopen = function() {
+        waitToStart();
       };
       state = 'WAIT_FOR_TEST_START';
       return false;
     }
     if (state === 'WAIT_FOR_TEST_START' && messageType === that.TEST_START) {
       that.callbacks.onstatechange('running_c2s', that.results);
-      testConnection = makeconn();
-      // Do not start the test until the connection is confirmed open.
-      testConnection.onopen = function() {
-        testStart = Date.now() / 1000;
-        keepSendingData();
-      };
+      startNow = true;
       state = 'WAIT_FOR_TEST_MSG';
       return false;
     }
@@ -322,7 +328,7 @@ NDTjs.prototype.ndtC2sTest = function () {
  * NDT's Server-to-Client (S2C) Download Test
  * Serves as a closure that will process all messages for the S2C NDT test.
  * @param {Websocket} ndtSocket A websocket connection to the NDT server.
- * @returns {boolean} The test is complete and the closure should no longer 
+ * @returns {boolean} The test is complete and the closure should no longer
  *    be called.
  */
 NDTjs.prototype.ndtS2cTest = function (ndtSocket) {
@@ -333,7 +339,7 @@ NDTjs.prototype.ndtS2cTest = function (ndtSocket) {
     that = this;
 
   /**
-  * The closure that processes messages on the control socket for the 
+  * The closure that processes messages on the control socket for the
   * C2S test.
   */
   return function (messageType, messageContent) {
@@ -422,7 +428,7 @@ NDTjs.prototype.ndtS2cTest = function (ndtSocket) {
 
 /**
  * NDT's META (S2C) Download Test
- * Serves as a closure that will process all messages for the META NDT test, 
+ * Serves as a closure that will process all messages for the META NDT test,
  *    which provides additional data to the NDT results.
  * @param {Websocket} ndtSocket A websocket connection to the NDT server.
  * @returns {boolean} The test is complete and the closure should no longer
