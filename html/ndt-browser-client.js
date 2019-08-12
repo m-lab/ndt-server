@@ -235,7 +235,8 @@ NDTjs.prototype.ndtC2sTest = function () {
     state = 'WAIT_FOR_TEST_PREPARE',
     totalSent = 0,
     nextCallback = that.updateInterval,
-    keepSendingData;
+    keepSendingData,
+    makeconn;
 
   for (i = 0; i < dataToSend.length; i += 1) {
     // All the characters must be printable, and the printable range of
@@ -279,16 +280,24 @@ NDTjs.prototype.ndtC2sTest = function () {
     if (state === 'WAIT_FOR_TEST_PREPARE' &&
         messageType === that.TEST_PREPARE) {
       that.callbacks.onstatechange('preparing_c2s', that.results);
-      serverPort = Number(messageContent.msg);
-      testConnection = that.createWebsocket(that.serverProtocol, that.server,
-                                            serverPort, that.serverPath, 'c2s');
+      // Defer making the connection until we need to make it such that we can
+      // register the `onopen` handler in the same event loop cycle
+      makeconn = function() {
+        serverPort = Number(messageContent.msg);
+        return that.createWebsocket(that.serverProtocol, that.server,
+                                    serverPort, that.serverPath, 'c2s');
+      };
       state = 'WAIT_FOR_TEST_START';
       return false;
     }
     if (state === 'WAIT_FOR_TEST_START' && messageType === that.TEST_START) {
       that.callbacks.onstatechange('running_c2s', that.results);
-      testStart = Date.now() / 1000;
-      keepSendingData();
+      testConnection = makeconn();
+      // Do not start the test until the connection is confirmed open.
+      testConnection.onopen = function() {
+        testStart = Date.now() / 1000;
+        keepSendingData();
+      };
       state = 'WAIT_FOR_TEST_MSG';
       return false;
     }
