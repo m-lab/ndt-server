@@ -236,7 +236,7 @@ NDTjs.prototype.ndtC2sTest = function () {
     totalSent = 0,
     nextCallback = that.updateInterval,
     keepSendingData,
-    startNow = false,
+    connectionOpen = false,
     waitToStart;
 
   for (i = 0; i < dataToSend.length; i += 1) {
@@ -250,19 +250,20 @@ NDTjs.prototype.ndtC2sTest = function () {
    */
   keepSendingData = function () {
     var currentTime = Date.now() / 1000.0;
-    // Monitor the buffersize as it sends and refill if it gets too low.
-    if (testConnection.bufferedAmount < 8192) {
-      testConnection.send(dataToSend);
-      totalSent += dataToSend.length;
+    if (connectionOpen) {
+      // Monitor the buffersize as it sends and refill if it gets too low.
+      if (testConnection.bufferedAmount < 8192) {
+        testConnection.send(dataToSend);
+        totalSent += dataToSend.length;
+      }
+      if (that.updateInterval && currentTime > (testStart + nextCallback)) {
+        that.results.c2sRate = 8 * (totalSent - testConnection.bufferedAmount)
+          / 1000 / (currentTime - testStart);
+        that.callbacks.onprogress('interval_c2s', that.results);
+        nextCallback += that.updateInterval;
+        currentTime = Date.now() / 1000.0;
+      }
     }
-    if (that.updateInterval && currentTime > (testStart + nextCallback)) {
-      that.results.c2sRate = 8 * (totalSent - testConnection.bufferedAmount)
-        / 1000 / (currentTime - testStart);
-      that.callbacks.onprogress('interval_c2s', that.results);
-      nextCallback += that.updateInterval;
-      currentTime = Date.now() / 1000.0;
-    }
-
     if (currentTime < testStart + 10) {
       setTimeout(keepSendingData, 0);
     } else {
@@ -270,15 +271,6 @@ NDTjs.prototype.ndtC2sTest = function () {
     }
   };
 
-  // Do not start the test until the connection is confirmed open.
-  waitToStart = function() {
-    if (startNow) {
-      testStart = Date.now() / 1000;
-      keepSendingData();
-      return
-    }
-    setTimeout(waitToStart, 0);
-  };
   /**
    * The closure that processes messages on the control socket for the
    * C2S test.
@@ -296,14 +288,15 @@ NDTjs.prototype.ndtC2sTest = function () {
       testConnection = that.createWebsocket(
         that.serverProtocol, that.server, serverPort, that.serverPath, 'c2s');
       testConnection.onopen = function() {
-        waitToStart();
+        connectionOpen = true;
       };
       state = 'WAIT_FOR_TEST_START';
       return false;
     }
     if (state === 'WAIT_FOR_TEST_START' && messageType === that.TEST_START) {
       that.callbacks.onstatechange('running_c2s', that.results);
-      startNow = true;
+      testStart = Date.now() / 1000;
+      keepSendingData();
       state = 'WAIT_FOR_TEST_MSG';
       return false;
     }
