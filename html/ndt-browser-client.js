@@ -236,8 +236,7 @@ NDTjs.prototype.ndtC2sTest = function () {
     totalSent = 0,
     nextCallback = that.updateInterval,
     keepSendingData,
-    connectionOpen = false,
-    waitToStart;
+    connectionOpen = false;
 
   for (i = 0; i < dataToSend.length; i += 1) {
     // All the characters must be printable, and the printable range of
@@ -283,7 +282,7 @@ NDTjs.prototype.ndtC2sTest = function () {
         messageType === that.TEST_PREPARE) {
       that.callbacks.onstatechange('preparing_c2s', that.results);
       // Register the `onopen` handler on websocket in the same event loop cycle
-      // that will "waitToStart" until the server sends TEST_START.
+      // so "keepSendingData" can begin as soon as the server sends TEST_START.
       serverPort = Number(messageContent.msg);
       testConnection = that.createWebsocket(
         that.serverProtocol, that.server, serverPort, that.serverPath, 'c2s');
