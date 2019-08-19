@@ -90,7 +90,6 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 	result := &data.NDTResult{
 		GitShortCommit: prometheusx.GitShortCommit,
 		Version:        version.Version,
-		SchemaVersion:  data.CurrentSchemaVersion,
 		ClientIP:       clientAddr.IP.String(),
 		ClientPort:     clientAddr.Port,
 		ServerIP:       serverAddr.IP.String(),

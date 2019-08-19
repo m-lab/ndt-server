@@ -140,7 +140,6 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	record := &data.NDTResult{
 		GitShortCommit: prometheusx.GitShortCommit,
 		Version:        version.Version,
-		SchemaVersion:  data.CurrentSchemaVersion,
 		StartTime:      time.Now(),
 		Control: &control.ArchivalData{
 			UUID:     conn.UUID(),

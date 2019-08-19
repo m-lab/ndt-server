@@ -10,12 +10,6 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/model"
 )
 
-// CurrentSchemaVersion is the current version of the NDTResult struct below.
-// This schema version should be included in serialized JSON result files. The
-// version should be incremented for every structure change to NDTResult so
-// that the mirror structures in the ETL parser can be updated.
-const CurrentSchemaVersion = 1
-
 // NDTResult is the struct that is serialized as JSON to disk as the archival
 // record of an NDT test.
 //
@@ -23,6 +17,10 @@ const CurrentSchemaVersion = 1
 // with tcp-info data and traceroute-caller data as well as any other UUID-based
 // data. It also contains enough data for interested parties to perform
 // lightweight data analysis without needing to join with other tools.
+//
+// WARNING: The BigQuery schema is inferred directly from this structure. To
+// preserve compatibility with historical data, never remove fields.
+// For more information see: https://github.com/m-lab/etl/issues/719
 type NDTResult struct {
 	// GitShortCommit is the Git commit (short form) of the running server code.
 	GitShortCommit string
