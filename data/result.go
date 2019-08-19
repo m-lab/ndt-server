@@ -26,10 +26,6 @@ type NDTResult struct {
 	GitShortCommit string
 	// Version is the symbolic version (if any) of the running server code.
 	Version string
-	// SchemaVersion represents the version of the NDTResult structure. This is
-	// needed to track evolving changes to the structure over time and keep all
-	// historical data parsable by the ETL parser.
-	SchemaVersion int
 
 	// All data members should all be self-describing. In the event of confusion,
 	// rename them to add clarity rather than adding a comment.
