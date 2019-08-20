@@ -135,7 +135,8 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	}
 
 	clientRateMsg, err := m.ReceiveMessage(protocol.TestMsg)
-	if err != nil {
+	// Do not exit with an error if we got anything at all from the client.
+	if err != nil && clientRateMsg == nil {
 		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "TestMsgRcv").Inc()
 		log.Println("Could not receive a TestMsg", err)
 		return record, err
