@@ -387,7 +387,7 @@ func ReceiveJSONMessage(ws Connection, expectedType MessageType) (*JSONMessage, 
 	}
 	err = json.Unmarshal(jsonString, &message)
 	if err != nil {
-		return nil, err
+		return &JSONMessage{Msg: string(jsonString)}, err
 	}
 	return message, nil
 }
