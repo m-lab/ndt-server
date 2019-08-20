@@ -17,6 +17,10 @@ import (
 // with tcp-info data and traceroute-caller data as well as any other UUID-based
 // data. It also contains enough data for interested parties to perform
 // lightweight data analysis without needing to join with other tools.
+//
+// WARNING: The BigQuery schema is inferred directly from this structure. To
+// preserve compatibility with historical data, never remove fields.
+// For more information see: https://github.com/m-lab/etl/issues/719
 type NDTResult struct {
 	// GitShortCommit is the Git commit (short form) of the running server code.
 	GitShortCommit string

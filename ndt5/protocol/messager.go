@@ -92,13 +92,13 @@ func (jm *jsonMessager) SendS2CResults(throughputKbps, unsentBytes, totalSentByt
 
 func (jm *jsonMessager) ReceiveMessage(kind MessageType) ([]byte, error) {
 	msg, err := ReceiveJSONMessage(jm.conn, kind)
-	if msg == nil || err != nil {
+	if msg == nil {
 		if err == nil {
 			return nil, errors.New("empty message received without error")
 		}
 		return nil, err
 	}
-	return []byte(msg.Msg), nil
+	return []byte(msg.Msg), err
 }
 
 func (jm *jsonMessager) Encoding() Encoding {

@@ -3,7 +3,9 @@ package protocol_test
 import (
 	"encoding/json"
 	"net"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
@@ -68,5 +70,90 @@ func Test_netConnReadJSONMessage(t *testing.T) {
 		if *msg != m.msg {
 			t.Errorf("%v != %v", *msg, m.msg)
 		}
+	}
+}
+
+type fakeConnection struct {
+	data []byte
+	err  error
+}
+
+func (fc *fakeConnection) ReadMessage() (int, []byte, error)               { return 0, fc.data, fc.err }
+func (fc *fakeConnection) ReadBytes() (count int64, err error)             { return }
+func (fc *fakeConnection) WriteMessage(messageType int, data []byte) error { return nil }
+func (fc *fakeConnection) FillUntil(t time.Time, buffer []byte) (bytesWritten int64, err error) {
+	return
+}
+func (fc *fakeConnection) ServerIPAndPort() (string, int) { return "", 0 }
+func (fc *fakeConnection) ClientIPAndPort() (string, int) { return "", 0 }
+func (fc *fakeConnection) Close() error                   { return nil }
+func (fc *fakeConnection) UUID() string                   { return "" }
+func (fc *fakeConnection) String() string                 { return "" }
+func (fc *fakeConnection) Messager() protocol.Messager    { return nil }
+
+func assertFakeConnectionIsConnection(fc *fakeConnection) {
+	func(c protocol.Connection) {}(fc)
+}
+
+func Test_ReceiveJSONMessage(t *testing.T) {
+	type args struct {
+		ws           protocol.Connection
+		expectedType protocol.MessageType
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *protocol.JSONMessage
+		wantErr bool
+	}{
+		{
+			name: "No data and no error",
+			args: args{
+				ws: &fakeConnection{
+					data: nil,
+					err:  nil,
+				},
+				expectedType: protocol.TestMsg,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Good data and no error",
+			args: args{
+				ws: &fakeConnection{
+					data: append([]byte{byte(protocol.TestMsg), 0, 14}, []byte(`{"msg": "125"}`)...),
+					err:  nil,
+				},
+				expectedType: protocol.TestMsg,
+			},
+			want: &protocol.JSONMessage{
+				Msg: "125",
+			},
+		},
+		{
+			name: "Bad data and no connection error",
+			args: args{
+				ws: &fakeConnection{
+					data: append([]byte{byte(protocol.TestMsg), 0, 3}, []byte(`125`)...),
+					err:  nil,
+				},
+				expectedType: protocol.TestMsg,
+			},
+			want: &protocol.JSONMessage{
+				Msg: "125",
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := protocol.ReceiveJSONMessage(tt.args.ws, tt.args.expectedType)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ReceiveJSONMessage() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ReceiveJSONMessage() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
