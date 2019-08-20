@@ -107,6 +107,7 @@ func Test_ReceiveJSONMessage(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name: "No data and no error",
 			args: args{
 				ws: &fakeConnection{
 					data: nil,
@@ -117,6 +118,7 @@ func Test_ReceiveJSONMessage(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "Good data and no error",
 			args: args{
 				ws: &fakeConnection{
 					data: append([]byte{byte(protocol.TestMsg), 0, 14}, []byte(`{"msg": "125"}`)...),
@@ -129,6 +131,7 @@ func Test_ReceiveJSONMessage(t *testing.T) {
 			},
 		},
 		{
+			name: "Bad data and no connection error",
 			args: args{
 				ws: &fakeConnection{
 					data: append([]byte{byte(protocol.TestMsg), 0, 3}, []byte(`125`)...),
