@@ -69,7 +69,7 @@ func newFile(datadir, what, uuid string) (*File, error) {
 // indicate whether this is a spec.SubtestDownload or a spec.SubtestUpload
 // ndt7 measurement.
 func OpenFor(request *http.Request, conn *websocket.Conn, datadir string, what spec.SubtestKind) (*File, error) {
-	meta := make(metadata)
+	meta := make(metadata, 1)
 	netConn := conn.UnderlyingConn()
 	id, err := fdcache.GetUUID(netConn)
 	if err != nil {

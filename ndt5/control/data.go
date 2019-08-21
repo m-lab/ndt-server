@@ -1,7 +1,7 @@
 package control
 
 import (
-	"github.com/m-lab/ndt-server/ndt5/meta"
+	"github.com/m-lab/ndt-server/metadata"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
 )
 
@@ -11,5 +11,5 @@ type ArchivalData struct {
 	UUID            string
 	Protocol        ndt.ConnectionType
 	MessageProtocol string
-	ClientMetadata  meta.ArchivalData `json:",omitempty" bigquery:"-"`
+	ClientMetadata  []metadata.NameValue `json:",omitempty"`
 }
