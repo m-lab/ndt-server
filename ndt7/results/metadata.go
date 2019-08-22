@@ -4,10 +4,12 @@ package results
 import (
 	"net/url"
 	"regexp"
+
+	meta "github.com/m-lab/ndt-server/metadata"
 )
 
 // metadata contains ndt7 metadata.
-type metadata map[string]string
+type metadata []meta.NameValue
 
 // serverKeyRe is a regexp that matches any server related key.
 var serverKeyRe = regexp.MustCompile("^server_")
@@ -15,10 +17,10 @@ var serverKeyRe = regexp.MustCompile("^server_")
 // initMetadata initializes |*meta| from |values| provided from the original
 // request query string.
 func initMetadata(m *metadata, values url.Values) {
-	for k, v := range values {
-		if matches := serverKeyRe.MatchString(k); matches {
+	for name, values := range values {
+		if matches := serverKeyRe.MatchString(name); matches {
 			continue // We MUST skip variables reserved to the server
 		}
-		(*m)[k] = v[0]
+		*m = append(*m, meta.NameValue{Name: name, Value: values[0]})
 	}
 }

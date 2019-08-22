@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m-lab/ndt-server/metadata"
 	"github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
@@ -14,20 +15,17 @@ import (
 // maxClientMessages is the maximum allowed messages we will accept from a client.
 var maxClientMessages = 20
 
-// ArchivalData contains all meta data reported by the client.
-type ArchivalData map[string]string
-
 // ManageTest runs the meta tests. If the given ctx is canceled or the meta test
 // takes longer than 15sec, then ManageTest will return after the next ReceiveMessage.
 // The given protocolMessager should have its own connection timeout to prevent
 // "slow drip" clients holding the connection open indefinitely.
-func ManageTest(ctx context.Context, m protocol.Messager, s ndt.Server) (ArchivalData, error) {
+func ManageTest(ctx context.Context, m protocol.Messager, s ndt.Server) ([]metadata.NameValue, error) {
 	localCtx, localCancel := context.WithTimeout(ctx, 15*time.Second)
 	defer localCancel()
 
 	var err error
 	var message []byte
-	results := map[string]string{}
+	results := []metadata.NameValue{}
 	connType := s.ConnectionType().String()
 
 	err = m.SendMessage(protocol.TestPrepare, []byte{})
@@ -62,7 +60,7 @@ func ManageTest(ctx context.Context, m protocol.Messager, s ndt.Server) (Archiva
 		if len(value) > 255 {
 			value = value[:255]
 		}
-		results[name] = value
+		results = append(results, metadata.NameValue{Name: name, Value: value})
 	}
 	if localCtx.Err() != nil {
 		log.Println("META context error:", localCtx.Err())

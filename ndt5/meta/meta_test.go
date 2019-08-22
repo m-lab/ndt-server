@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/m-lab/ndt-server/metadata"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
 )
@@ -72,7 +73,7 @@ func TestManageTest(t *testing.T) {
 		name    string
 		ctx     context.Context
 		m       protocol.Messager
-		want    ArchivalData
+		want    []metadata.NameValue
 		wantErr bool
 	}{
 		{
@@ -83,7 +84,7 @@ func TestManageTest(t *testing.T) {
 					{msg: []byte("a:b")},
 				},
 			},
-			want: map[string]string{"a": "b"},
+			want: []metadata.NameValue{{Name: "a", Value: "b"}},
 		},
 		{
 			name: "truncate-name-to-63-bytes",
@@ -93,7 +94,7 @@ func TestManageTest(t *testing.T) {
 					{msg: append(len64, []byte(":b")...)},
 				},
 			},
-			want: map[string]string{string(len64[:63]): "b"},
+			want: []metadata.NameValue{{Name: string(len64[:63]), Value: "b"}},
 		},
 		{
 			name: "truncate-value-to-255-bytes",
@@ -103,7 +104,7 @@ func TestManageTest(t *testing.T) {
 					{msg: append([]byte("a:"), len256...)},
 				},
 			},
-			want: map[string]string{"a": string(len256[:255])},
+			want: []metadata.NameValue{{Name: "a", Value: string(len256[:255])}},
 		},
 		{
 			name: "receive-error",
@@ -123,7 +124,7 @@ func TestManageTest(t *testing.T) {
 					{msg: []byte("this-key-has-no-colon-separator")},
 				},
 			},
-			want: map[string]string{},
+			want: []metadata.NameValue{},
 		},
 	}
 	for _, tt := range tests {
