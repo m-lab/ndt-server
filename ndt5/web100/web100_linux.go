@@ -7,20 +7,24 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/sys/unix"
+	"github.com/m-lab/ndt-server/tcpinfox"
+	"github.com/m-lab/tcp-info/tcp"
 )
 
-func summarize(snaps []*unix.TCPInfo) (*Metrics, error) {
+func summarize(snaps []*tcp.LinuxTCPInfo) (*Metrics, error) {
 	if len(snaps) == 0 {
 		return nil, errors.New("zero-length list of data collected")
 	}
 	minrtt := uint32(0)
 	for _, snap := range snaps {
-		if snap.Rtt < minrtt || minrtt == 0 {
-			minrtt = snap.Rtt
+		if snap.RTT < minrtt || minrtt == 0 {
+			minrtt = snap.RTT
 		}
 	}
-	info := &Metrics{MinRTT: minrtt / 1000} // Convert microseconds to milliseconds.
+	info := &Metrics{
+		TCPInfo: *snaps[len(snaps)-1], // Save the last snapshot into the metric struct.
+		MinRTT:  minrtt / 1000,        // Convert microseconds to milliseconds for legacy compatibility.
+	}
 	log.Println("Summarized data:", info)
 	return info, nil
 }
@@ -31,11 +35,11 @@ func MeasureViaPolling(ctx context.Context, fp *os.File, c chan *Metrics) {
 	defer close(c)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
-	snaps := make([]*unix.TCPInfo, 0, 100)
+	snaps := make([]*tcp.LinuxTCPInfo, 0, 100)
 	// Poll until the context is canceled.
 	for {
 		// Get the tcp_cc metrics
-		info, err := unix.GetsockoptTCPInfo(int(fp.Fd()), unix.IPPROTO_TCP, unix.TCP_INFO)
+		info, err := tcpinfox.GetTCPInfo(fp)
 		if err == nil {
 			snaps = append(snaps, info)
 		} else {

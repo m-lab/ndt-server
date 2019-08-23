@@ -40,9 +40,9 @@ func measure(measurement *model.Measurement, sockfp *os.File) {
 	if err == nil {
 		measurement.BBRInfo = &bbrinfo
 	}
-	metrics, err := tcpinfox.GetTCPInfo(sockfp)
+	tcpInfo, err := tcpinfox.GetTCPInfo(sockfp)
 	if err == nil {
-		measurement.TCPInfo = &metrics
+		measurement.TCPInfo = model.NewTCPInfo(tcpInfo)
 	}
 }
 
