@@ -1,0 +1,9 @@
+FROM golang:alpine3.9 as ndt-server-build
+
+RUN apk add --no-cache git gcc linux-headers musl-dev openssl
+
+WORKDIR /go/src/github.com/m-lab/ndt-server
+ADD . .
+RUN /go/src/github.com/m-lab/ndt-server/build.sh
+
+CMD ["ndt-server"]
