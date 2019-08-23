@@ -150,7 +150,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		// Being unable to parse the number should not be a fatal error, so continue.
 	}
 
-	err = protocol.SendMetrics(web100metrics, m)
+	err = protocol.SendMetrics(web100metrics, m, "")
 	if err != nil {
 		log.Println("Could not SendMetrics", err)
 		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "SendMetrics").Inc()

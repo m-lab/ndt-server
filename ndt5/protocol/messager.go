@@ -7,8 +7,6 @@ import (
 	"log"
 	"reflect"
 	"strconv"
-
-	"github.com/m-lab/ndt-server/ndt5/web100"
 )
 
 // Encoding encodes the communication methods we support.
@@ -130,15 +128,30 @@ func (tm *tlvMessager) Encoding() Encoding {
 }
 
 // SendMetrics sends all the required properties out along the NDT control channel.
-func SendMetrics(metrics *web100.Metrics, m Messager) error {
-	v := reflect.ValueOf(*metrics)
+func SendMetrics(metrics interface{}, m Messager, prefix string) error {
+	v := reflect.ValueOf(metrics)
 	t := v.Type()
+	// Dereference all passed-in pointers
+	for t.Kind() == reflect.Ptr {
+		v = v.Elem()
+		t = v.Type()
+	}
 	for i := 0; i < v.NumField(); i++ {
 		name := t.Field(i).Name
-		msg := fmt.Sprintf("%s: %v\n", name, v.Field(i).Interface())
-		err := m.SendMessage(TestMsg, []byte(msg))
-		if err != nil {
-			return err
+		switch t.Field(i).Type.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			msg := fmt.Sprintf("%s%s: %v\n", prefix, name, v.Field(i).Interface())
+			err := m.SendMessage(TestMsg, []byte(msg))
+			if err != nil {
+				return err
+			}
+		case reflect.Struct:
+			err := SendMetrics(v.Field(i).Interface(), m, prefix+name+".")
+			if err != nil {
+				return err
+			}
+		default:
+			log.Println("Unhandled case in SendMetrics:", t.Field(i).Type.Kind())
 		}
 	}
 	return nil
