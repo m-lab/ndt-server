@@ -1,0 +1,16 @@
+version: '3.7'
+services:
+  ndt:
+    build: .
+    network_mode: host
+    volumes:
+      - ./certs:/certs
+      - ./datadir:/datadir
+      - ./html:/html
+    command: [
+      "/ndt-server",
+      "-cert", "/certs/cert.pem",
+      "-key", "/certs/key.pem",
+      "-datadir", "/datadir",
+      "-ndt7_addr", ":443"
+    ]
