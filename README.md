@@ -8,6 +8,8 @@ spec/ndt7-protocol.md) server written in Go. This code may compile under
 many systems, including macOS and Windows, but is specifically designed
 and tested for running on Linux 4.17+.
 
+## Primary setup & running
+
 To run the server locally, generate local self signed certificates (`key.pem`
 and `cert.pem`) using bash and OpenSSL
 
@@ -37,8 +39,7 @@ sudo modprobe tcp_bbr
 and run the `ndt-server` binary container
 
 ```bash
-docker run --network=bridge                \
-           --publish 443:4443              \
+docker run --network=host                \
            --volume `pwd`/certs:/certs:ro  \
            --volume `pwd`/datadir:/datadir \
            --read-only                     \
@@ -51,9 +52,18 @@ docker run --network=bridge                \
            -ndt7_addr :4443
 ```
 
+## Alternate setup & running
+
+```
+docker-compose run ndt-server ./gen_local_test_certs.sh
+docker-compose up
+```
+
+## Accessing the service
+
 Once you have done that, you should have a ndt5 server running on ports
 `3001` (legacy binary flavour), `3002` (WebSocket flavour), and `3010`
-(secure WebSocket flavour); a ndt7 server running on port `443` (over TLS
+(secure WebSocket flavour); a ndt7 server running on port `4443` (over TLS
 and using the ndt7 WebSocket protocol); and Prometheus metrics available
 on port `9990`.
 
@@ -62,7 +72,7 @@ appear invalid to your browser, but everything is safe because this is a test
 deployment, hence you should ignore this warning and continue):
 
 * ndt5+wss: https://localhost:3010/static/widget.html
-* ndt7: https://localhost/static/ndt7.html
+* ndt7: https://localhost:4443/static/ndt7.html
 * prometheus: http://localhost:9090/metrics
 
 Replace `localhost` with the IP of the server to access them externally.

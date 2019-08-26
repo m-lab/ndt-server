@@ -3,29 +3,20 @@ services:
   ndt-server:
     build:
       context: .
-      dockerfile: Dockerfile.dev
-    networks:
-      - ndt-bridge
-    ports:
-      - "443:4443"
-      - "3001:3001"
-      - "3002:3002"
-      - "3010:3010"
-      - "9090:9090"
+      dockerfile: Dockerfile.local
+    network_mode: host
     volumes:
-      - .:/go/src/github.com/m-lab/ndt-server
       - ./certs:/certs
-      - ./data:/data
-      - ./html:/go/html
-    user: root
+      - ./datadir:/datadir
+      - ./html:/html
     cap_drop:
       - ALL
-    command: ["ndt-server",
+    cap_add:
+      - NET_ADMIN
+      - NET_BIND_SERVICE
+    command: [
+      "./ndt-server",
       "-cert", "/certs/cert.pem",
       "-key", "/certs/key.pem",
-      "-datadir", "/data",
-      "-ndt7_addr", ":4443"]
-networks:
-    ndt-bridge:
-        # use the bridge driver, but enable IPv6
-        driver: bridge
+      "-datadir", "/datadir",
+    ]
