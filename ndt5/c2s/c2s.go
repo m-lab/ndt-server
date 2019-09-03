@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/m-lab/ndt-server/ndt5/web100"
+
 	"github.com/m-lab/ndt-server/ndt5/metrics"
 
 	"github.com/m-lab/go/warnonerror"
@@ -94,7 +96,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	}
 
 	record.StartTime = time.Now()
-	byteCount, err := drainForeverButMeasureFor(testConn, 10*time.Second)
+	byteCount, err := drainForeverButMeasureFor(ctx, testConn, 10*time.Second)
 	record.EndTime = time.Now()
 	seconds := record.EndTime.Sub(record.StartTime).Seconds()
 	log.Println("Ended C2S test on", testConn)
@@ -139,58 +141,39 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 // measuring the connection for the first part of the drain. This method does
 // not close the passed-in Connection, and starts a goroutine which runs until
 // that Connection is closed.
-func drainForeverButMeasureFor(conn protocol.Connection, d time.Duration) (int64, error) {
-	type measurement struct {
-		totalByteCount int64
-		err            error
-	}
-	measurements := make(chan measurement)
+func drainForeverButMeasureFor(ctx context.Context, conn protocol.MeasuredConnection, d time.Duration) (int64, error) {
+	derivedCtx, derivedCancel := context.WithTimeout(ctx, d)
+	defer derivedCancel()
 
+	conn.StartMeasuring(derivedCtx)
+
+	errs := make(chan error, 1)
 	// This is the "drain forever" part of this function. Read the passed-in
-	// connection until the passed-in connection is closed. Only send measurements
-	// on the measurement channel if the channel can be written to without
-	// blocking.
+	// connection until the passed-in connection is closed.
 	go func() {
-		var totalByteCount int64
-		var err error
+		var connErr error
 		// Read the connections until the connection is closed. Reading on a closed
 		// connection returns an error, which terminates the loop and the goroutine.
-		for err == nil {
-			var byteCount int64
-			byteCount, err = conn.ReadBytes()
-			totalByteCount += byteCount
-			// Only write to the channel if it won't block, to ensure the reading process
-			// goes as fast as possible.
-			select {
-			case measurements <- measurement{totalByteCount, err}:
-			default:
-			}
+		for connErr == nil {
+			_, connErr = conn.ReadBytes()
 		}
-		// After we get an error, drain the channel and then close it.
-		fullChannel := true
-		for fullChannel {
-			select {
-			case <-measurements:
-			default:
-				fullChannel = false
-			}
-		}
-		close(measurements)
+		errs <- connErr
 	}()
 
-	// Read the measurements channel until the timer goes off.
-	timer := time.NewTimer(d)
-	var bytesRead int64
+	var socketStats *web100.Metrics
 	var err error
-	timerActive := true
-	for timerActive {
-		select {
-		case m := <-measurements:
-			bytesRead = m.totalByteCount
-			err = m.err
-		case <-timer.C:
-			timerActive = false
-		}
+	select {
+	case <-derivedCtx.Done(): // Wait for timeout
+		log.Println("Timed out")
+		socketStats, err = conn.StopMeasuring()
+	case err = <-errs: // Error in c2s transfer
+		log.Println("C2S error:", err)
+		socketStats, _ = conn.StopMeasuring()
 	}
-	return bytesRead, err
+	if socketStats == nil {
+		return 0, err
+	}
+	// The TCPInfo element of socketstats is a value not a pointer, so this is safe
+	// if socketStats is not nil.
+	return socketStats.TCPInfo.BytesReceived, err
 }

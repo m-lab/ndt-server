@@ -126,8 +126,9 @@ type MeasuredConnection interface {
 	Measurable
 }
 
-// The measurer struct is a hack to ensure that we only have to write the
-// complicated measurement code at most once.
+// measurer allows all types of connections to embed this struct and be measured
+// in the same way. I also means that we have to write the complicated
+// measurement code at most once.
 type measurer struct {
 	measurements             chan *web100.Metrics
 	cancelMeasurementContext context.CancelFunc
@@ -136,22 +137,26 @@ type measurer struct {
 // StartMeasuring starts a polling measurement goroutine that runs until the ctx
 // expires. After measurement is complete, the given `fd` is closed.
 func (m *measurer) StartMeasuring(ctx context.Context, fd *os.File) {
-	m.measurements = make(chan *web100.Metrics)
+	m.measurements = make(chan *web100.Metrics, 1)
 	var newctx context.Context
 	newctx, m.cancelMeasurementContext = context.WithCancel(ctx)
-	go func() {
-		defer fd.Close()
-		web100.MeasureViaPolling(newctx, fd, m.measurements)
-	}()
+	go web100.MeasureViaPolling(newctx, fd, m.measurements)
 }
 
+// StopMeasuring stops the measurement process. The measurement process can also
+// be stopped by cancelling the context that was passed in to StartMeasuring().
 func (m *measurer) StopMeasuring() (*web100.Metrics, error) {
 	m.cancelMeasurementContext()
-	info, ok := <-m.measurements
-	if !ok {
+	select {
+	case info := <-m.measurements:
+		if info == nil {
+			return nil, errors.New("No data returned from web100.MeasureViaPolling")
+		}
+		return info, nil
+	case <-time.After(time.Second):
+		log.Println("No data received from the measurement goroutine")
 		return nil, errors.New("No data")
 	}
-	return info, nil
 }
 
 // wsConnection wraps a websocket connection to allow it to be used as a
