@@ -127,7 +127,7 @@ type MeasuredConnection interface {
 }
 
 // measurer allows all types of connections to embed this struct and be measured
-// in the same way. I also means that we have to write the complicated
+// in the same way. It also means that we have to write the complicated
 // measurement code at most once.
 type measurer struct {
 	measurements             chan *web100.Metrics
@@ -150,12 +150,12 @@ func (m *measurer) StopMeasuring() (*web100.Metrics, error) {
 	select {
 	case info := <-m.measurements:
 		if info == nil {
-			return nil, errors.New("No data returned from web100.MeasureViaPolling")
+			return nil, errors.New("No data returned from web100.MeasureViaPolling due to nil")
 		}
 		return info, nil
 	case <-time.After(time.Second):
 		log.Println("No data received from the measurement goroutine")
-		return nil, errors.New("No data")
+		return nil, errors.New("No data returned from web100.MeasureViaPolling due to timeout")
 	}
 }
 
