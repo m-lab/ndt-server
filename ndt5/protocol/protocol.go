@@ -130,7 +130,7 @@ type MeasuredConnection interface {
 // in the same way. It also means that we have to write the complicated
 // measurement code at most once.
 type measurer struct {
-	results                  <-chan *web100.Metrics
+	summaryC                 <-chan *web100.Metrics
 	cancelMeasurementContext context.CancelFunc
 }
 
@@ -141,7 +141,7 @@ func newMeasurer() *measurer {
 	c := make(chan *web100.Metrics)
 	close(c)
 	return &measurer{
-		results: c,
+		summaryC: c,
 		// We want the cancel function to always be safe to call.
 		cancelMeasurementContext: func() {},
 	}
@@ -152,7 +152,7 @@ func newMeasurer() *measurer {
 func (m *measurer) StartMeasuring(ctx context.Context, fd *os.File) {
 	var newctx context.Context
 	newctx, m.cancelMeasurementContext = context.WithCancel(ctx)
-	m.results = web100.MeasureViaPolling(newctx, fd)
+	m.summaryC = web100.MeasureViaPolling(newctx, fd)
 }
 
 // StopMeasuring stops the measurement process and returns the collected
@@ -161,7 +161,7 @@ func (m *measurer) StartMeasuring(ctx context.Context, fd *os.File) {
 func (m *measurer) StopMeasuring() (*web100.Metrics, error) {
 	m.cancelMeasurementContext() // Start the channel close process.
 
-	summary := <-m.results
+	summary := <-m.summaryC
 	if summary == nil {
 		return nil, errors.New("No data returned from web100.MeasureViaPolling due to nil")
 	}
