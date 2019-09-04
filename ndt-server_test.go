@@ -286,8 +286,8 @@ func Test_MainIntegrationTest(t *testing.T) {
 				preFileCount := countFiles(dataDir)
 				stdout, stderr, err := pipe.DividedOutput(pipe.Script(tc.name, pipe.System(tc.cmd)))
 				if err != nil {
-					t.Errorf("ERROR %s (Command: %s)\nStdout: %s\nStderr: %s\n",
-						tc.name, tc.cmd, string(stdout), string(stderr))
+					t.Errorf("ERROR %s gave error %q (Command: %s)\nStdout: %s\nStderr: %s\n",
+						tc.name, err, tc.cmd, string(stdout), string(stderr))
 				}
 				postFileCount := countFiles(dataDir)
 				if !tc.ignoreData {
