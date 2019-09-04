@@ -143,16 +143,32 @@ func (m *measurer) StartMeasuring(ctx context.Context, fd *os.File) {
 	go web100.MeasureViaPolling(newctx, fd, m.measurements)
 }
 
-// StopMeasuring stops the measurement process. The measurement process can also
-// be stopped by cancelling the context that was passed in to StartMeasuring().
+// StopMeasuring stops the measurement process and returns the collected
+// measurements. The measurement process can also be stopped by cancelling the
+// context that was passed in to StartMeasuring().
 func (m *measurer) StopMeasuring() (*web100.Metrics, error) {
-	m.cancelMeasurementContext()
+	m.cancelMeasurementContext() // Start the channel close process.
+
+	// Canceling the context sets up a problem:
+	//
+	// (1) If the measurement goroutine is working okay, then we should wait until
+	// the cancel causes the measurement to come down the channel or for the channel
+	// to close.
+	//
+	// (2) If the measurement goroutine has failed for any reason, then waiting for
+	// the channel to close hangs this goroutine.
+	//
+	// We can't do the `data, okay:= <-ch` idiom, because that sets up a race
+	// condition with the processing of the context cancellation and its associated
+	// loop termination. So we do the next-best thing and wait for up to a second
+	// before assuming that something has gone wrong with the cancellation process.
 	select {
-	case info := <-m.measurements:
-		if info == nil {
+	case summary := <-m.measurements:
+		if summary == nil {
 			return nil, errors.New("No data returned from web100.MeasureViaPolling due to nil")
 		}
-		return info, nil
+		return summary, nil
+
 	case <-time.After(time.Second):
 		log.Println("No data received from the measurement goroutine")
 		return nil, errors.New("No data returned from web100.MeasureViaPolling due to timeout")
