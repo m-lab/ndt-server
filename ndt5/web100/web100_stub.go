@@ -9,6 +9,7 @@ import (
 
 // MeasureViaPolling collects all required data by polling. It is required for
 // non-BBR connections because MinRTT is one of our critical metrics.
-func MeasureViaPolling(ctx context.Context, fp *os.File, c chan *Metrics) {
+func MeasureViaPolling(ctx context.Context, fp *os.File) <-chan *Metrics {
 	// Just a stub.
+	return nil
 }

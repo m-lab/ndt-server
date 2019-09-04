@@ -130,17 +130,28 @@ type MeasuredConnection interface {
 // in the same way. It also means that we have to write the complicated
 // measurement code at most once.
 type measurer struct {
-	measurements             chan *web100.Metrics
+	results                  <-chan *web100.Metrics
 	cancelMeasurementContext context.CancelFunc
+}
+
+func newMeasurer() *measurer {
+	// We want the channel to be closed by default, not nil. A read on a closed
+	// channel returns immediately, while a read on a nil channel blocks forever.
+	c := make(chan *web100.Metrics)
+	close(c)
+	return &measurer{
+		results: c,
+		// We want the cancel function to always be safe to call.
+		cancelMeasurementContext: func() {},
+	}
 }
 
 // StartMeasuring starts a polling measurement goroutine that runs until the ctx
 // expires. After measurement is complete, the given `fd` is closed.
 func (m *measurer) StartMeasuring(ctx context.Context, fd *os.File) {
-	m.measurements = make(chan *web100.Metrics, 1)
 	var newctx context.Context
 	newctx, m.cancelMeasurementContext = context.WithCancel(ctx)
-	go web100.MeasureViaPolling(newctx, fd, m.measurements)
+	m.results = web100.MeasureViaPolling(newctx, fd)
 }
 
 // StopMeasuring stops the measurement process and returns the collected
@@ -149,30 +160,11 @@ func (m *measurer) StartMeasuring(ctx context.Context, fd *os.File) {
 func (m *measurer) StopMeasuring() (*web100.Metrics, error) {
 	m.cancelMeasurementContext() // Start the channel close process.
 
-	// Canceling the context sets up a problem:
-	//
-	// (1) If the measurement goroutine is working okay, then we should wait until
-	// the cancel causes the measurement to come down the channel or for the channel
-	// to close.
-	//
-	// (2) If the measurement goroutine has failed for any reason, then waiting for
-	// the channel to close hangs this goroutine.
-	//
-	// We can't do the `data, okay:= <-ch` idiom, because that sets up a race
-	// condition with the processing of the context cancellation and its associated
-	// loop termination. So we do the next-best thing and wait for up to a second
-	// before assuming that something has gone wrong with the cancellation process.
-	select {
-	case summary := <-m.measurements:
-		if summary == nil {
-			return nil, errors.New("No data returned from web100.MeasureViaPolling due to nil")
-		}
-		return summary, nil
-
-	case <-time.After(time.Second):
-		log.Println("No data received from the measurement goroutine")
-		return nil, errors.New("No data returned from web100.MeasureViaPolling due to timeout")
+	summary := <-m.results
+	if summary == nil {
+		return nil, errors.New("No data returned from web100.MeasureViaPolling due to nil")
 	}
+	return summary, nil
 }
 
 // wsConnection wraps a websocket connection to allow it to be used as a
@@ -184,7 +176,7 @@ type wsConnection struct {
 
 // AdaptWsConn turns a websocket Connection into a struct which implements both Measurer and Connection
 func AdaptWsConn(ws *websocket.Conn) MeasuredConnection {
-	return &wsConnection{Conn: ws, measurer: &measurer{}}
+	return &wsConnection{Conn: ws, measurer: newMeasurer()}
 }
 
 func (ws *wsConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64, err error) {
@@ -341,7 +333,7 @@ type MeasuredFlexibleConnection interface {
 
 // AdaptNetConn turns a non-WS-based TCP connection into a protocol.MeasuredConnection that can have its encoding set on the fly.
 func AdaptNetConn(conn net.Conn, input io.Reader) MeasuredFlexibleConnection {
-	return &netConnection{Conn: conn, measurer: &measurer{}, input: input, c2sBuffer: make([]byte, 8192)}
+	return &netConnection{Conn: conn, measurer: newMeasurer(), input: input, c2sBuffer: make([]byte, 8192)}
 }
 
 // ReadTLVMessage reads a single NDT message out of the connection.

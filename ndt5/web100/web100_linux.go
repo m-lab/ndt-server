@@ -28,17 +28,10 @@ func summarize(snaps []*tcp.LinuxTCPInfo) (*Metrics, error) {
 	return info, nil
 }
 
-// MeasureViaPolling collects all required data by polling. This function, when
-// it exits, will always close the passed-in channel. It may or may not send
-// socket information along the channel before it closes, depending on whether
-// or not an error occurred. If you want to avoid this method blocking on
-// channel send along with the associated risks of goroutine leaks (and you
-// almost certainly do), then the passed-in channel should have a capacity of at
-// least 1.
-func MeasureViaPolling(ctx context.Context, fp *os.File, c chan *Metrics) {
-	defer close(c)
+func measureUntilContextCancellation(ctx context.Context, fp *os.File) (*Metrics, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+
 	snaps := make([]*tcp.LinuxTCPInfo, 0, 200) // Enough space for 20 seconds of data.
 
 	// Poll until the context is canceled, but never more than once per ticker-firing.
@@ -56,8 +49,24 @@ func MeasureViaPolling(ctx context.Context, fp *os.File, c chan *Metrics) {
 			log.Println("Getsockopt error:", err)
 		}
 	}
-	summary, err := summarize(snaps)
-	if err == nil {
-		c <- summary
-	}
+	return summarize(snaps)
+}
+
+// MeasureViaPolling collects all required data by polling and returns a channel
+// for the results. This function may or may not send socket information along
+// the channel, depending on whether or not an error occurred. The value is sent
+// along the channel sometime after the context is canceled.
+func MeasureViaPolling(ctx context.Context, fp *os.File) <-chan *Metrics {
+	// Give a capacity of 1 because we will only ever send one message and the
+	// buffer allows the component goroutine to exit when done, no matter what the
+	// client does.
+	c := make(chan *Metrics, 1)
+	go func() {
+		summary, err := measureUntilContextCancellation(ctx, fp)
+		if err == nil {
+			c <- summary
+		}
+		close(c)
+	}()
+	return c
 }
