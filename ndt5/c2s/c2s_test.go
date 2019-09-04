@@ -65,11 +65,8 @@ func Test_DrainForeverButMeasureFor_EarlyClientQuit(t *testing.T) {
 	defer cConn.Close()
 	// Measure longer than we send.
 	go func() {
-		ctx2, cancel2 := context.WithTimeout(ctx, 200*time.Millisecond)
-		defer cancel2() // Useless, but makes the linter happpy.
-		for ctx2.Err() == nil {
-			cConn.Write([]byte("hello"))
-		}
+		cConn.Write([]byte("hello"))
+		time.Sleep(100 * time.Millisecond) // Give the drainForever process time to get going
 		cConn.Close()
 	}()
 	count, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(1*time.Second))
