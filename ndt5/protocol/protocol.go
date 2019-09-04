@@ -134,6 +134,7 @@ type measurer struct {
 	cancelMeasurementContext context.CancelFunc
 }
 
+// newMeasurer creates a measurer struct with sensible and safe defaults.
 func newMeasurer() *measurer {
 	// We want the channel to be closed by default, not nil. A read on a closed
 	// channel returns immediately, while a read on a nil channel blocks forever.

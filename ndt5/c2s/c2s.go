@@ -6,13 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/m-lab/ndt-server/ndt5/web100"
-
-	"github.com/m-lab/ndt-server/ndt5/metrics"
-
 	"github.com/m-lab/go/warnonerror"
+	"github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
+	"github.com/m-lab/ndt-server/ndt5/web100"
 )
 
 // ArchivalData is the data saved by the C2S test. If a researcher wants deeper
