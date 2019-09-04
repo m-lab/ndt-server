@@ -41,14 +41,14 @@ func Test_DrainForeverButMeasureFor_NormalOperation(t *testing.T) {
 	defer cConn.Close()
 	// Send for longer than we measure.
 	go func() {
-		ctx2, cancel2 := context.WithTimeout(ctx, 1*time.Second)
+		ctx2, cancel2 := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel2() // Useless, but makes the linter happpy.
 		for ctx2.Err() == nil {
 			cConn.Write([]byte("hello"))
 		}
 		cConn.Close()
 	}()
-	count, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(1*time.Millisecond))
+	count, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(100*time.Millisecond))
 	if err != nil {
 		t.Error("Should not have gotten error:", err)
 	}
