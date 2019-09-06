@@ -1,15 +1,66 @@
 # ndt7 protocol specification
 
-This specification describes version 7 of the Network Diagnostic
-Tool (NDT) protocol (ndt7). Ndt7 is a non-backwards compatible
+This specification describes ndt7, i.e. version 7 of the Network
+Diagnostic Tool (NDT) protocol. Ndt7 is a non-backwards compatible
 redesign of the [original NDT network performance measurement
 protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.7.3 of the ndt7 specification.
+This is version v0.8.0 of the ndt7 specification.
+
+## Design choices
+
+(This section is non-normative.)
+
+Ndt7 measures the application-level download and upload performance
+using WebSockets over TLS. Each measurement is an independent so-called
+subtest; there are two subtests: the download and the upload subtests. Ndt7
+always uses a single TCP connection. Where possible, ndt7 uses a recent
+version of TCP BBR. Writing a ndt7 client should always be easy. A minimal
+ndt7 client should consist of only a few hundred lines of code in most
+languages (not counting library dependencies, unit and integration tests).
+
+Ndt7 answers the question of how fast you could pull/push data
+from your device to a typically-nearby, well-provisioned web
+server by means of commonly-used web technologies. This is not necessarily
+a measurement of your last mile speed. Rather it is a measurement
+of what performance is possible with your device, your current internet
+connection (landline, Wi-Fi, 4G, etc.), the characteristics of
+your ISP and possibly of other ISPs in the middle, and the server
+being used. Also, the main measurement performed by ndt7 does not include
+by default overheads such as the WebSocket, the TLS, the TCP/IP, and
+the link layer headers (even though we also provide kernel-level information
+where `TCP_INFO` is available). For all these reasons we say that ndt7
+performs application-level measurements.
+
+The presence of network issues (e.g. interference or congestion) should
+cause ndt7 to yield "bad" measurement results, where bad is implicitly
+defined by comparison to the maximum theoretical speed of the
+end-to-end connection (often times the Wi-Fi or landline data-link
+bitrate). Extra information obtained using `TCP_INFO` should help an expert
+reading the results of a ndt7 experiment to better understand what could
+be the root cause of such performance issues.
+
+Ndt7 should be easily extensible and future proof. We want to add new
+functionality without requiring changes to existing clients. We also want
+to be able to run A/B experiments with existing clients. These facts, along
+with the aim to keep ndt7 clients simple to implement, deeply influence
+several design choices described in this specification, basically leading
+to complexity being shifted from the client to the server side.
+
+Ndt7 should consume few resources. The maximum runtime of a subtest should
+be ten seconds, but the server should be able to determine if the performance
+would not change significantly and interrupt the subtest early. This could also
+be partly implemented by clients, but we choose to fully implement that into
+the server, for the extensibility and simplicity reasons introduced above.
 
 ## Protocol description
+
+This section describes how ndt7 uses WebSockets, and how clients and
+servers should behave during the download and the upload subtests.
+
+### The WebSocket handshake
 
 The client connects to the server using HTTPS and requests to upgrade the
 connection to WebSockets. The same connection will be used to exchange
@@ -23,9 +74,17 @@ hence two URLs are defined:
 
 The upgrade message MUST also contain the WebSocket subprotocol that
 identifies ndt7, which is `net.measurementlab.ndt.v7`. The URL in the
-upgrade request MAY contain optional parameters, which will be saved
-as metadata describing the client (see below).  An upgrade request
-could look like this:
+upgrade request MAY contain optional query-string parameters, which
+will be saved as metadata describing the client. The client MUST also
+include a meaningful, non-generic User-Agent string.
+
+The query string MUST NOT be longer than 4096 bytes. Both the name and
+the value of the query string parameters MUST of course be valid URL-encoded
+UTF-8 strings. Clients MUST NOT send duplicate keys and MUST NOT send
+keys without a value. Servers SHOULD ignore duplicate keys. Servers SHOULD
+treat keys without a value as having an empty value.
+
+An upgrade request could look like this:
 
 ```
 GET /ndt/v7/download HTTP/1.1\r\n
@@ -35,16 +94,21 @@ Sec-WebSocket-Key: DOdm+5/Cm3WwvhfcAlhJoQ==\r\n
 Sec-WebSocket-Version: 13\r\n
 Sec-WebSocket-Protocol: net.measurementlab.ndt.v7\r\n
 Upgrade: websocket\r\n
+User-Agent: ooniprobe/3.0.0 ndt7-client-go/0.1.0\r\n
 \r\n
 ```
 
-Upon receiving the upgrade request, the server MUST inspect the
+Upon receiving an upgrade request, the server MUST inspect the
 request (including the optional query string) and either upgrade
-the connection to WebSocket or return a 400 failure if the
+the connection to WebSocket or return a 4xx failure if the
 request does not look correct (e.g. if the WebSocket subprotocol
-is missing). The upgrade response MUST contain the selected
-subprotocol in compliance with RFC6455. A possible upgrade response
-could look like this:
+is missing). Of course, also the query string MUST be parsed
+and the upgrade MUST fail if the query string is not parseable
+or not acceptable. The server MUST store the metadata sent by
+the client using the query string.
+
+The upgrade response MUST contain the selected subprotocol in compliance
+with RFC6455. A possible upgrade response could look like this:
 
 ```
 HTTP/1.1 101 Switching Protocols\r\n
@@ -55,171 +119,293 @@ Connection: Upgrade\r\n
 \r\n
 ```
 
+### WebSocket channel usage
+
 Once the WebSocket channel is established, the client and the server
 exchange ndt7 messages using the WebSocket framing. An implementation MAY
 choose to limit the maximum WebSocket message size, but such limit MUST
-NOT be smaller than 1 << 24 bytes. Note that this message size is a maximum. It
-is expected that most clients will complete the entire ndt7 test with much
-smaller messages and that large messages would only be sent to clients on
-very fast links.
+NOT be smaller than 1 << 24 bytes. Note that this message size is a maximum
+designed to support clients on very fast, short end-to-end paths.
 
+Both textual and binary WebSocket messages are used.
 
-Both textual and binary WebSocket messages are allowed. Textual WebSocket
-messages will contain serialised JSON structures containing measurements
-results (see below). When downloading, the server is expected to send
-measurement to the client, and when uploading, conversely, the client is
-expected to send measurements to the server. Measurements SHOULD
-NOT be sent more frequently than every 250 ms, to avoid generating too
-much unnecessary processing load on the receiver. A party receiving
-too frequent measurements MAY decide to close the connection.
+Textual messages contain JSON-serialized measurements, they are OPTIONAL, and
+are always permitted. They SHOULD NOT be sent more frequently than every
+250 ms, to avoid generating too much unnecessary JSON-processing load on the
+measurements receiver. A party receiving too frequent measurements SHOULD
+discard excess measurements and keep going. A ndt7 implementation MAY choose
+to ignore all textual messages. This provision allows one to easily implement
+ndt7 with languages such as C where reading and writing messages at the
+same time significantly increases the implementation complexity.
 
-To generate network load, the party that is currently sending (i.e. the
-server during a download subtest) MUST send, in addition to textual
-WebSocket messages, binary WebSocket messages carrying a random payload;
-the receiver (i.e. the client during a download subtest) MUST discard
-these messages without processing them.
+Binary messages SHOULD contain random data and are used to generate network
+load. Therefore, during the download subtest the server sends binary
+messages and the client MUST NOT send them. Likewise, during the upload
+subtest, the client sends binary messages and the server MUST NOT send
+them. An implementation receiving a binary message when it is not expected
+SHOULD close the underlying TLS connection.
 
-As far as binary messages are concerned, ndt7 subtests are strictly
-half duplex. During the download, the client MUST NOT send any binary
-message to the server. During the upload, the server MUST NOT send
-any binary message to the client. If a party receives a binary message
-when that is not expected, it MUST close the connection.
+Binary messages SHOULD contain 1 << 13 bytes by default. An implementation
+MAY change the size of such messages to accommodate for fast clients, as
+mentioned above. In such case, of course, the message size MUST NOT exceed
+the maximum message size that has been specified above. See the appendix
+for a possible algorithm to dynamically change the message size.
 
-All other messages are permitted. Implementations should be prepared
-to receive such messages during any subtest. Processing these messages
-isn't mandatory and an implementation MAY choose to ignore them. An
-implementation SHOULD NOT send this kind of messages more frequently
-than every 250 millisecond. An implementation MAY close the connection
-if receiving such messages too frequently. The reason why we allow
-this kind of messages is so that the server could sent to the client
-download speed measurements during the upload test. This provides
-clients that do not have BBR support with a reasonably good estimation
-of the real upload speed, which is certainly more informative and
-stable than any application level sender side estimation.
+The expected duration of a subtest is up to ten seconds. If a subtest has
+been running for at least fifteen seconds, an implementation MAY close the
+underlying TLS connection. This is allowed to keep the overall duration
+of each subtest within a fifteen-seconds upper bound. Ideally this SHOULD
+be implemented so that immediately after fifteen-seconds have elapsed, the
+underlying TLS connection is closed. This can be implemented, e.g., in C/C++
+using alarm(3) to cause pending I/O operations to fail with `EINTR`.
 
-The expected transfer time of each subtest is ten seconds (unless BBR
-is used, in which case it may be shorter, as explained below). The sender
-(i.e. the server during the download subtest) SHOULD stop sending after
-ten seconds. The receiver (i.e. the client during the download subtest) MAY
-close the connection if the elapsed time exceeds fifteen seconds.
+The server MAY initiate a WebSocket closing handshake at any time
+and during any subtest. This tells the client that either the specific
+subtest has run for too much time, or that some other criteria suggests
+that the measured speed would not change significantly in the future,
+hence continuing the test would waste resources. The client SHOULD be
+prepared to receive such closing handshake and respond accordingly. In
+accordance with RFC 6455 Sect 7.1.1, once the WebSocket closing handshake
+is complete, the server SHOULD close the underlying TLS connection,
+while the client SHOULD wait and see whether the server closes it first.
 
-When the expected transfer time has expired, the parties SHOULD close
-the WebSocket channel by sending a Close WebSocket frame. The client
-SHOULD NOT close the TCP connection immediately, so that the server can
-close it first. This allows to reuse ports more efficiently on the
-server because we avoid the `TIME_WAIT` TCP state.
+Yet, in practice, both the client and the server SHOULD tolerate any
+abrupt EOF, RST, or timeout/alarm error received when doing I/O with the
+underlying TLS connection. Such events SHOULD be logged as warnings
+and SHOULD be recorded into the results. Yet, for robustness, we do not
+want such events to cause a whole subtest to fail. This provision
+gives the ndt7 protocol bizantine robustness, and acknowledges the
+fact that the web is messy and a subtest may terminate more abruptly
+than it used to happen in our controlled experiments.
 
-## Stopping the transfer earlier using BBR
-
-If TCP BBR is available, a compliant server MAY choose to enable it
-for the client connection and terminate the download test early when
-it believes that BBR parameters become stable. Before v1.0 of this
-spec is out, we hope to specify a mechanism allowing a client to opt out
-of terminating the download early.
-
-Clients can detect whether BBR is enabled by checking whether the measurement
-returned by the server contains a `bbr_info` field (see below).
-
-## Query string parameters
-
-The client SHOULD send metadata using the query string. The server
-SHOULD process the query string, returning 400 if the query string is
-not parseable or not acceptable (see below). The server SHOULD store
-the metadata sent by the client using the query string.
-
-The following restrictions apply to the query string. It MUST NOT be
-longer than 4096 bytes. Of course, both the name and the value of the
-URL query string MUST be valid URL-encoded UTF-8 strings.
-
-Clients MUST NOT send duplicate keys; servers SHOULD ignore them. Servers MAY
-interpret key names without values as having an empty value. Servers MAY
-discard key names without values.
-
-The `"^server_"` prefix is reserved for the server. Clients MUST not send any
-metadata starting with such prefix. Servers MUST ignore all the entries that
-start with such prefix.
-
-## Measurements message
+### Measurement message
 
 As mentioned above, the server and the client exchange JSON measurements
-using Textual WebSocket messages. Such JSON measurements have the following
-structure:
+using textual WebSocket messages. The purpose of these measurements is to
+provide information useful to diagnose performance issues.
+
+While in theory we could specify all `TCP_INFO` and `BBR_INFO` variables,
+our guiding principle is to describe only the variables that in our
+experience are useful to understand performance issues. More variables
+could be added in the future. No variables should be removed, but, if
+some are removed, we should document them as being removed rather than
+removing them from this specification.
+
+Since version v0.8.0 of this specification, the measurement message
+has the following structure:
 
 ```json
 {
-  "app_info": {
-    "num_bytes": 17,
+  "AppInfo": {
+    "ElapsedTime": 1234,
+    "NumBytes": 1234,
   },
-  "connection_info": {
-    "client": "1.2.3.4:5678",
-    "server": "[::1]:2345",
-    "uuid": "<platform-specific-string>"
+  "ConnectionInfo": {
+    "Client": "1.2.3.4:5678",
+    "Server": "[::1]:2345",
+    "UUID": "<platform-specific-string>"
   },
-  "bbr_info": {
-    "max_bandwidth": 12345,
-    "min_rtt": 123.4
-  },
-  "elapsed": 1.2345,
-  "tcp_info": {
-    "rtt_var": 123.4,
-    "smoothed_rtt": 567.8
+  "Origin": "server",
+  "SubTest": "download",
+  "TCPInfo": {
+    "BusyTime": 1234,
+    "BytesAcked": 1234,
+    "BytesReceived": 1234,
+    "BytesSent": 1234,
+    "BytesRetrans": 1234,
+    "ElapsedTime": 1234,
+    "MinRTT": 1234,
+    "RTT": 1234,
+    "RTTVar": 1234,
+    "RWndLimited": 1234,
+    "SndBufLimited": 1234
   }
 }
 ```
 
 Where:
 
-- `app_info` is an _optional_ JSON object only included in the measurement
+- `AppInfo` is an _optional_ `object` only included in the measurement
   when an application-level measurement is available:
 
-    - `num_bytes` (a `int64`) is the number of bytes sent (or received) since
+    - `ElapsedTime` (a `int64`) is the time elapsed since the beginning of
+      this subtest, measured in microseconds;
+
+    - `NumBytes` (a `int64`) is the number of bytes sent (or received) since
       the beginning of the specific subtest. Note that this counter tracks the
       amount of data sent at application level. It does not account for the
-      protocol overheaded of WebSockets, TLS, TCP, IP, and link layer;
+      overheaded of the WebSockets, TLS, TCP/IP, and link layers;
 
-- `connection_info` is an _optional_ JSON object that the server SHOULD
-  provide as part of the first measurement message sent to clients to
-  inform them about:
+- `ConnectionInfo` is an _optional_ `object` used to provide information
+  about the connection four tuple. Clients MUST NOT send this message. Servers
+  MUST send this message exactly once. Clients SHOULD cache the first
+  received instance of this message, and discard any subsequently received
+  instance of this message. The contents of the object are:
 
-    - `client` (a `string`), which contains the serialization of the client
+    - `Client` (a `string`), which contains the serialization of the client
       endpoint according to the server. Note that the general format of
       this field is `<address>:<port>` where IPv4 addresses are provided
       verbatim, while IPv6 addresses are quoted by `[` and `]` as shown
       in the above example;
 
-    - `server` (a `string`), which contains the serialization of the server
+    - `Server` (a `string`), which contains the serialization of the server
       endpoint according to the server, following the same general format
-      specified above for the client `field`;
+      specified above for the `Client` field;
 
-    - `uuid` (a `string`), which contains an internal unique identifier
-      for this test within the Measurement Lab platform, following the
-      following format `<platform-specific-string>`.
+    - `UUID` (a `string`), which contains an internal unique identifier
+      for this test within the Measurement Lab (M-Lab) platform. This field
+      SHOULD be omitted by servers running on other platforms, unless they
+      also have the concept of an UUID bound to a TCP connection.
 
-- `bbr_info` is an _optional_ JSON object only included in the measurement
-  when it is possible to access `TCP_CC_INFO` stats for BBR:
+- `Origin` is an _optional_ `string` that indicates whether the measurement
+  has been performed by the client or by the server. This field SHOULD
+  only be used when the entity that performed the measurement would otherwise
+  be ambiguos;
 
-    - `bbr_info.max_bandwidth` (a `int64`) is the max-bandwidth measured by
-       BBR, in bits per second;
+- `SubTest` is an _optional_ `string` that indicates the name of the
+  current subtest. This field SHOULD only be used when the current subtest
+  should otherwise not be obvious;
 
-    - `bbr_info.min_rtt` (a `float64`) is the min-rtt measured by BBR,
-      in millisecond;
+- `TCPInfo` is an _optional_ `object` only included in the measurement
+  when it is possible to access `TCP_INFO` stats. It contains:
 
-- `elapsed` (a `float64`) is the number of seconds elapsed since the beginning
-  of the specific subtest and marks the moment in which the measurement has
-  been performed by the client or by the server;
+    - `BusyTime` aka `tcpi_busy_time` (a `int64`), i.e. the number of
+       microseconds spent actively sending data because the write queue
+       of the TCP socket is non-empty;
 
-- `tcp_info` is an _optional_ JSON object only included in the measurement
-  when it is possible to access `TCP_INFO` stats:
+    - `BytesAcked` aka `tcpi_bytes_acked` (a `int64`), i.e. the number
+      of bytes for which we received acknowledgment. Note that this field,
+      and all other `TCPInfo` fields, contain the number of bytes measured
+      at TCP/IP level (i.e. including the WebSocket and TLS overhead);
 
-    - `tcp_info.rtt_var` (a `float64`) is RTT variance in milliseconds;
+    - `BytesReceived` aka `tcpi_bytes_received` (a `int64`), i.e. the number
+      of bytes for which we sent acknowledgment;
 
-    - `tcp_info.smoothed_rtt` (a `float64`) is the smoothed RTT in milliseconds.
+    - `BytesSent` aka `tcpi_bytes_sent` (a `int64`), i.e. the number of bytes
+      which have been transmitted _or_ retransmitted;
 
-Note that JSON and JavaScript actually define integers as `int53` but existing
-implementations will likely round bigger (or smaller) numbers to the nearest
-`float64` value. A pedantic implementation MAY want to be overly defensive and
-make sure that it does not emit values that a `int53` cannot represent. The
-proper action to take in this case is currently unspecified.
+    - `BytesRetrans` aka `tcpi_bytes_retrans` (a `int64`), i.e. the number
+      of bytes which have been retransmitted;
+
+    - `ElapsedTime` (a `int64`), i.e. the time elapsed since the beginning of
+      this subtest, measured in microseconds;
+
+    - `MinRTT` aka `tcpi_min_rtt` (a `int64`), i.e. the minimum RTT seen
+       by the kernel, measured in microseconds;
+
+    - `RTT` aka `tcpi_rtt` (a `int64`), i.e. the current smoothed RTT
+      value, measured in microseconds;
+
+    - `RTTVar` aka `tcpi_rtt_var` (a `int64`), i.e. the variance or `RTT`;
+
+    - `RWndLimited` aka `tcpi_rwnd_limited` (a `int64`), i.e. the amount
+      of microseconds spent stalled because there is not enough
+      buffer at the receiver;
+
+    - `SndBufLimited` aka `tcpi_sndbuf_limited` (a `int64`), i.e. the amount
+      of microseconds spent stalled because there is not enough buffer at
+      the sender.
+
+Note that the JSON exchanged on the wire, or saved on disk, MAY possibly
+contain more `TCP_INFO` fields. Yet, only the fields described in this
+specification are REQUIRED to be returned by a compliant, `TCP_INFO` enabled
+implementation of ndt7. You SHOULD NOT rely on other fields.
+
+Also note that some kernels may not support all the above mentioned `TCP_INFO`
+variables. In such case, the unsupported variables SHOULD be set to zero.
+
+Moreover, note that all the variables presented above increase or otherwise
+change consistently during a subtest. Therefore, the last measurement sample
+is a suitable summary of what happened during a subtest.
+
+Finally, note that JSON and JavaScript actually define integers as `int53` but
+existing implementations will likely round bigger (or smaller) numbers to
+the nearest `float64` value. A pedantic implementation MAY want to be overly
+defensive and make sure that it does not emit values that a `int53` cannot
+represent. If it decides to handle this OPTIONAL case, then the implementation
+MUST NOT emit a message that it has determined to be possibly ambiguous.
+
+### Examples
+
+This section is non normative. It shows the messages seen by a client
+in various circumstances. The `>` prefix indicates a sent message. The
+`<` prefix indicates a received message.
+
+In this first example, the client and the server do not send any
+text message. These are the simplest ndt7 client and server you can
+write. This is what the download looks like:
+
+```
+> GET /ndt/v7/download Upgrade: websocket
+< 101 Switching Protocols
+< BinaryMessage
+< BinaryMessage
+< BinaryMessage
+< BinaryMessage
+...
+< CloseMessage
+> CloseMessage
+```
+
+This is the upload:
+
+```
+> GET /ndt/v7/upload Upgrade: websocket
+< 101 Switching Protocols
+> BinaryMessage
+> BinaryMessage
+> BinaryMessage
+> BinaryMessage
+...
+> CloseMessage
+< CloseMessage
+```
+
+When the server sends measurement messages, the download becomes:
+
+```
+> GET /ndt/v7/download Upgrade: websocket
+< 101 Switching Protocols
+< BinaryMessage
+< BinaryMessage
+< TextMessage    clientElapsedTime=0.30 s
+< BinaryMessage
+< BinaryMessage
+< TextMessage    clientElapsedTime=0.55 s
+< BinaryMessage
+...
+< CloseMessage
+> CloseMessage
+```
+
+Note that we have assumed that measurements arrive with a little of delay
+caused by the queuing delay in the sender's buffer. In some cases, this
+delay may be large enough that clients SHOULD NOT rely on server measurements
+to timely update their user interface during this subtest.
+
+During the upload, the server could help a client by sending messages
+containing its application-level measurements:
+
+```
+> GET /ndt/v7/upload Upgrade: websocket
+< 101 Switching Protocols
+> BinaryMessage
+> BinaryMessage
+> BinaryMessage
+< TextMessage    clientElapsedTime=0.25 s
+> BinaryMessage
+> BinaryMessage
+< TextMessage    clientElapsedTime=0.51 s
+> BinaryMessage
+...
+> CloseMessage
+< CloseMessage
+```
+
+In this case, because messages travel on an otherwise only used for pure
+ACKs return path, we expect less queuing delay. Still also in
+this case it is RECOMMENDED to always use application level measurements
+at the sender to update the user interface.
 
 ## Server discovery
 
@@ -240,17 +426,27 @@ description of how a real request would look like);
 3. MUST set `User-Agent` to identify themselves;
 
 4. MUST correctly handle `3xx` redirects, interpret `200` as success, `204`
-as the no-capacity signal (see below) and any other status as failure.
+as the no-capacity signal (see below) and any other status as failure;
+
+5. MUST NOT assume that the locate service would redirect them to a nearby,
+stable version of the ndt7 server where the server will always send measurement
+messages for every subtest and the subtest duration is ten seconds. We will
+sparingly use the locate service to perform A/B testing, therefore we MAY also
+redirect users to more distant servers, or to cloud servers, or to canary
+servers, as well as to servers that MAY NOT always send measurement messages
+or to servers where the subtest duration MAY be less than ten seconds. A client
+that is conformant to this specification SHOULD already be prepared to deal
+with all these cases, however this paragraph serves as an additional reminder
+and warning for who is implementing a ndt7 client.
 
 The no-capacity signal is emitted by the locate.measurementlab.net service
 when M-Lab is out of capacity. In such cases, the return code is `204`,
-to indicate that there is no (ndt7 server) content for the requesting client.
+to indicate that there is no ndt7-server "content" for the requesting client.
 
 The following example shows a request to locate.measurementlab.net originating
 from a well-behaved ndt7 client:
 
 ```
-* Connected to locate.measurementlab.net (216.58.205.84) port 443 (#0)
 > GET /ndt7 HTTP/1.1
 > Host: locate.measurementlab.net
 > User-Agent: MKEngine/0.1.0
@@ -264,12 +460,12 @@ the sake of brevity and thus content-length is now wrong):
 
 ```
 < HTTP/1.1 200
-< cache-control: no-cache
-< access-control-allow-origin: *
-< content-type: application/json
-< date: Thu, 02 May 2019 13:46:32 GMT
-< server: Google Frontend
-< content-length: 622
+< Cache-Control: no-cache
+< Access-Control-Allow-Origin: *
+< Content-Type: application/json
+< Date: Thu, 02 May 2019 13:46:32 GMT
+< Server: Google Frontend
+< Content-Length: 622
 <
 { "fqdn": "ndt-iupui-mlab2-tun01.measurement-lab.org" }
 ```
@@ -278,15 +474,18 @@ In case of capacity issues (as specified above), the server response
 would instead look like the following:
 
 ```
-< HTTP/2 204
-< cache-control: no-cache
-< access-control-allow-origin: *
-< content-type: application/json
-< date: Thu, 02 May 2019 13:46:32 GMT
-< server: Google Frontend
-< content-length: 0
+< HTTP/1.1 204 No Content
+< Cache-Control: no-cache
+< Access-Control-Allow-Origin: *
+< Content-Type: application/json
+< Date: Thu, 02 May 2019 13:46:32 GMT
+< Server: Google Frontend
+< Content-Length: 0
 <
 ```
+
+In such case, an interactive client SHOULD report an error to the
+user, while a non-interactive client MAY retry (see below).
 
 ### Requirements for non-interactive clients
 
@@ -340,7 +539,7 @@ func mainLoop() {
 }
 ```
 
-The locate.measurementlab.net service will return an empty result if
+The locate.measurementlab.net service will return a no-content result if
 M-Lab is out of capacity, as mentioned above. In such case, a non-interactive
 client SHOULD:
 
@@ -352,12 +551,15 @@ backoff by extracting from a normal distribution with increasing average (60,
 the average value.
 
 In our hypotethical Go client, the exponential backoff would be
-implementation like this:
+implementated like this:
 
 ```Go
 func tryPerformanceTest() {
 	for mean := 60.0; mean <= 960.0; mean *= 2.0 {
-		fqdn, err := locateServer()
+		fqdn, err := locatesvc.LocateServer()
+		if err != nil && err != locatesvc.ErrNoContent {
+			return
+		}
 		if err != nil {
 			// Note: RNG already seeded as shown above
 			stdev := 0.05 * mean
@@ -371,13 +573,91 @@ func tryPerformanceTest() {
 }
 ```
 
-## Reference implementation
+## Reference implementations
 
 The reference _server_ implementation is [github.com/m-lab/ndt-server](
-https://github.com/m-lab/ndt-server).
+https://github.com/m-lab/ndt-server). Such repository also contains a
+simplified Go client implementation and a simplified JavaScript implementation,
+which SHOULD only be used for testing server implementations.
 
 The reference _Go client_ is [github.com/m-lab/ndt7-client-go](
 https://github.com/m-lab/ndt7-client-go).
 
 The reference _JavaScript client_ is [github.com/m-lab/ndt7-client-javascript](
 https://github.com/m-lab/ndt7-client-javascript).
+
+## Appendix
+
+This section is non-normative. Here we describe possible implementations
+and provide other information that could be useful to implementors.
+
+### Adapting binary message size
+
+We can double the message size when it becomes smaller than a fixed percentage
+of the number of bytes queued so far. In the following example, we double the
+message size when it is smaller than `1/16` of the queued bytes:
+
+```Go
+	var total int64
+	msg.Resize(1 << 13)
+	for {
+		if err := conn.Send(msg); err != nil {
+			return err
+		}
+		total += msg.Size()
+		if msg.Size() >= (1 << 24) || msg.Size() >= (total / 16) {
+			continue
+		}
+		msg.Resize(msg.Size() * 2)
+	}
+```
+
+This algorithm is such that only faster clients are exposed to larger
+messages, therefore reducing the overhead of receiving many small messages,
+which is especially critical to browser-based clients.
+
+### Using TCPInfo variables
+
+The `ElapsedTime` field indicates the moment in which `TCP_INFO` data has
+been generated, and therefore is generally useful.
+
+The `MinRTT`, `RTT`, and `RTTVar` fields can be used to compute the statistics
+of the round-trip time. The buildup of a large queue is unexpected when using
+BBR. It generally indicates the presence of a bottleneck with a large buffer
+that's filling as the test proceeds. The `MinRTT` can also be useful to verify
+we're using a reasonably nearby-server. Also, an unreasonably small RTT when
+the link is 2G or 3G could indicate a performance enhancing proxy.
+
+The times (`BusyTime`, `RWndLimited`, and `SndBufLimited`) are useful to
+understand where the bottleneck could be. In general we would like to see
+that we've been busy for most of the test runtime. If `RWndLimited` is
+surprisingly non-small, then it means that the receiver does not have enough
+buffering to go faster and it is limiting our performance. Likewise, when
+we're `SndBufLimited`, the sender's buffer is too small. (Because the kernel
+may be autoscaling buffers, it may be that we need to use `sysctl` or other
+tools to further increase the memory usable by TCP.) Also, if adding up
+these three times gives us less time than the duration of the subtest, it
+generally means that the sender was not filling the send buffer fast enough
+for keeping TCP busy, thus slowing us down.
+
+The amount of `BytesAcked` combined with the `ElapsedTime` gives us the
+average speed at which we've been sending, measured in the kernel. Because
+of the measurement unit used, by default the speed will be in bytes per
+microsecond. Typically the speed of file transfers is measured instead in
+bytes per second, so you need to multiply by `10^6`. To obtain the speed
+in bits per second, which is the typical unit with which we measure the
+speed of links (e.g. Wi-Fi), also multiply by `8`.
+
+`BytesReceived` is just like `BytesAcked`, except that `BytesAcked` makes
+sense for the sender (e.g. the server during the download), while
+`BytesReceived` makes sense for the receiver (e.g. the server during
+the upload).
+
+`BytesSent` and `BytesRetrans` can be used to compute the percentage
+of bytes overall that have been retransmitted. In turn, this is value
+approximates the packet loss rate, i.e. the (unknown) probability
+with which the network is likely to drop a packet. This approximation
+is really bad because it assumes that the probability of dropping a
+packet is uniformly distributed, which isn't likely the case. Yet, it
+may be an useful first order information to characterise a network
+as possibly very lossy.
