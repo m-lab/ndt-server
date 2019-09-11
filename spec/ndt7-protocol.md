@@ -14,8 +14,8 @@ This is version v0.8.0 of the ndt7 specification.
 (This section is non-normative.)
 
 Ndt7 measures the application-level download and upload performance
-using WebSockets over TLS. Each measurement is an independent so-called
-subtest; there are two subtests: the download and the upload subtests. Ndt7
+using WebSockets over TLS. Each test type is independent, and
+there are two types of test: the download and the upload tests. Ndt7
 always uses a single TCP connection. Where possible, ndt7 uses a recent
 version of TCP BBR. Writing a ndt7 client should always be easy. A minimal
 ndt7 client should consist of only a few hundred lines of code in most
@@ -49,28 +49,28 @@ with the aim to keep ndt7 clients simple to implement, deeply influence
 several design choices described in this specification, basically leading
 to complexity being shifted from the client to the server side.
 
-Ndt7 should consume few resources. The maximum runtime of a subtest should
+Ndt7 should consume few resources. The maximum runtime of a test should
 be ten seconds, but the server should be able to determine if the performance
-would not change significantly and interrupt the subtest early. This could also
+would not change significantly and interrupt the test early. This could also
 be partly implemented by clients, but we choose to fully implement that into
 the server, for the extensibility and simplicity reasons introduced above.
 
 ## Protocol description
 
 This section describes how ndt7 uses WebSockets, and how clients and
-servers should behave during the download and the upload subtests.
+servers should behave during the download and the upload tests.
 
 ### The WebSocket handshake
 
 The client connects to the server using HTTPS and requests to upgrade the
 connection to WebSockets. The same connection will be used to exchange
 control and measurement messages. The upgrade request URL will indicate
-the type of subtest that the client wants to perform. Two subtests and
+the type of test that the client wants to perform. Two tests and
 hence two URLs are defined:
 
-- `/ndt/v7/download`, which selects the download subtest;
+- `/ndt/v7/download`, which selects the download test;
 
-- `/ndt/v7/upload`, which selects the upload subtest.
+- `/ndt/v7/upload`, which selects the upload test.
 
 The upgrade message MUST also contain the WebSocket subprotocol that
 identifies ndt7, which is `net.measurementlab.ndt.v7`. The URL in the
@@ -139,9 +139,9 @@ ndt7 with languages such as C where reading and writing messages at the
 same time significantly increases the implementation complexity.
 
 Binary messages SHOULD contain random data and are used to generate network
-load. Therefore, during the download subtest the server sends binary
+load. Therefore, during the download test the server sends binary
 messages and the client MUST NOT send them. Likewise, during the upload
-subtest, the client sends binary messages and the server MUST NOT send
+test, the client sends binary messages and the server MUST NOT send
 them. An implementation receiving a binary message when it is not expected
 SHOULD close the underlying TLS connection.
 
@@ -151,17 +151,17 @@ mentioned above. In such case, of course, the message size MUST NOT exceed
 the maximum message size that has been specified above. See the appendix
 for a possible algorithm to dynamically change the message size.
 
-The expected duration of a subtest is up to ten seconds. If a subtest has
+The expected duration of a test is up to ten seconds. If a test has
 been running for at least fifteen seconds, an implementation MAY close the
 underlying TLS connection. This is allowed to keep the overall duration
-of each subtest within a fifteen-seconds upper bound. Ideally this SHOULD
+of each test within a fifteen-seconds upper bound. Ideally this SHOULD
 be implemented so that immediately after fifteen-seconds have elapsed, the
 underlying TLS connection is closed. This can be implemented, e.g., in C/C++
 using alarm(3) to cause pending I/O operations to fail with `EINTR`.
 
 The server MAY initiate a WebSocket closing handshake at any time
-and during any subtest. This tells the client that either the specific
-subtest has run for too much time, or that some other criteria suggests
+and during any test. This tells the client that either the specific
+test has run for too much time, or that some other criteria suggests
 that the measured speed would not change significantly in the future,
 hence continuing the test would waste resources. The client SHOULD be
 prepared to receive such closing handshake and respond accordingly. In
@@ -173,9 +173,9 @@ Yet, in practice, both the client and the server SHOULD tolerate any
 abrupt EOF, RST, or timeout/alarm error received when doing I/O with the
 underlying TLS connection. Such events SHOULD be logged as warnings
 and SHOULD be recorded into the results. Yet, for robustness, we do not
-want such events to cause a whole subtest to fail. This provision
+want such events to cause a whole test to fail. This provision
 gives the ndt7 protocol bizantine robustness, and acknowledges the
-fact that the web is messy and a subtest may terminate more abruptly
+fact that the web is messy and a test may terminate more abruptly
 than it used to happen in our controlled experiments.
 
 ### Measurement message
@@ -206,7 +206,7 @@ has the following structure:
     "UUID": "<platform-specific-string>"
   },
   "Origin": "server",
-  "SubTest": "download",
+  "Test": "download",
   "TCPInfo": {
     "BusyTime": 1234,
     "BytesAcked": 1234,
@@ -229,10 +229,10 @@ Where:
   when an application-level measurement is available:
 
     - `ElapsedTime` (a `int64`) is the time elapsed since the beginning of
-      this subtest, measured in microseconds;
+      this test, measured in microseconds;
 
     - `NumBytes` (a `int64`) is the number of bytes sent (or received) since
-      the beginning of the specific subtest. Note that this counter tracks the
+      the beginning of the specific test. Note that this counter tracks the
       amount of data sent at application level. It does not account for the
       overheaded of the WebSockets, TLS, TCP/IP, and link layers;
 
@@ -262,8 +262,8 @@ Where:
   only be used when the entity that performed the measurement would otherwise
   be ambiguos;
 
-- `SubTest` is an _optional_ `string` that indicates the name of the
-  current subtest. This field SHOULD only be used when the current subtest
+- `Test` is an _optional_ `string` that indicates the name of the
+  current test. This field SHOULD only be used when the current test
   should otherwise not be obvious;
 
 - `TCPInfo` is an _optional_ `object` only included in the measurement
@@ -288,7 +288,7 @@ Where:
       of bytes which have been retransmitted;
 
     - `ElapsedTime` (a `int64`), i.e. the time elapsed since the beginning of
-      this subtest, measured in microseconds;
+      this test, measured in microseconds;
 
     - `MinRTT` aka `tcpi_min_rtt` (a `int64`), i.e. the minimum RTT seen
        by the kernel, measured in microseconds;
@@ -315,8 +315,8 @@ Also note that some kernels may not support all the above mentioned `TCP_INFO`
 variables. In such case, the unsupported variables SHOULD be set to zero.
 
 Moreover, note that all the variables presented above increase or otherwise
-change consistently during a subtest. Therefore, the last measurement sample
-is a suitable summary of what happened during a subtest.
+change consistently during a test. Therefore, the last measurement sample
+is a suitable summary of what happened during a test.
 
 Finally, note that JSON and JavaScript actually define integers as `int53` but
 existing implementations will likely round bigger (or smaller) numbers to
@@ -381,7 +381,7 @@ When the server sends measurement messages, the download becomes:
 Note that we have assumed that measurements arrive with a little of delay
 caused by the queuing delay in the sender's buffer. In some cases, this
 delay may be large enough that clients SHOULD NOT rely on server measurements
-to timely update their user interface during this subtest.
+to timely update their user interface during this test.
 
 During the upload, the server could help a client by sending messages
 containing its application-level measurements:
@@ -430,11 +430,11 @@ as the no-capacity signal (see below) and any other status as failure;
 
 5. MUST NOT assume that the locate service would redirect them to a nearby,
 stable version of the ndt7 server where the server will always send measurement
-messages for every subtest and the subtest duration is ten seconds. We will
+messages for every test and the test duration is ten seconds. We will
 sparingly use the locate service to perform A/B testing, therefore we MAY also
 redirect users to more distant servers, or to cloud servers, or to canary
 servers, as well as to servers that MAY NOT always send measurement messages
-or to servers where the subtest duration MAY be less than ten seconds. A client
+or to servers where the test duration MAY be less than ten seconds. A client
 that is conformant to this specification SHOULD already be prepared to deal
 with all these cases, however this paragraph serves as an additional reminder
 and warning for who is implementing a ndt7 client.
@@ -636,7 +636,7 @@ buffering to go faster and it is limiting our performance. Likewise, when
 we're `SndBufLimited`, the sender's buffer is too small. (Because the kernel
 may be autoscaling buffers, it may be that we need to use `sysctl` or other
 tools to further increase the memory usable by TCP.) Also, if adding up
-these three times gives us less time than the duration of the subtest, it
+these three times gives us less time than the duration of the test, it
 generally means that the sender was not filling the send buffer fast enough
 for keeping TCP busy, thus slowing us down.
 
