@@ -35,11 +35,11 @@ a measurement of your last mile speed. Rather it is a measurement
 of what performance is possible with your device, your current internet
 connection (landline, Wi-Fi, 4G, etc.), the characteristics of
 your ISP and possibly of other ISPs in the middle, and the server
-being used. Also, the main measurement performed by ndt7 does not include
-by default overheads such as the WebSocket, the TLS, the TCP/IP, and
-the link layer headers (even though we also provide kernel-level information
-where `TCP_INFO` is available). For all these reasons we say that ndt7
-performs application-level measurements.
+being used. The main metric measured by ndt7 is the goodput, i.e.,
+the speed measured at application level, without including the
+overheads of WebSockets, TLS, TCP/IP, and link layer headers. But we
+also provide kernel-level information from `TCP_INFO` where available. For
+all these reasons we say that ndt7 performs application-level measurements.
 
 The presence of network issues (e.g. interference or congestion) should
 cause ndt7 to yield "bad" measurement results, where bad is implicitly
