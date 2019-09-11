@@ -319,8 +319,14 @@ specification are REQUIRED to be returned by a compliant, `TCP_INFO` enabled
 implementation of ndt7. A client MAY use other fields, but the absence of
 those fields in a server response MUST NOT be a fatal client error.
 
-Also note that some kernels may not support all the above mentioned `TCP_INFO`
-variables. In such case, the unsupported variables SHOULD be set to zero.
+The `TCP_INFO` variables returned by this specification are supported by the
+Linux kernel used by M-Lab, which is >= 4.19. In the event in which a ndt-server
+implementation is deployed on older kernels, the server implementation SHOULD
+NOT include into the returned `TCPInfo` object variables that are not supported
+by the kernel being used. If the server is running on an operating system
+that does not support `TCP_INFO`, or if it is not otherwise possible to gather
+`TCP_INFO` information, the `TCPInfo` object SHOULD NOT be included into the
+measurement message.
 
 Moreover, note that all the variables presented above increase or otherwise
 change consistently during a test. Therefore, the most recent measurement sample
