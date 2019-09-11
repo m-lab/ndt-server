@@ -42,10 +42,11 @@ also provide kernel-level information from `TCP_INFO` where available. For
 all these reasons we say that ndt7 performs application-level measurements.
 
 The presence of network issues (e.g. interference or congestion) should
-cause ndt7 to yield "bad" measurement results, where bad is implicitly
-defined by comparison to the maximum theoretical speed of the
-end-to-end connection (often times the Wi-Fi or landline data-link
-bitrate). Extra information obtained using `TCP_INFO` should help an expert
+cause ndt7 to yield worse measurement results, relative to the expected speed
+of the end-to-end connection. The expected speed of a BBR connection on an
+unloaded network is the bitrate of the slowest hop in the measurement
+path, and the slowest hop is usually also the last hop.
+Extra information obtained using `TCP_INFO` should help an expert
 reading the results of a ndt7 experiment to better understand what could
 be the root cause of such performance issues.
 
