@@ -17,9 +17,16 @@ Ndt7 measures the application-level download and upload performance
 using WebSockets over TLS. Each test type is independent, and
 there are two types of test: the download and the upload tests. Ndt7
 always uses a single TCP connection. Whenever possible, ndt7 uses a recent
-version of TCP BBR. Writing a ndt7 client should always be easy. A minimal
-ndt7 client should consist of only a few hundred lines of code in most
-languages (not counting library dependencies, unit and integration tests).
+version of TCP BBR. Writing an ndt7 client is designed to be as simple
+as possible. [A complete Go language ndt7 client](
+https://github.com/bassosimone/ndt7-client-go-minimal) has been implemented
+in just 151 lines. We used 26 lines for the download, 33 for the upload, and
+17 for establishing a connections. No code from the NDT server has been
+reused. [A complete JavaScript client](
+https://github.com/bassosimone/ndt7-server-go-minimal/tree/master/static)
+has been implemented in just 122 lines (32 for the download, 51 for the
+upload, and 39 for controlling the maximum test duration). It is a design
+goal of ndt7 that the size of a minimal client remains small over time.
 
 Ndt7 answers the question of how fast you could pull/push data
 from your device to a typically-nearby, well-provisioned web
