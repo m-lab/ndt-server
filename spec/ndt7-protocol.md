@@ -16,7 +16,7 @@ This is version v0.8.0 of the ndt7 specification.
 Ndt7 measures the application-level download and upload performance
 using WebSockets over TLS. Each test type is independent, and
 there are two types of test: the download and the upload tests. Ndt7
-always uses a single TCP connection. Where possible, ndt7 uses a recent
+always uses a single TCP connection. Whenever possible, ndt7 uses a recent
 version of TCP BBR. Writing a ndt7 client should always be easy. A minimal
 ndt7 client should consist of only a few hundred lines of code in most
 languages (not counting library dependencies, unit and integration tests).
