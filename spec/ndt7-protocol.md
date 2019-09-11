@@ -148,7 +148,7 @@ test, the client sends binary messages and the server MUST NOT send
 them. An implementation receiving a binary message when it is not expected
 SHOULD close the underlying TLS connection.
 
-Binary messages SHOULD contain between 1 << 10 and 1 << 24 bytes, and
+Binary messages MUST contain between 1 << 10 and 1 << 24 bytes, and
 SHOULD be a power of two. An implementation SHOULD initially be sending
 binary messages containing 1 << 13 bytes, and it
 MAY change the size of such messages to accommodate for fast clients, as
@@ -158,8 +158,8 @@ change the message size.
 The expected duration of a test is _up to_ ten seconds. If a test has
 been running for at least thirteen seconds, an implementation MAY close the
 underlying TLS connection. This is allowed to keep the overall duration
-of each test within a thirteen-seconds upper bound. Ideally this SHOULD
-be implemented so that immediately after thirteen-seconds have elapsed, the
+of each test within a thirteen second upper bound. Ideally this SHOULD
+be implemented so that immediately after thirteen seconds have elapsed, the
 underlying TLS connection is closed. This can be implemented, e.g., in C/C++
 using alarm(3) to cause pending I/O operations to fail with `EINTR`.
 
@@ -180,7 +180,7 @@ and SHOULD be recorded into the results. For robustness, we do not
 want such events to cause a whole test to fail. This provision
 gives the ndt7 protocol bizantine robustness, and acknowledges the
 fact that the web is messy and a test may terminate more abruptly
-than it used to happen in our controlled experiments.
+than it happened in the past in our controlled experiments.
 
 ### Measurement message
 
@@ -188,7 +188,7 @@ As mentioned above, the server and the client exchange JSON measurements
 using textual WebSocket messages. The purpose of these measurements is to
 provide information useful to diagnose performance issues.
 
-While in theory we could specify all TCP_INFO and BBR_INFO variables,
+While in theory we could specify all `TCP_INFO` and `BBR_INFO` variables,
 different kernel versions provide different subsets of these measurements
 and we do not want to be needlessly restrictive regarding the underlying
 kernel for the server. Instead, 
@@ -262,7 +262,7 @@ Where:
     - `UUID` (a `string`), which contains an internal unique identifier
       for this test within the Measurement Lab (M-Lab) platform. This field
       SHOULD be omitted by servers running on other platforms, unless they
-      also have the concept of an UUID bound to a TCP connection.
+      also have the concept of a UUID bound to a TCP connection.
 
 - `Origin` is an _optional_ `string` that indicates whether the measurement
   has been performed by the client or by the server. This field SHOULD
@@ -276,55 +276,56 @@ Where:
 - `TCPInfo` is an _optional_ `object` only included in the measurement
   when it is possible to access `TCP_INFO` stats. It contains:
 
-    - `BusyTime` aka `tcpi_busy_time` (a `int64`), i.e. the number of
+    - `BusyTime` aka `tcpi_busy_time` (an _optional_ `int64`), i.e. the number of
        microseconds spent actively sending data because the write queue
        of the TCP socket is non-empty.
 
-    - `BytesAcked` aka `tcpi_bytes_acked` (a `int64`), i.e. the number
+    - `BytesAcked` aka `tcpi_bytes_acked` (an _optional_ `int64`), i.e. the number
       of bytes for which we received acknowledgment. Note that this field,
       and all other `TCPInfo` fields, contain the number of bytes measured
       at TCP/IP level (i.e. including the WebSocket and TLS overhead).
 
-    - `BytesReceived` aka `tcpi_bytes_received` (a `int64`), i.e. the number
+    - `BytesReceived` aka `tcpi_bytes_received` (an _optional_ `int64`), i.e. the number
       of bytes for which we sent acknowledgment.
 
-    - `BytesSent` aka `tcpi_bytes_sent` (a `int64`), i.e. the number of bytes
+    - `BytesSent` aka `tcpi_bytes_sent` (an _optional_ `int64`), i.e. the number of bytes
       which have been transmitted _or_ retransmitted.
 
-    - `BytesRetrans` aka `tcpi_bytes_retrans` (a `int64`), i.e. the number
+    - `BytesRetrans` aka `tcpi_bytes_retrans` (an _optional_ `int64`), i.e. the number
       of bytes which have been retransmitted.
 
-    - `ElapsedTime` (a `int64`), i.e. the time elapsed since the beginning of
+    - `ElapsedTime` (an _optional_ `int64`), i.e. the time elapsed since the beginning of
       this test, measured in microseconds.
 
-    - `MinRTT` aka `tcpi_min_rtt` (a `int64`), i.e. the minimum RTT seen
+    - `MinRTT` aka `tcpi_min_rtt` (an _optional_ `int64`), i.e. the minimum RTT seen
        by the kernel, measured in microseconds.
 
-    - `RTT` aka `tcpi_rtt` (a `int64`), i.e. the current smoothed RTT
+    - `RTT` aka `tcpi_rtt` (an _optional_ `int64`), i.e. the current smoothed RTT
       value, measured in microseconds.
 
-    - `RTTVar` aka `tcpi_rtt_var` (a `int64`), i.e. the variance or `RTT`.
+    - `RTTVar` aka `tcpi_rtt_var` (an _optional_ `int64`), i.e. the variance or `RTT`.
 
-    - `RWndLimited` aka `tcpi_rwnd_limited` (a `int64`), i.e. the amount
+    - `RWndLimited` aka `tcpi_rwnd_limited` (an _optional_ `int64`), i.e. the amount
       of microseconds spent stalled because there is not enough
       buffer at the receiver.
 
-    - `SndBufLimited` aka `tcpi_sndbuf_limited` (a `int64`), i.e. the amount
+    - `SndBufLimited` aka `tcpi_sndbuf_limited` (an _optional_ `int64`), i.e. the amount
       of microseconds spent stalled because there is not enough buffer at
       the sender.
 
 Note that the JSON exchanged on the wire, or saved on disk, MAY possibly
 contain more `TCP_INFO` fields. Yet, only the fields described in this
-specification are REQUIRED to be returned by a compliant, `TCP_INFO` enabled
+specification SHOULD BE returned by a compliant, `TCP_INFO` enabled
 implementation of ndt7. A client MAY use other fields, but the absence of
-those fields in a server response MUST NOT be a fatal client error.
+those other fields in a server response MUST NOT be a fatal client error.
 
-The `TCP_INFO` variables returned by this specification are supported by the
-Linux kernel used by M-Lab, which is >= 4.19. To protect against the fact that
-an older kernel may not define all the variables, an implementation SHOULD
-initialize the `struct tcp_info` passed to the kernel such that every variable
-value is `-1`, e.g. using `memset(buff, 0xff, sizeof(buf))`. A client SHOULD
-be ready to ignore the variables having such sentinel values.
+The `TCP_INFO` variables mentioned by this specification are supported by the
+Linux kernel used by M-Lab, which is >= 4.19. An implementation running on
+a kernel where a specific `TCP_INFO` variable mentioned in this specification
+is missing SHOULD NOT include such variable in the `TCPInfo` object sent to
+the client. In this regard, clients should be robust to missing data. Missing
+data SHOULD NOT cause a client to crash, although it is allowable for it to
+cause an inferior user experience.
 
 Moreover, note that all the variables presented above increase or otherwise
 change consistently during a test. Therefore, the most recent measurement sample
