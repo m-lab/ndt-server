@@ -57,8 +57,8 @@ Valid JSON metadata object in ClientMetadata could look like this:
 
 ```JSON
 {
-  "client_library_name":"libndt7.js",
-  "client_library_version":"0.4"
+  "ClientLibraryName": "libndt7.js",
+  "ClientLibraryVersion": "0.4"
 }
 ```
 
@@ -69,21 +69,16 @@ represent individual measurements recorded by the client or server.
 
 A measurement is a JSON object containing the fields specified by
 [ndt7-protocol.md](ndt7-protocol.md) in the "Measurements message" section,
-except that a server MAY choose to remove the "connection_info" optional
+except that a server MAY choose to remove the "ConnectionInfo" optional
 object to avoid storing duplicate information.
 
 A valid measurement JSON could be:
 
 ```JSON
 {
-  "bbr_info": {
-    "max_bandwidth": 12345,
-    "min_rtt": 123.4
-  },
-  "elapsed": 1.2345,
-  "tcp_info": {
-    "rtt_var": 123.4,
-    "smoothed_rtt": 567.8
+  "AppInfo": {
+    "ElapsedTime": 1234,
+    "NumBytes": 1234
   }
 }
 ```
