@@ -320,13 +320,11 @@ implementation of ndt7. A client MAY use other fields, but the absence of
 those fields in a server response MUST NOT be a fatal client error.
 
 The `TCP_INFO` variables returned by this specification are supported by the
-Linux kernel used by M-Lab, which is >= 4.19. In the event in which a ndt-server
-implementation is deployed on older kernels, the server implementation SHOULD
-NOT include into the returned `TCPInfo` object variables that are not supported
-by the kernel being used. If the server is running on an operating system
-that does not support `TCP_INFO`, or if it is not otherwise possible to gather
-`TCP_INFO` information, the `TCPInfo` object SHOULD NOT be included into the
-measurement message.
+Linux kernel used by M-Lab, which is >= 4.19. To protect against the fact that
+an older kernel may not define all the variables, an implementation SHOULD
+initialize the `struct tcp_info` passed to the kernel such that every variable
+value is `-1`, e.g. using `memset(buff, 0xff, sizeof(buf))`. A client SHOULD
+be ready to ignore the variables having such sentinel values.
 
 Moreover, note that all the variables presented above increase or otherwise
 change consistently during a test. Therefore, the most recent measurement sample
