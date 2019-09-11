@@ -50,18 +50,13 @@ Extra information obtained using `TCP_INFO` should help an expert
 reading the results of a ndt7 experiment to better understand what could
 be the root cause of such performance issues.
 
-Ndt7 should be easily extensible and future proof. We want to add new
-functionality without requiring changes to existing clients. We also want
-to be able to run A/B experiments with existing clients. These facts, along
-with the aim to keep ndt7 clients simple to implement, deeply influence
-several design choices described in this specification, basically leading
-to complexity being shifted from the client to the server side.
+To ensure that clients continue to work, we make the design choice that
+clients should be maximally simple, and that all complexity should
+implemented on the server side.
 
 Ndt7 should consume few resources. The maximum runtime of a test should
 be ten seconds, but the server should be able to determine if the performance
-would not change significantly and interrupt the test early. This could also
-be partly implemented by clients, but we choose to fully implement that into
-the server, for the extensibility and simplicity reasons introduced above.
+if performance has stabilized in less than ten seconds and end the test early.
 
 ## Protocol description
 
@@ -83,7 +78,7 @@ hence two URLs are defined:
 The upgrade message MUST also contain the WebSocket subprotocol that
 identifies ndt7, which is `net.measurementlab.ndt.v7`. The URL in the
 upgrade request MAY contain optional query-string parameters, which
-will be saved as metadata describing the client. The client MUST also
+will be saved as metadata describing the client. The client SHOULD also
 include a meaningful, non-generic User-Agent string.
 
 The query string MUST NOT be longer than 4096 bytes. Both the name and
@@ -112,7 +107,7 @@ the connection to WebSocket or return a 4xx failure if the
 request does not look correct (e.g. if the WebSocket subprotocol
 is missing). Of course, also the query string MUST be parsed
 and the upgrade MUST fail if the query string is not parseable
-or not acceptable. The server MUST store the metadata sent by
+or not acceptable. The server SHOULD store the metadata sent by
 the client using the query string.
 
 The upgrade response MUST contain the selected subprotocol in compliance
@@ -153,17 +148,18 @@ test, the client sends binary messages and the server MUST NOT send
 them. An implementation receiving a binary message when it is not expected
 SHOULD close the underlying TLS connection.
 
-Binary messages SHOULD contain 1 << 13 bytes by default. An implementation
+Binary messages SHOULD contain between 1 << 10 and 1 << 24 bytes, and
+SHOULD be a power of two. An implementation SHOULD initially be sending
+binary messages containing 1 << 13 bytes, and it
 MAY change the size of such messages to accommodate for fast clients, as
-mentioned above. In such case, of course, the message size MUST NOT exceed
-the maximum message size that has been specified above. See the appendix
-for a possible algorithm to dynamically change the message size.
+mentioned above. See the appendix for a possible algorithm to dynamically
+change the message size.
 
-The expected duration of a test is up to ten seconds. If a test has
-been running for at least fifteen seconds, an implementation MAY close the
+The expected duration of a test is _up to_ ten seconds. If a test has
+been running for at least thirteen seconds, an implementation MAY close the
 underlying TLS connection. This is allowed to keep the overall duration
-of each test within a fifteen-seconds upper bound. Ideally this SHOULD
-be implemented so that immediately after fifteen-seconds have elapsed, the
+of each test within a thirteen-seconds upper bound. Ideally this SHOULD
+be implemented so that immediately after thirteen-seconds have elapsed, the
 underlying TLS connection is closed. This can be implemented, e.g., in C/C++
 using alarm(3) to cause pending I/O operations to fail with `EINTR`.
 
@@ -177,10 +173,10 @@ accordance with RFC 6455 Sect 7.1.1, once the WebSocket closing handshake
 is complete, the server SHOULD close the underlying TLS connection,
 while the client SHOULD wait and see whether the server closes it first.
 
-Yet, in practice, both the client and the server SHOULD tolerate any
+In practice, both the client and the server SHOULD tolerate any
 abrupt EOF, RST, or timeout/alarm error received when doing I/O with the
 underlying TLS connection. Such events SHOULD be logged as warnings
-and SHOULD be recorded into the results. Yet, for robustness, we do not
+and SHOULD be recorded into the results. For robustness, we do not
 want such events to cause a whole test to fail. This provision
 gives the ndt7 protocol bizantine robustness, and acknowledges the
 fact that the web is messy and a test may terminate more abruptly
@@ -192,7 +188,10 @@ As mentioned above, the server and the client exchange JSON measurements
 using textual WebSocket messages. The purpose of these measurements is to
 provide information useful to diagnose performance issues.
 
-While in theory we could specify all `TCP_INFO` and `BBR_INFO` variables,
+While in theory we could specify all TCP_INFO and BBR_INFO variables,
+different kernel versions provide different subsets of these measurements
+and we do not want to be needlessly restrictive regarding the underlying
+kernel for the server. Instead, 
 our guiding principle is to describe only the variables that in our
 experience are useful to understand performance issues. More variables
 could be added in the future. No variables should be removed, but, if
@@ -237,12 +236,12 @@ Where:
   when an application-level measurement is available:
 
     - `ElapsedTime` (a `int64`) is the time elapsed since the beginning of
-      this test, measured in microseconds;
+      this test, measured in microseconds.
 
     - `NumBytes` (a `int64`) is the number of bytes sent (or received) since
       the beginning of the specific test. Note that this counter tracks the
       amount of data sent at application level. It does not account for the
-      overheaded of the WebSockets, TLS, TCP/IP, and link layers;
+      overheaded of the WebSockets, TLS, TCP/IP, and link layers.
 
 - `ConnectionInfo` is an _optional_ `object` used to provide information
   about the connection four tuple. Clients MUST NOT send this message. Servers
@@ -254,11 +253,11 @@ Where:
       endpoint according to the server. Note that the general format of
       this field is `<address>:<port>` where IPv4 addresses are provided
       verbatim, while IPv6 addresses are quoted by `[` and `]` as shown
-      in the above example;
+      in the above example.
 
     - `Server` (a `string`), which contains the serialization of the server
       endpoint according to the server, following the same general format
-      specified above for the `Client` field;
+      specified above for the `Client` field.
 
     - `UUID` (a `string`), which contains an internal unique identifier
       for this test within the Measurement Lab (M-Lab) platform. This field
@@ -268,47 +267,47 @@ Where:
 - `Origin` is an _optional_ `string` that indicates whether the measurement
   has been performed by the client or by the server. This field SHOULD
   only be used when the entity that performed the measurement would otherwise
-  be ambiguos;
+  be ambiguous.
 
 - `Test` is an _optional_ `string` that indicates the name of the
   current test. This field SHOULD only be used when the current test
-  should otherwise not be obvious;
+  should otherwise not be obvious.
 
 - `TCPInfo` is an _optional_ `object` only included in the measurement
   when it is possible to access `TCP_INFO` stats. It contains:
 
     - `BusyTime` aka `tcpi_busy_time` (a `int64`), i.e. the number of
        microseconds spent actively sending data because the write queue
-       of the TCP socket is non-empty;
+       of the TCP socket is non-empty.
 
     - `BytesAcked` aka `tcpi_bytes_acked` (a `int64`), i.e. the number
       of bytes for which we received acknowledgment. Note that this field,
       and all other `TCPInfo` fields, contain the number of bytes measured
-      at TCP/IP level (i.e. including the WebSocket and TLS overhead);
+      at TCP/IP level (i.e. including the WebSocket and TLS overhead).
 
     - `BytesReceived` aka `tcpi_bytes_received` (a `int64`), i.e. the number
-      of bytes for which we sent acknowledgment;
+      of bytes for which we sent acknowledgment.
 
     - `BytesSent` aka `tcpi_bytes_sent` (a `int64`), i.e. the number of bytes
-      which have been transmitted _or_ retransmitted;
+      which have been transmitted _or_ retransmitted.
 
     - `BytesRetrans` aka `tcpi_bytes_retrans` (a `int64`), i.e. the number
-      of bytes which have been retransmitted;
+      of bytes which have been retransmitted.
 
     - `ElapsedTime` (a `int64`), i.e. the time elapsed since the beginning of
-      this test, measured in microseconds;
+      this test, measured in microseconds.
 
     - `MinRTT` aka `tcpi_min_rtt` (a `int64`), i.e. the minimum RTT seen
-       by the kernel, measured in microseconds;
+       by the kernel, measured in microseconds.
 
     - `RTT` aka `tcpi_rtt` (a `int64`), i.e. the current smoothed RTT
-      value, measured in microseconds;
+      value, measured in microseconds.
 
-    - `RTTVar` aka `tcpi_rtt_var` (a `int64`), i.e. the variance or `RTT`;
+    - `RTTVar` aka `tcpi_rtt_var` (a `int64`), i.e. the variance or `RTT`.
 
     - `RWndLimited` aka `tcpi_rwnd_limited` (a `int64`), i.e. the amount
       of microseconds spent stalled because there is not enough
-      buffer at the receiver;
+      buffer at the receiver.
 
     - `SndBufLimited` aka `tcpi_sndbuf_limited` (a `int64`), i.e. the amount
       of microseconds spent stalled because there is not enough buffer at
@@ -317,21 +316,22 @@ Where:
 Note that the JSON exchanged on the wire, or saved on disk, MAY possibly
 contain more `TCP_INFO` fields. Yet, only the fields described in this
 specification are REQUIRED to be returned by a compliant, `TCP_INFO` enabled
-implementation of ndt7. You SHOULD NOT rely on other fields.
+implementation of ndt7. A client MAY use other fields, but the absence of
+those fields in a server response MUST NOT be a fatal client error.
 
 Also note that some kernels may not support all the above mentioned `TCP_INFO`
 variables. In such case, the unsupported variables SHOULD be set to zero.
 
 Moreover, note that all the variables presented above increase or otherwise
-change consistently during a test. Therefore, the last measurement sample
-is a suitable summary of what happened during a test.
+change consistently during a test. Therefore, the most recent measurement sample
+is a suitable summary of all prior measurements, and the last measurement received
+should be treated as the summary message for the test.
 
 Finally, note that JSON and JavaScript actually define integers as `int53` but
 existing implementations will likely round bigger (or smaller) numbers to
 the nearest `float64` value. A pedantic implementation MAY want to be overly
 defensive and make sure that it does not emit values that a `int53` cannot
-represent. If it decides to handle this OPTIONAL case, then the implementation
-MUST NOT emit a message that it has determined to be possibly ambiguous.
+represent.
 
 ### Examples
 
@@ -423,29 +423,27 @@ section only applies to clients using M-Lab infrastructure. Clients
 using other server infrastructure MUST refer to the documentation
 provided by such infrastructure instead.
 
-Clients:
+Clients using the M-Lab ndt7 infrastructure:
 
 1. SHOULD use the [locate.measurementlab.net](
 https://locate.measurementlab.net/) server-discovery web API;
 
-2. MUST query for the `ndt7` locate.measurementlab.net tool (see below for a
+2. SHOULD query for the `ndt7` locate.measurementlab.net tool (see below for a
 description of how a real request would look like);
 
-3. MUST set `User-Agent` to identify themselves;
+3. SHOULD set `User-Agent` to identify themselves;
 
 4. MUST correctly handle `3xx` redirects, interpret `200` as success, `204`
 as the no-capacity signal (see below) and any other status as failure;
 
-5. MUST NOT assume that the locate service would redirect them to a nearby,
-stable version of the ndt7 server where the server will always send measurement
-messages for every test and the test duration is ten seconds. We will
-sparingly use the locate service to perform A/B testing, therefore we MAY also
-redirect users to more distant servers, or to cloud servers, or to canary
-servers, as well as to servers that MAY NOT always send measurement messages
-or to servers where the test duration MAY be less than ten seconds. A client
-that is conformant to this specification SHOULD already be prepared to deal
-with all these cases, however this paragraph serves as an additional reminder
-and warning for who is implementing a ndt7 client.
+5. MUST NOT assume that the locate service will always geographically
+locate them to the same server, or always to the strictly nearest server,
+or to a server running a particular version of the code, or to a server
+that will always run a 10 second test instead of a shorter test. Rollouts
+on the M-Lab platform happen gradually, and canary tests of new server
+versions happen regularly, which means that different servers may be
+running different code versions. Well-written clients should already be
+robust to these scenarios, but we note them here as an additional reminder.
 
 The no-capacity signal is emitted by the locate.measurementlab.net service
 when M-Lab is out of capacity. In such cases, the return code is `204`,
@@ -586,7 +584,9 @@ func tryPerformanceTest() {
 The reference _server_ implementation is [github.com/m-lab/ndt-server](
 https://github.com/m-lab/ndt-server). Such repository also contains a
 simplified Go client implementation and a simplified JavaScript implementation,
-which SHOULD only be used for testing server implementations.
+the library for which may be useful to others in building their own speed
+test websites. This code SHOULD also be used to test server implementations,
+and as a very basic client for occasional use.
 
 The reference _Go client_ is [github.com/m-lab/ndt7-client-go](
 https://github.com/m-lab/ndt7-client-go).
@@ -639,11 +639,9 @@ the link is 2G or 3G could indicate a performance enhancing proxy.
 The times (`BusyTime`, `RWndLimited`, and `SndBufLimited`) are useful to
 understand where the bottleneck could be. In general we would like to see
 that we've been busy for most of the test runtime. If `RWndLimited` is
-surprisingly non-small, then it means that the receiver does not have enough
+large, then it means that the receiver does not have enough
 buffering to go faster and it is limiting our performance. Likewise, when
-we're `SndBufLimited`, the sender's buffer is too small. (Because the kernel
-may be autoscaling buffers, it may be that we need to use `sysctl` or other
-tools to further increase the memory usable by TCP.) Also, if adding up
+`SndBufLimited` is large, the sender's buffer is too small. Also, if adding up
 these three times gives us less time than the duration of the test, it
 generally means that the sender was not filling the send buffer fast enough
 for keeping TCP busy, thus slowing us down.
@@ -668,4 +666,5 @@ with which the network is likely to drop a packet. This approximation
 is really bad because it assumes that the probability of dropping a
 packet is uniformly distributed, which isn't likely the case. Yet, it
 may be an useful first order information to characterise a network
-as possibly very lossy.
+as possibly very lossy. Some packet loss is normal and healthy, but
+too much packet loss is the sign of a network path with systemic problems.
