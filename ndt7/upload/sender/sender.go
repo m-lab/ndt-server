@@ -23,13 +23,17 @@ func loop(
 			// make sure we drain the channel
 		}
 	}()
+	err := conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
+	if err != nil {
+		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
+		return
+	}
 	for {
 		m, ok := <-src
 		if !ok { // This means that the previous step has terminated
 			closer.StartClosing(conn)
 			return
 		}
-		conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
 		if err := conn.WriteJSON(m); err != nil {
 			logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
 			return

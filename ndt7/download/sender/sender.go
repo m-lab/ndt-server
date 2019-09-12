@@ -38,6 +38,11 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 		logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
 		return
 	}
+	err = conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
+	if err != nil {
+		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
+		return
+	}
 	var totalSent int64
 	for {
 		select {
@@ -46,14 +51,12 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 				closer.StartClosing(conn)
 				return
 			}
-			conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
 			if err := conn.WriteJSON(m); err != nil {
 				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
 				return
 			}
 			dst <- m // Liveness: this is blocking
 		default:
-			conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
 			if err := conn.WritePreparedMessage(preparedMessage); err != nil {
 				logging.Logger.WithError(err).Warn(
 					"sender: conn.WritePreparedMessage failed",

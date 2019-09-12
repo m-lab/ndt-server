@@ -30,6 +30,11 @@ func loop(
 	conn.SetReadLimit(spec.MaxMessageSize)
 	receiverctx, cancel := context.WithTimeout(ctx, spec.MaxRuntime)
 	defer cancel()
+	err := conn.SetReadDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
+	if err != nil {
+		logging.Logger.WithError(err).Warn("receiver: conn.SetReadDeadline failed")
+		return
+	}
 	for {
 		select {
 		case <-receiverctx.Done(): // Liveness!
@@ -38,7 +43,6 @@ func loop(
 		default:
 			// FALLTHROUGH
 		}
-		conn.SetReadDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
 		mtype, mdata, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
