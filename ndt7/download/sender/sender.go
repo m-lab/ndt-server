@@ -32,12 +32,13 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 		}
 	}()
 	logging.Logger.Debug("sender: generating random buffer")
-	const bulkMessageSize = 1 << 13
+	bulkMessageSize := 1 << 13
 	preparedMessage, err := makePreparedMessage(bulkMessageSize)
 	if err != nil {
 		logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
 		return
 	}
+	var totalSent int64
 	for {
 		select {
 		case m, ok := <-src:
@@ -57,6 +58,26 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 				logging.Logger.WithError(err).Warn(
 					"sender: conn.WritePreparedMessage failed",
 				)
+				return
+			}
+			// The following block of code implements the scaling of message size
+			// as recommended in the spec's appendix. We're not accounting for the
+			// size of JSON messages because that is small compared to the bulk
+			// message size. The net effect is slightly slowing down the scaling,
+			// but this is currently fine. We need to gather data from large
+			// scale deployments of this algorithm anyway, so there's no point
+			// in engaging in fine grained calibration before knowing.
+			totalSent += int64(bulkMessageSize)
+			if totalSent >= spec.MaxScaledMessageSize {
+				continue // No further scaling is required
+			}
+			if int64(bulkMessageSize) > totalSent/spec.ScalingFraction {
+				continue // message size still too big compared to sent data
+			}
+			bulkMessageSize <<= 1
+			preparedMessage, err = makePreparedMessage(bulkMessageSize)
+			if err != nil {
+				logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
 				return
 			}
 		}
