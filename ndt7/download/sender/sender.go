@@ -38,7 +38,7 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 		logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
 		return
 	}
-	err = conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
+	err = conn.SetWriteDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
 	if err != nil {
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
 		return
@@ -92,8 +92,9 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 // will also be emitted to the returned channel.
 //
 // Liveness guarantee: the sender will not be stuck sending for more then
-// the DefaultRuntime of the subtest, provided that the consumer will
-// continue reading from the returned channel.
+// the MaxRuntime of the subtest, provided that the consumer will
+// continue reading from the returned channel. This is enforced by
+// setting the write deadline to Time.Now() + MaxRuntime.
 func Start(conn *websocket.Conn, src <-chan model.Measurement) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
 	go loop(conn, src, dst)
