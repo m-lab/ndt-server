@@ -57,8 +57,8 @@ func (cl Client) Download() error {
 			mm := model.Measurement{
 				AppInfo: &model.AppInfo{
 					NumBytes: num,
+					ElapsedTime: int64(t1.Sub(t0)/time.Microsecond),
 				},
-				Elapsed: t1.Sub(t0).Seconds(),
 			}
 			data, err := json.Marshal(mm)
 			if err != nil {
