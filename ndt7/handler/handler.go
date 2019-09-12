@@ -3,7 +3,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -63,9 +62,6 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 	}
 	conn, err := upgrader.Upgrade(writer, request, headers)
 	if err != nil {
-		warnAndClose(writer, fmt.Sprintf(
-			"downloadOrUpload: cannnot UPGRADE to WebSocket: %s", err,
-		))
 		return
 	}
 	// TODO(bassosimone): an error before this point means that the *os.File
