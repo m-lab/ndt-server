@@ -22,9 +22,6 @@ import (
 
 // Handler handles ndt7 subtests.
 type Handler struct {
-	// Upgrader is the WebSocket upgrader.
-	Upgrader websocket.Upgrader
-
 	// DataDir is the directory where results are saved.
 	DataDir string
 }
@@ -57,7 +54,14 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 	}
 	headers := http.Header{}
 	headers.Add("Sec-WebSocket-Protocol", spec.SecWebSocketProtocol)
-	conn, err := h.Upgrader.Upgrade(writer, request, headers)
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true // Allow cross origin resource sharing
+		},
+		ReadBufferSize:  spec.MaxMessageSize,
+		WriteBufferSize: spec.MaxMessageSize,
+	}
+	conn, err := upgrader.Upgrade(writer, request, headers)
 	if err != nil {
 		warnAndClose(writer, fmt.Sprintf(
 			"downloadOrUpload: cannnot UPGRADE to WebSocket: %s", err,

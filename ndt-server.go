@@ -10,8 +10,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/gorilla/websocket"
-
 	"github.com/m-lab/go/prometheusx"
 
 	"github.com/m-lab/go/flagx"
@@ -158,11 +156,6 @@ func main() {
 		ndt7Mux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
 		ndt7Handler := &handler.Handler{
 			DataDir: *dataDir + "/ndt7",
-			Upgrader: websocket.Upgrader{
-				CheckOrigin: func(r *http.Request) bool {
-					return true // Allow cross origin resource sharing
-				},
-			},
 		}
 		ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
 		ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
