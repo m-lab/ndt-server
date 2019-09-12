@@ -15,13 +15,9 @@ import (
 func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	data := make([]byte, size)
-	// This is not the fastest algorithm to generate a random string, yet it
-	// is most likely good enough for our purposes. See [1] for a comprehensive
-	// discussion regarding how to generate a random string in Golang.
-	//
-	// .. [1] https://stackoverflow.com/a/31832326/4354461
-	for i := range data {
-		data[i] = letterBytes[rand.Intn(len(letterBytes))]
+	_, err := rand.Read(data)
+	if err != nil {
+		return nil, err
 	}
 	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 }
