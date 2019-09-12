@@ -35,14 +35,7 @@ func loop(
 		logging.Logger.WithError(err).Warn("receiver: conn.SetReadDeadline failed")
 		return
 	}
-	for {
-		select {
-		case <-receiverctx.Done(): // Liveness!
-			logging.Logger.Debug("receiver: context done")
-			return
-		default:
-			// FALLTHROUGH
-		}
+	for receiverctx.Err() == nil { // Liveness!
 		mtype, mdata, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
