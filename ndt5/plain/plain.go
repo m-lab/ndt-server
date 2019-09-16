@@ -28,6 +28,7 @@ type plainServer struct {
 	dialer   *net.Dialer
 	listener *net.TCPListener
 	datadir  string
+	timeout  time.Duration
 }
 
 func (ps *plainServer) SingleServingServer(direction string) (ndt.SingleMeasurementServer, error) {
@@ -39,7 +40,10 @@ func (ps *plainServer) SingleServingServer(direction string) (ndt.SingleMeasurem
 // first time, but enough clients exist that need it that we are keeping it in
 // this code. In the future, if you are thinking of adding protocol sniffing to
 // your system, don't.
-func (ps *plainServer) sniffThenHandle(conn net.Conn) {
+func (ps *plainServer) sniffThenHandle(ctx context.Context, conn net.Conn) {
+	defer warnonerror.Close(conn, "Could not close connection")
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	// Peek at the first three bytes. If they are "GET", then this is an HTTP
 	// conversation and should be forwarded to the HTTP server.
 	input := bufio.NewReader(conn)
@@ -75,18 +79,23 @@ func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 			io.Copy(conn, fwd)
 			wg.Done()
 		}()
-		// When both Copy calls are done, close everything.
+		// When the waitgroup is done, cancel the context.
 		go func() {
 			wg.Wait()
-			conn.Close()
-			fwd.Close()
+			cancel()
 		}()
+		// When the context is canceled, close everything. Note that this could be
+		// caused by the context timing out, which should cause fwd and conn to close,
+		// which should terminate the waitgroup. No matter what happens, by the time
+		// the return executes all the above goroutines should be closed or closing.
+		<-ctx.Done()
+		conn.Close()
+		fwd.Close()
 		return
 	}
 
 	// If there was no error and there was no GET, then this should be treated as a
 	// legitimate attempt to perform a non-ws-based NDT test.
-	defer warnonerror.Close(conn, "Could not close connection")
 
 	// First, send the kickoff message (which is only sent for non-WS clients),
 	// then transition to the protocol engine where everything should be the same
@@ -118,21 +127,20 @@ func (ps *plainServer) ListenAndServe(ctx context.Context, addr string) error {
 		for ctx.Err() == nil {
 			conn, err := ln.Accept()
 			if err != nil {
-				if ctx.Err() != nil {
-					break
-				}
 				log.Println("Failed to accept connection:", err)
 				continue
 			}
 			go func() {
+				connCtx, connCtxCancel := context.WithTimeout(ctx, ps.timeout)
 				defer func() {
+					connCtxCancel()
 					r := recover()
 					if r != nil {
 						// TODO add a metric for this.
 						log.Println("Recovered from panic in RawServer", r)
 					}
 				}()
-				ps.sniffThenHandle(conn)
+				ps.sniffThenHandle(connCtx, conn)
 			}()
 		}
 	}()
@@ -194,5 +202,7 @@ func NewServer(datadir, wsAddr string) Server {
 			Timeout: 1 * time.Second,
 		},
 		datadir: datadir,
+		// No client should wait around for more than 2 minutes.
+		timeout: 2 * time.Minute,
 	}
 }

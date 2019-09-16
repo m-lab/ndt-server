@@ -1,4 +1,4 @@
-package plain_test
+package plain
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 
 	"github.com/m-lab/go/httpx"
 	"github.com/m-lab/go/rtx"
-	"github.com/m-lab/ndt-server/ndt5/plain"
 )
 
 func TestNewPlainServer(t *testing.T) {
@@ -24,6 +23,19 @@ func TestNewPlainServer(t *testing.T) {
 	h.HandleFunc("/test_url", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		success++
+	})
+	// This will transfer data for 100 seconds. Only access it to test whether
+	// things will timeout in less than 100 seconds.
+	h.HandleFunc("/test_slow_url", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		end := time.Now().Add(100 * time.Second)
+		var err error
+		for time.Now().Before(end) && err == nil {
+			_, err = w.Write([]byte("test"))
+		}
+		if err == nil {
+			t.Error("We expected a write error but it weas nil")
+		}
 	})
 	wsSrv := &http.Server{
 		Addr:    ":0",
@@ -38,7 +50,7 @@ func TestNewPlainServer(t *testing.T) {
 	}
 
 	// Set up the plain server
-	tcpS := plain.NewServer(d, wsSrv.Addr)
+	tcpS := NewServer(d, wsSrv.Addr)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rtx.Must(tcpS.ListenAndServe(ctx, ":0"), "Could not start tcp server")
@@ -69,14 +81,29 @@ func TestNewPlainServer(t *testing.T) {
 			t.Error("We should not have been able to start a second server")
 		}
 	})
+
+	t.Run("Test that timeouts actually timeout", func(t *testing.T) {
+		ps := tcpS.(*plainServer)
+		ps.timeout = 100 * time.Millisecond
+		url := "http://" + tcpS.Addr().String() + "/test_slow_url"
+		start := time.Now()
+		http.Get(url)
+		end := time.Now()
+		// It's a 100 second download happening with a .1 second timeout. It should
+		// definitely finish in less than 5 seconds, even on a slow cloud machine
+		// starved for IOps and interrupt processing capacity.
+		if end.Sub(start) > 5*time.Second {
+			t.Error("Took more than 5 seconds for forwarded connection to timeout:", end.Sub(start))
+		}
+	})
 }
 
 func TestNewPlainServerBrokenForwarding(t *testing.T) {
 	d, err := ioutil.TempDir("", "TestNewPlainServerBrokenForwarding")
 	rtx.Must(err, "Could not create tempdir")
 	defer os.RemoveAll(d)
-	// Set up the plain server.
-	tcpS := plain.NewServer(d, "127.0.0.1:1")
+	// Set up the plain server forwarding to a non-open port.
+	tcpS := NewServer(d, "127.0.0.1:1")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rtx.Must(tcpS.ListenAndServe(ctx, ":0"), "Could not start tcp server")
