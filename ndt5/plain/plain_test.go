@@ -34,7 +34,7 @@ func TestNewPlainServer(t *testing.T) {
 			_, err = w.Write([]byte("test"))
 		}
 		if err == nil {
-			t.Error("We expected a write error but it weas nil")
+			t.Error("We expected a write error but it was nil")
 		}
 	})
 	wsSrv := &http.Server{
