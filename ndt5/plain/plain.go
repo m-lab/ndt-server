@@ -88,16 +88,24 @@ func (ps *plainServer) sniffThenHandle(ctx context.Context, conn net.Conn) {
 			wg.Wait()
 			cancel()
 		}()
-		// When the context is canceled, close everything. Note that this could be
-		// caused by (1) the context timing out or being canceled, which will cause
-		// fwd to close, which should cause each Copy() to terminate and the
-		// waitgroup.Wait() to complete or (2) by the waitgroup.Wait() completing
-		// successfully. No matter what happens, by the time the return executes all
-		// the above goroutines should be unblocked and either already done or in the
-		// process of running to completion.
+		// When the context is canceled, close `fwd` and return (returning closes
+		// `conn`). Note that this cancellation could be caused by:
+		//
+		//   1. The context times out or is explicitly canceled, which causes fwd to
+		//   close, causing each Copy() to terminate and the waitgroup.Wait() to
+		//   complete.
+		//    OR
+		//   2. The other side of the connection closes `conn` or `fwd`, either of which
+		//   causes the `Copy` operations to terminate, which causes waitgroup.Wait() to
+		//   return, which cancels the context.
+		//
+		// No matter what happens, by the time the return executes all the above
+		// goroutines should be unblocked and be either already done or in the process
+		// of running to completion.
 		<-ctx.Done()
 		if err := ctx.Err(); err == context.DeadlineExceeded {
 			log.Println("Connection", conn, "timed out")
+			ndt5metrics.ClientForwardingTimeouts.Inc()
 		}
 		fwd.Close()
 		return
