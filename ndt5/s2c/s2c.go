@@ -152,8 +152,14 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 
 	err = protocol.SendMetrics(web100metrics, m, "")
 	if err != nil {
-		log.Println("Could not SendMetrics", err)
-		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "SendMetrics").Inc()
+		log.Println("Could not SendMetrics for the legacy data", err)
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "SendMetricsLegacy").Inc()
+		return record, err
+	}
+	err = protocol.SendMetrics(record, m, "NDTResult.S2C.")
+	if err != nil {
+		log.Println("Could not SendMetrics for the archival data", err)
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "SendMetricsArchival").Inc()
 		return record, err
 	}
 

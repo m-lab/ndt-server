@@ -145,8 +145,21 @@ func SendMetrics(metrics interface{}, m Messager, prefix string) error {
 			if err != nil {
 				return err
 			}
+		case reflect.String:
+			msg := fmt.Sprintf("%s%s: %s\n", prefix, name, v.Field(i).String())
+			err := m.SendMessage(TestMsg, []byte(msg))
+			if err != nil {
+				return err
+			}
 		case reflect.Struct:
-			err := SendMetrics(v.Field(i).Interface(), m, prefix+name+".")
+			data := v.Field(i).Interface()
+			var err error
+			if s, ok := data.(fmt.Stringer); ok {
+				msg := fmt.Sprintf("%s%s: %s\n", prefix, name, s.String())
+				err = m.SendMessage(TestMsg, []byte(msg))
+			} else {
+				err = SendMetrics(v.Field(i).Interface(), m, prefix+name+".")
+			}
 			if err != nil {
 				return err
 			}

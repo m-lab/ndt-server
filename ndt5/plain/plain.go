@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/ndt5"
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
@@ -41,7 +40,12 @@ func (ps *plainServer) SingleServingServer(direction string) (ndt.SingleMeasurem
 // this code. In the future, if you are thinking of adding protocol sniffing to
 // your system, don't.
 func (ps *plainServer) sniffThenHandle(ctx context.Context, conn net.Conn) {
-	defer warnonerror.Close(conn, "Could not close connection")
+	// This close will frequently happen after clients have already "fled the
+	// scene" after a successful test. It is an expected case that this might
+	// happen after the connection has already been closed by the other side, and
+	// that the Close will return an error. Therefore, avoid log spam by not using
+	// warnonerror.
+	defer conn.Close()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	// Peek at the first three bytes. If they are "GET", then this is an HTTP
@@ -85,11 +89,16 @@ func (ps *plainServer) sniffThenHandle(ctx context.Context, conn net.Conn) {
 			cancel()
 		}()
 		// When the context is canceled, close everything. Note that this could be
-		// caused by the context timing out, which should cause fwd and conn to close,
-		// which should terminate the waitgroup. No matter what happens, by the time
-		// the return executes all the above goroutines should be closed or closing.
+		// caused by (1) the context timing out or being canceled, which will cause
+		// fwd to close, which should cause each Copy() to terminate and the
+		// waitgroup.Wait() to complete or (2) by the waitgroup.Wait() completing
+		// successfully. No matter what happens, by the time the return executes all
+		// the above goroutines should be unblocked and either already done or in the
+		// process of running to completion.
 		<-ctx.Done()
-		conn.Close()
+		if err := ctx.Err(); err == context.DeadlineExceeded {
+			log.Println("Connection", conn, "timed out")
+		}
 		fwd.Close()
 		return
 	}
@@ -99,7 +108,7 @@ func (ps *plainServer) sniffThenHandle(ctx context.Context, conn net.Conn) {
 
 	// First, send the kickoff message (which is only sent for non-WS clients),
 	// then transition to the protocol engine where everything should be the same
-	// for TCP, WS, and WSS.
+	// for plain, WS, and WSS connections.
 	kickoff := "123456 654321"
 	n, err := conn.Write([]byte(kickoff))
 	if n != len(kickoff) || err != nil {
