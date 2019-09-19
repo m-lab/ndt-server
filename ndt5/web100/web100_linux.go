@@ -15,15 +15,38 @@ func summarize(snaps []*tcp.LinuxTCPInfo) (*Metrics, error) {
 	if len(snaps) == 0 {
 		return nil, errors.New("zero-length list of data collected")
 	}
+	sumrtt := uint32(0)
+	countrtt := uint32(0)
+	maxrtt := uint32(0)
 	minrtt := uint32(0)
 	for _, snap := range snaps {
+		countrtt++
+		sumrtt += snap.RTT
 		if snap.RTT < minrtt || minrtt == 0 {
 			minrtt = snap.RTT
 		}
+		if snap.RTT > maxrtt {
+			maxrtt = snap.RTT
+		}
 	}
+	lastSnap := snaps[len(snaps)-1]
 	info := &Metrics{
 		TCPInfo: *snaps[len(snaps)-1], // Save the last snapshot of TCPInfo data into the metric struct.
-		MinRTT:  minrtt / 1000,        // Convert microseconds to milliseconds for legacy compatibility.
+
+		// Convert microseconds to milliseconds for legacy compatibility.
+		MinRTT:   minrtt / 1000,
+		MaxRTT:   maxrtt / 1000,
+		SumRTT:   sumrtt / 1000,
+		CountRTT: countrtt,
+
+		CurMSS: lastSnap.SndMSS,
+
+		// If this cast bites us, it's because of a 10 second test pushing more than
+		//  2**31 packets * 1500 bytes/packet * 8 bits/byte / 10 seconds = 2,576,980,377,600 bits/second = 2.5Tbps
+		// If we are using web100 variables to measure terabit connections then
+		// something has gone horribly wrong. Please switch to NDT7+tcpinfo or
+		// whatever their successor is.
+		PktsOut: uint32(lastSnap.SegsOut),
 	}
 	return info, nil
 }
