@@ -119,7 +119,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	// the state assciated with initiating the close.
 	warnonerror.Close(testConn, "Could not close testConnection")
 
-	bps := 8 * float64(byteCount) / 10
+	bps := 8 * float64(byteCount) / record.EndTime.Sub(record.StartTime).Seconds()
 	kbps := bps / 1000
 	record.MinRTT = time.Duration(web100metrics.MinRTT) * time.Millisecond
 	record.MeanThroughputMbps = kbps / 1000 // Convert Kbps to Mbps
