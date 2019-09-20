@@ -33,11 +33,11 @@ func summarize(snaps []*tcp.LinuxTCPInfo) (*Metrics, error) {
 	info := &Metrics{
 		TCPInfo: *snaps[len(snaps)-1], // Save the last snapshot of TCPInfo data into the metric struct.
 
-		// Convert microseconds to milliseconds for legacy compatibility.
-		MinRTT:   minrtt / 1000,
-		MaxRTT:   maxrtt / 1000,
-		SumRTT:   sumrtt / 1000,
-		CountRTT: countrtt,
+		MinRTT:   minrtt / 1000, // tcpinfo is microsecond data, web100 needs milliseconds
+		MaxRTT:   maxrtt / 1000, // tcpinfo is microsecond data, web100 needs milliseconds
+		SumRTT:   sumrtt / 1000, // tcpinfo is microsecond data, web100 needs milliseconds
+
+		CountRTT: countrtt, // This counts how many samples went into SumRTT
 
 		CurMSS: lastSnap.SndMSS,
 
