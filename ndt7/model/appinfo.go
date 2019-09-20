@@ -1,7 +1,8 @@
 package model
 
-// AppInfo contains an application level measurement.
+// AppInfo contains an application level measurement. This structure is
+// described in the ndt7 specification.
 type AppInfo struct {
-	// NumBytes is the number of bytes transferred so far.
-	NumBytes int64 `json:"num_bytes"`
+	NumBytes    int64
+	ElapsedTime int64
 }

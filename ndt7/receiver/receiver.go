@@ -27,18 +27,15 @@ func loop(
 	logging.Logger.Debug("receiver: start")
 	defer logging.Logger.Debug("receiver: stop")
 	defer close(dst)
-	conn.SetReadLimit(spec.MinMaxMessageSize)
+	conn.SetReadLimit(spec.MaxMessageSize)
 	receiverctx, cancel := context.WithTimeout(ctx, spec.MaxRuntime)
 	defer cancel()
-	for {
-		select {
-		case <-receiverctx.Done(): // Liveness!
-			logging.Logger.Debug("receiver: context done")
-			return
-		default:
-			// FALLTHROUGH
-		}
-		conn.SetReadDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
+	err := conn.SetReadDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
+	if err != nil {
+		logging.Logger.WithError(err).Warn("receiver: conn.SetReadDeadline failed")
+		return
+	}
+	for receiverctx.Err() == nil { // Liveness!
 		mtype, mdata, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {

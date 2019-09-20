@@ -23,13 +23,17 @@ func loop(
 			// make sure we drain the channel
 		}
 	}()
+	err := conn.SetWriteDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
+	if err != nil {
+		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
+		return
+	}
 	for {
 		m, ok := <-src
 		if !ok { // This means that the previous step has terminated
 			closer.StartClosing(conn)
 			return
 		}
-		conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
 		if err := conn.WriteJSON(m); err != nil {
 			logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
 			return
@@ -43,8 +47,9 @@ func loop(
 // will also be emitted to the returned channel.
 //
 // Liveness guarantee: the sender will not be stuck sending for more then
-// the DefaultRuntime of the subtest, provided that the consumer will
-// continue reading from the returned channel.
+// the MaxRuntime of the subtest, provided that the consumer will
+// continue reading from the returned channel. This is enforced by
+// setting the write deadline to MaxRuntime + time.Now.
 func Start(conn *websocket.Conn, src <-chan model.Measurement) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
 	go loop(conn, src, dst)
