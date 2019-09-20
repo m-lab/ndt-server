@@ -77,7 +77,7 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 			if int64(bulkMessageSize) > totalSent/spec.ScalingFraction {
 				continue // message size still too big compared to sent data
 			}
-			bulkMessageSize <<= 1
+			bulkMessageSize *= 2
 			preparedMessage, err = makePreparedMessage(bulkMessageSize)
 			if err != nil {
 				logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
