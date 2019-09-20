@@ -1,13 +1,9 @@
 package model
 
-// ConnectionInfo contains connection info.
+// ConnectionInfo contains connection info. This structure is described
+// in the ndt7 specification.
 type ConnectionInfo struct {
-	// Client is the client endpoint
-	Client string `json:"client"`
-
-	// Server is the server endpoint
-	Server string `json:"server"`
-
-	// UUID is the internal unique identifier of this experiment.
-	UUID string `json:"uuid"`
+	Client string
+	Server string
+	UUID   string `json:",omitempty"`
 }

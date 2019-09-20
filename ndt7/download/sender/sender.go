@@ -15,13 +15,9 @@ import (
 func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	data := make([]byte, size)
-	// This is not the fastest algorithm to generate a random string, yet it
-	// is most likely good enough for our purposes. See [1] for a comprehensive
-	// discussion regarding how to generate a random string in Golang.
-	//
-	// .. [1] https://stackoverflow.com/a/31832326/4354461
-	for i := range data {
-		data[i] = letterBytes[rand.Intn(len(letterBytes))]
+	_, err := rand.Read(data)
+	if err != nil {
+		return nil, err
 	}
 	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 }
@@ -36,12 +32,18 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 		}
 	}()
 	logging.Logger.Debug("sender: generating random buffer")
-	const bulkMessageSize = 1 << 13
+	bulkMessageSize := 1 << 13
 	preparedMessage, err := makePreparedMessage(bulkMessageSize)
 	if err != nil {
 		logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
 		return
 	}
+	err = conn.SetWriteDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
+	if err != nil {
+		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
+		return
+	}
+	var totalSent int64
 	for {
 		select {
 		case m, ok := <-src:
@@ -49,18 +51,36 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 				closer.StartClosing(conn)
 				return
 			}
-			conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
 			if err := conn.WriteJSON(m); err != nil {
 				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
 				return
 			}
 			dst <- m // Liveness: this is blocking
 		default:
-			conn.SetWriteDeadline(time.Now().Add(spec.DefaultRuntime)) // Liveness!
 			if err := conn.WritePreparedMessage(preparedMessage); err != nil {
 				logging.Logger.WithError(err).Warn(
 					"sender: conn.WritePreparedMessage failed",
 				)
+				return
+			}
+			// The following block of code implements the scaling of message size
+			// as recommended in the spec's appendix. We're not accounting for the
+			// size of JSON messages because that is small compared to the bulk
+			// message size. The net effect is slightly slowing down the scaling,
+			// but this is currently fine. We need to gather data from large
+			// scale deployments of this algorithm anyway, so there's no point
+			// in engaging in fine grained calibration before knowing.
+			totalSent += int64(bulkMessageSize)
+			if totalSent >= spec.MaxScaledMessageSize {
+				continue // No further scaling is required
+			}
+			if int64(bulkMessageSize) > totalSent/spec.ScalingFraction {
+				continue // message size still too big compared to sent data
+			}
+			bulkMessageSize *= 2
+			preparedMessage, err = makePreparedMessage(bulkMessageSize)
+			if err != nil {
+				logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
 				return
 			}
 		}
@@ -72,8 +92,9 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 // will also be emitted to the returned channel.
 //
 // Liveness guarantee: the sender will not be stuck sending for more then
-// the DefaultRuntime of the subtest, provided that the consumer will
-// continue reading from the returned channel.
+// the MaxRuntime of the subtest, provided that the consumer will
+// continue reading from the returned channel. This is enforced by
+// setting the write deadline to Time.Now() + MaxRuntime.
 func Start(conn *websocket.Conn, src <-chan model.Measurement) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
 	go loop(conn, src, dst)

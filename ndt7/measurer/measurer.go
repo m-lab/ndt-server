@@ -35,14 +35,14 @@ func getSocketAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 	return fp, nil
 }
 
-func measure(measurement *model.Measurement, sockfp *os.File) {
+func measure(measurement *model.Measurement, sockfp *os.File, start time.Time) {
 	bbrinfo, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
 	if err == nil {
 		measurement.BBRInfo = &bbrinfo
 	}
 	tcpInfo, err := tcpinfox.GetTCPInfo(sockfp)
 	if err == nil {
-		measurement.TCPInfo = model.NewTCPInfo(tcpInfo)
+		measurement.TCPInfo = model.NewTCPInfo(tcpInfo, start)
 	}
 }
 
@@ -67,12 +67,9 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 		UUID:   UUID,
 	}
 	for measurerctx.Err() == nil { // Liveness!
-		now := <-ticker.C
-		elapsed := now.Sub(start)
-		measurement := model.Measurement{
-			Elapsed: elapsed.Seconds(),
-		}
-		measure(&measurement, sockfp)
+		<-ticker.C
+		var measurement model.Measurement
+		measure(&measurement, sockfp, start)
 		measurement.ConnectionInfo = connectionInfo
 		connectionInfo = nil
 		dst <- measurement // Liveness: this is blocking
