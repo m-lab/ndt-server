@@ -119,6 +119,10 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	// the state assciated with initiating the close.
 	warnonerror.Close(testConn, "Could not close testConnection")
 
+	// Bits per second is the number of bits divided by the duration of the
+	// test.  The duration of the test is supposed to be 10 seconds, but it
+	// can vary in practice, so we divide by the actual duration instead of
+	// assuming it was 10.
 	bps := 8 * float64(byteCount) / record.EndTime.Sub(record.StartTime).Seconds()
 	kbps := bps / 1000
 	record.MinRTT = time.Duration(web100metrics.MinRTT) * time.Millisecond
