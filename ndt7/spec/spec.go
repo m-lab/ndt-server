@@ -28,8 +28,9 @@ const MaxScaledMessageSize = 1 << 20
 // in the appendix of the ndt7 specification.
 const ScalingFraction = 16
 
-// MinMeasurementInterval is the minimum interval between measurements.
-const MinMeasurementInterval = 250 * time.Millisecond
+// AveragePoissonSamplingInterval is the average of a lambda distribution
+// used to decide when to perform next measurement.
+const AveragePoissonSamplingInterval = 250 * time.Millisecond
 
 // DefaultRuntime is the default runtime of a subtest
 const DefaultRuntime = 10 * time.Second
