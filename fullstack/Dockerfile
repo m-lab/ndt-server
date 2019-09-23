@@ -23,6 +23,7 @@ WORKDIR /
 # You can add further arguments to this when you call the dockerfile.
 ENTRYPOINT \
    mkdir -p /var/local/uuid/ \
+   && \
    /create-uuid-prefix-file \
      --filename=/var/local/uuid/prefix \
      && \
