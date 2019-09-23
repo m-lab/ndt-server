@@ -15,33 +15,14 @@ COPY --from=measurementlab/tcp-info /licences/zstd/ /licences/zstd/
 COPY --from=measurementlab/ndt-server /ndt-server /
 COPY --from=measurementlab/ndt-server /html /html
 
-
 # TODO: Still need packet-headers
+
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
 WORKDIR /
 
-# You can add further arguments to this when you call the dockerfile.
-ENTRYPOINT \
-   mkdir -p /var/local/uuid/ \
-   && \
-   /create-uuid-prefix-file \
-     --filename=/var/local/uuid/prefix \
-     && \
-   mkdir -p /var/spool/ndt/tcpinfo \
-     && \
-   /tcp-info \
-     --prometheusx.listen-address=:9001 \
-     --uuid-prefix-file=/var/local/uuid/prefix \
-     --output=/var/spool/ndt/tcpinfo \
-     & \
-   mkdir -p /var/spool/ndt/traceroute \
-     && \
-   /traceroute-caller \
-     --prometheusx.listen-address=:9002 \
-     --uuid-prefix-file=/var/local/uuid/prefix \
-     --outputPath=/var/spool/ndt/traceroute \
-     & \
-   /ndt-server \
-     --uuid-prefix-file=/var/local/uuid/prefix \
-     --datadir=/var/spool/ndt \
-     --prometheusx.listen-address=:9003
+# You can add further arguments to ndt-server, all the other commands are fixed.
+# Prometheus metrics for tcp-info and traceroute-caller can be found on ports
+# 9001 and 9002.
+ENTRYPOINT ["/start.sh"]
