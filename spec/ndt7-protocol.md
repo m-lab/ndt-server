@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.8.1 of the ndt7 specification.
+This is version v0.8.2 of the ndt7 specification.
 
 ## Design choices
 
@@ -130,7 +130,7 @@ choose to limit the maximum WebSocket message size, but such limit MUST
 NOT be smaller than 1 << 24 bytes. Note that this message size is a maximum
 designed to support clients on very fast, short end-to-end paths.
 
-Both textual and binary WebSocket messages are used.
+Textual, binary, and control WebSocket messages are used.
 
 Textual messages contain JSON-serialized measurements, they are OPTIONAL, and
 are always permitted. A ndt7 implementation MAY choose to ignore all textual
@@ -162,6 +162,15 @@ of each test within a thirteen second upper bound. Ideally this SHOULD
 be implemented so that immediately after thirteen seconds have elapsed, the
 underlying TLS connection is closed. This can be implemented, e.g., in C/C++
 using alarm(3) to cause pending I/O operations to fail with `EINTR`.
+
+As regards ping and pong messages, a ndt7 server MAY send periodic
+ping messages during any test. Servers MUST NOT send ping messages more
+frequently than they would send textual messages. Clients SHOULD be prepared
+to receive ping messages. They SHOULD reply to such messages with pong
+messages containing the same payload. If a client is receiving too
+many ping messages in a specific time interval, it MAY drop them at
+random. A client MAY decide to ignore ping messages. Clients that
+are implemented in C would probably want to do that for simplicity.
 
 The server MAY initiate a WebSocket closing handshake at any time
 and during any test. This tells the client that either the specific
