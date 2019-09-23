@@ -23,6 +23,16 @@ WORKDIR /
 
 # You can add further arguments to this when you call the dockerfile.
 ENTRYPOINT /create-uuid-prefix-file && \
-   mkdir /var/spool/ndt/tcpinfo && /tcp-info --prometheusx.listen-address=:9001 & \
-   mkdir /var/spool/ndt/traceroute && /traceroute-caller --prometheusx.listen-address=:9002 & \
-   /ndt-server --prometheusx.listen-address=:9003
+   mkdir /var/spool/ndt/tcpinfo && \
+   /tcp-info \
+     --prometheusx.listen-address=:9001 \
+     --uuid-prefix-file=/var/local/uuid/prefix \
+     & \
+   mkdir /var/spool/ndt/traceroute && \
+   /traceroute-caller \
+     --prometheusx.listen-address=:9002 \
+     --uuid-prefix-file=/var/local/uuid/prefix \
+     & \
+   /ndt-server \
+     --uuid-prefix-file=/var/local/uuid/prefix \
+     --prometheusx.listen-address=:9003
