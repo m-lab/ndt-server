@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang='en'>
 <head>
-  <script type='text/javascript' src='libndt7.js'></script>
+  <script type='text/javascript' src='ndt7-core.js'></script>
   <style>
 
 .row {
@@ -29,63 +29,50 @@
   </div>
   <script type='text/javascript'>
     /* jshint esversion: 6, asi: true */
-    /* exported Run */
-    /* globals libndt7 */
+    /* globals ndt7core */
 
-    function WithElementIdDo(elementId, callable) {
+    function withElementDo(elementId, callable) {
       const elem = document.getElementById(elementId)
       if (elem) {
         callable(elem)
       }
     }
 
-    function UpdateView(elementId, data) {
-      WithElementIdDo(elementId, function (elem) {
-        const speed = 8 * data.app_info.num_bytes / data.elapsed / 1000 / 1000
+    function updateView(elementId, appInfo) {
+      withElementDo(elementId, function (elem) {
+        const elapsed = appInfo.ElapsedTime / 1e06     /* second */
+        let speed = appInfo.NumBytes / elapsed         /* B/s    */
+        speed *= 8                                     /* bit/s  */
+        speed /= 1e06                                  /* Mbit/s */
         elem.innerHTML = speed.toFixed(3) + ' Mbit/s'
       })
     }
 
-    function RunDownload(callback) {
-      let worker = new Worker('ndt7-worker.js')
-      worker.postMessage({
-        key: 'download',
-        value: {
-          href: window.location.href
-        },
-      })
-      worker.onmessage = function (ev) {
-        const msg = ev.data
-        if (msg.key === libndt7.events.clientMeasurement) {
-          UpdateView('download', msg.value)
-        } else {
-          console.log('Worker event: ' + msg.key)
-          if (msg.key === libndt7.events.close) {
+    function runSomething(testName, callback) {
+      ndt7core.run(location.href, testName, function(ev, val) {
+        console.log(ev, val)
+        if (ev === 'complete') {
+          if (callback !== undefined) {
             callback()
           }
+          return
         }
-      }
-    }
-
-    function RunUpload() {
-      let worker = new Worker('ndt7-worker.js')
-      worker.postMessage({
-        key: 'upload',
-        value: {
-          href: window.location.href
-        },
+        if (ev === 'measurement' && val.AppInfo !== undefined &&
+            val.Origin === 'client') {
+          updateView(testName, val.AppInfo)
+        }
       })
-      worker.onmessage = function (ev) {
-        const msg = ev.data
-        if (msg.key === libndt7.events.clientMeasurement) {
-          UpdateView('upload', msg.value)
-        } else {
-          console.log('Worker event: ' + msg.key)
-        }
-      }
     }
 
-    RunDownload(function() { RunUpload(); })
+    function runDownload(callback) {
+      runSomething('download', callback)
+    }
+
+    function runUpload(callback) {
+      runSomething('upload', callback)
+    }
+
+    runDownload(function() { runUpload(); })
   </script>
 </body>
 </html>
