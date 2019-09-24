@@ -1,31 +1,64 @@
 #!/bin/bash
 
+# Starts the ndt-server binary running with all its associated supporting
+# services set up just right.  If you just want to run a server that speaks the
+# unencrypted NDT5 (legacy) protocol, then you can run:
+#  $ docker run --net=host measurementlab/ndt
+# and you will get an NDT server running on port 3001, with data being saved to
+# the in-container directory /var/spool/ndt/
+#
+# If you would like to run NDT7 tests (which you should, it is a simpler
+# protocol and a more robust measurement), then you will need a private key and
+# a TLS certificate (let's assume they are called "/etc/certs/key.pem" and
+# "/etc/certs/cert.pem").  To run an NDT7 server on port 443, you can do:
+#  $ docker run -v /etc/certs:/certs --net=host measurementlab/ndt \
+#      --key=/certs/key.pem --cert=/certs/cert.pem
+# 
+# The NDT server produces data on disk. If you would like this data saved to a
+# directory outside of the docker container, then you need to mount the external
+# directory inside the container at /var/spool/ndt using the -v argument to
+# "docker run".
+#
 # All arguments to this script are passed directly through to ndt-server.
 
 set -euxo pipefail
 
+
+# Set up the filesystem.
+
 # Set up UUIDs to have a common race-free prefix.
-mkdir -p /var/local/uuid/
-/create-uuid-prefix-file --filename=/var/local/uuid/prefix
+UUID_DIR=/var/local/uuid
+UUID_FILE=${UUID_DIR}/prefix
+mkdir -p "${UUID_DIR}"
+/create-uuid-prefix-file --filename="${UUID_FILE}"
 
-# Start up the tcp-info logging service.
-mkdir -p /var/spool/ndt/tcpinfo
+# Set up the data directory.
+DATA_DIR=/var/spool/ndt
+mkdir -p "${DATA_DIR}"
+
+
+# Start all services.
+
+# Start the tcp-info logging service.
+mkdir -p "${DATA_DIR}"/tcpinfo
 /tcp-info \
-  --prometheusx.listen-address=:9001 \
-  --uuid-prefix-file=/var/local/uuid/prefix \
-  --output=/var/spool/ndt/tcpinfo \
+  --prometheusx.listen-address=:9991 \
+  --uuid-prefix-file="${UUID_FILE}" \
+  --output="${DATA_DIR}"/tcpinfo \
   &
 
-# Start up the traceroute service.
-mkdir -p /var/spool/ndt/traceroute
+# Start the traceroute service.
+mkdir -p "${DATA_DIR}"/traceroute
 /traceroute-caller \
-  --prometheusx.listen-address=:9002 \
-  --uuid-prefix-file=/var/local/uuid/prefix \
-  --outputPath=/var/spool/ndt/traceroute \
+  --prometheusx.listen-address=:9992 \
+  --uuid-prefix-file="${UUID_FILE}" \
+  --outputPath="${DATA_DIR}"/traceroute \
   &
 
-# Start up the NDT server.
+# TODO: Start the packet header capture service.
+
+# Start the NDT server.
 /ndt-server \
- --uuid-prefix-file=/var/local/uuid/prefix \
- --datadir=/var/spool/ndt \
+ --uuid-prefix-file="${UUID_FILE}" \
+ --datadir="${DATA_DIR}" \
  $*

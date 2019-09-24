@@ -22,7 +22,12 @@ RUN chmod +x /start.sh
 
 WORKDIR /
 
-# You can add further arguments to ndt-server, all the other commands are fixed.
-# Prometheus metrics for tcp-info and traceroute-caller can be found on ports
-# 9001 and 9002.
+# You can add further arguments to ndt-server, all the other commands are
+# fixed.  Prometheus metrics for tcp-info and traceroute-caller can be
+# found on ports 9991 and 9992 (set in the start script), while the ndt
+# server metrics can be found on port 9990 by default, but can be set by
+# passing --prometheusx.listen-address to that start script.
+#
+# If you would like to run any SSL/TLS-based tests, you'll need to pass in
+# the --cert= and --key= arguments.
 ENTRYPOINT ["/start.sh"]
