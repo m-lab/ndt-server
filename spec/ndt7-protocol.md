@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.8.2 of the ndt7 specification.
+This is version v0.8.3 of the ndt7 specification.
 
 ## Design choices
 
@@ -597,16 +597,14 @@ func tryPerformanceTest() {
 
 The reference _server_ implementation is [github.com/m-lab/ndt-server](
 https://github.com/m-lab/ndt-server). Such repository also contains a
-simplified Go client implementation and a simplified JavaScript implementation,
-the library for which may be useful to others in building their own speed
-test websites. This code SHOULD also be used to test server implementations,
-and as a very basic client for occasional use.
+the reference JavaScript implementation, in [html/ndt7-core.js](
+html/ndt7-core.js), which is served by default by the NDT server. This
+JavaScript code may be useful to others in building their own speed test
+websites. It SHOULD be used to test server implementations, and as a
+very basic client for occasional use.
 
 The reference _Go client_ is [github.com/m-lab/ndt7-client-go](
 https://github.com/m-lab/ndt7-client-go).
-
-The reference _JavaScript client_ is [github.com/m-lab/ndt7-client-javascript](
-https://github.com/m-lab/ndt7-client-javascript).
 
 ## Appendix
 
