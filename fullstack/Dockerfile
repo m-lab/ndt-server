@@ -17,7 +17,7 @@ COPY --from=measurementlab/ndt-server /html /html
 
 # TODO: Still need packet-headers
 
-COPY start.sh /start.sh
+COPY fullstack/start.sh /start.sh
 RUN chmod +x /start.sh
 
 WORKDIR /
