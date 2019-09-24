@@ -38,5 +38,5 @@ directory outside of the docker container, then you need to mount the external
 directory inside the container at `/var/spool/ndt` using the `-v` argument to
 `docker run`.
 
-All arguments to this script are passed directly through to ndt-server.
-
+All arguments to `docker run` after the name of the image are passed directly
+through to the NDT server.
