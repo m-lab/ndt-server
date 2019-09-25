@@ -5,11 +5,11 @@ package measurer
 import (
 	"context"
 	"errors"
-	"math/rand"
 	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/ndt-server/bbr"
 	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/logging"
@@ -36,28 +36,22 @@ func getSocketAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 	return fp, nil
 }
 
-func measure(measurement *model.Measurement, sockfp *os.File, start time.Time) {
+func measure(measurement *model.Measurement, sockfp *os.File, elapsed time.Duration) {
 	// Implementation note: we always want to sample BBR before TCPInfo so we
 	// will know from TCPInfo if the connection has been closed.
-	elapsedTime := int64(time.Now().Sub(start) / time.Microsecond)
+	t := int64(elapsed / time.Microsecond)
 	bbrinfo, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
 	if err == nil {
-		bbrinfo.ElapsedTime = elapsedTime
+		bbrinfo.ElapsedTime = t
 		measurement.BBRInfo = &bbrinfo
 	}
 	tcpInfo, err := tcpinfox.GetTCPInfo(sockfp)
 	if err == nil {
 		measurement.TCPInfo = &model.TCPInfo{
 			LinuxTCPInfo: *tcpInfo,
-			ElapsedTime:  elapsedTime,
+			ElapsedTime:  t,
 		}
 	}
-}
-
-func sleepTime(r *rand.Rand) time.Duration {
-	return time.Duration(
-		r.ExpFloat64() * float64(spec.AveragePoissonSamplingInterval),
-	)
 }
 
 func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- model.Measurement) {
@@ -78,16 +72,25 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 		Server: conn.LocalAddr().String(),
 		UUID:   UUID,
 	}
-	gen := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
+	// Implementation note: the ticker will close its output channel
+	// after the controlling context is expired.
+	ticker, err := memoryless.MakeTicker(measurerctx, memoryless.Config{
+		Min:      spec.MinPoissonSamplingInterval,
+		Expected: spec.AveragePoissonSamplingInterval,
+		Max:      spec.MaxPoissonSamplingInterval,
+	})
+	if err != nil {
+		logging.Logger.WithError(err).Warn("getSocketAndPossiblyEnableBBR failed")
+		return
+	}
+	defer ticker.Stop()
 	for {
-		select {
-		case <-measurerctx.Done():
-			return // Liveness!
-		case <-time.After(sleepTime(gen)):
-			// FALLTHROUGH
+		now, active := <-ticker.C
+		if !active {
+			return
 		}
 		var measurement model.Measurement
-		measure(&measurement, sockfp, start)
+		measure(&measurement, sockfp, now.Sub(start))
 		measurement.ConnectionInfo = connectionInfo
 		connectionInfo = nil
 		dst <- measurement // Liveness: this is blocking
