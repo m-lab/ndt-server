@@ -9,6 +9,7 @@ import (
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/closer"
 	"github.com/m-lab/ndt-server/ndt7/model"
+	"github.com/m-lab/ndt-server/ndt7/ping"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
@@ -38,7 +39,8 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 		logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
 		return
 	}
-	err = conn.SetWriteDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
+	deadline := time.Now().Add(spec.MaxRuntime)
+	err = conn.SetWriteDeadline(deadline) // Liveness!
 	if err != nil {
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
 		return
@@ -56,6 +58,10 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 				return
 			}
 			dst <- m // Liveness: this is blocking
+			if err := ping.SendTicks(conn, deadline); err != nil {
+				logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
+				return
+			}
 		default:
 			if err := conn.WritePreparedMessage(preparedMessage); err != nil {
 				logging.Logger.WithError(err).Warn(

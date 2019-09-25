@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.8.0 of the ndt7 specification.
+This is version v0.8.3 of the ndt7 specification.
 
 ## Design choices
 
@@ -130,16 +130,16 @@ choose to limit the maximum WebSocket message size, but such limit MUST
 NOT be smaller than 1 << 24 bytes. Note that this message size is a maximum
 designed to support clients on very fast, short end-to-end paths.
 
-Both textual and binary WebSocket messages are used.
+Textual, binary, and control WebSocket messages are used.
 
 Textual messages contain JSON-serialized measurements, they are OPTIONAL, and
-are always permitted. They SHOULD NOT be sent more frequently than every
-250 ms, to avoid generating too much unnecessary JSON-processing load on the
-measurements receiver. A party receiving too frequent measurements SHOULD
-discard excess measurements and keep going. A ndt7 implementation MAY choose
-to ignore all textual messages. This provision allows one to easily implement
-ndt7 with languages such as C where reading and writing messages at the
-same time significantly increases the implementation complexity.
+are always permitted. A ndt7 implementation MAY choose to ignore all textual
+messages. This provision allows one to easily implement ndt7 with languages
+such as C where reading and writing messages at the same time significantly
+increases the implementation complexity. A ndt7 implementation SHOULD NOT send
+more than ten textual messages per second on the average. A ndt7 implementation
+MAY choose to discard incoming textual messages at random, if it is receiving
+too many textual messages in a given time interval.
 
 Binary messages SHOULD contain random data and are used to generate network
 load. Therefore, during the download test the server sends binary
@@ -162,6 +162,14 @@ of each test within a thirteen second upper bound. Ideally this SHOULD
 be implemented so that immediately after thirteen seconds have elapsed, the
 underlying TLS connection is closed. This can be implemented, e.g., in C/C++
 using alarm(3) to cause pending I/O operations to fail with `EINTR`.
+
+As regards ping and pong messages, a ndt7 server MAY send periodic
+ping messages during any test. Servers MUST NOT send ping messages more
+frequently than they would send textual messages. Clients MUST be prepared
+to receive ping messages. They MUST reply to such messages with pong
+messages containing the same payload, and they SHOULD do that as soon
+as practical. If a client is receiving too many ping messages in a specific
+time interval, it MAY drop them at random.
 
 The server MAY initiate a WebSocket closing handshake at any time
 and during any test. This tells the client that either the specific
@@ -588,16 +596,14 @@ func tryPerformanceTest() {
 
 The reference _server_ implementation is [github.com/m-lab/ndt-server](
 https://github.com/m-lab/ndt-server). Such repository also contains a
-simplified Go client implementation and a simplified JavaScript implementation,
-the library for which may be useful to others in building their own speed
-test websites. This code SHOULD also be used to test server implementations,
-and as a very basic client for occasional use.
+the reference JavaScript implementation, in [html/ndt7-core.js](
+html/ndt7-core.js), which is served by default by the NDT server. This
+JavaScript code may be useful to others in building their own speed test
+websites. It SHOULD be used to test server implementations, and as a
+very basic client for occasional use.
 
 The reference _Go client_ is [github.com/m-lab/ndt7-client-go](
 https://github.com/m-lab/ndt7-client-go).
-
-The reference _JavaScript client_ is [github.com/m-lab/ndt7-client-javascript](
-https://github.com/m-lab/ndt7-client-javascript).
 
 ## Appendix
 

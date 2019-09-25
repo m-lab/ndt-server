@@ -8,6 +8,7 @@ import (
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/closer"
 	"github.com/m-lab/ndt-server/ndt7/model"
+	"github.com/m-lab/ndt-server/ndt7/ping"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
@@ -23,7 +24,8 @@ func loop(
 			// make sure we drain the channel
 		}
 	}()
-	err := conn.SetWriteDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
+	deadline := time.Now().Add(spec.MaxRuntime)
+	err := conn.SetWriteDeadline(deadline) // Liveness!
 	if err != nil {
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
 		return
@@ -39,6 +41,10 @@ func loop(
 			return
 		}
 		dst <- m // Liveness: this is blocking
+		if err := ping.SendTicks(conn, deadline); err != nil {
+			logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
+			return
+		}
 	}
 }
 
