@@ -595,7 +595,7 @@ func tryPerformanceTest() {
 ## Reference implementations
 
 The reference _server_ implementation is [github.com/m-lab/ndt-server](
-https://github.com/m-lab/ndt-server). Such repository also contains a
+https://github.com/m-lab/ndt-server). Such repository also contains
 the reference JavaScript implementation, in [html/ndt7-core.js](
 html/ndt7-core.js), which is served by default by the NDT server. This
 JavaScript code may be useful to others in building their own speed test

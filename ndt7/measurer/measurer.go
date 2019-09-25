@@ -80,7 +80,7 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 		Max:      spec.MaxPoissonSamplingInterval,
 	})
 	if err != nil {
-		logging.Logger.WithError(err).Warn("getSocketAndPossiblyEnableBBR failed")
+		logging.Logger.WithError(err).Warn("memoryless.MakeTicker failed")
 		return
 	}
 	defer ticker.Stop()
