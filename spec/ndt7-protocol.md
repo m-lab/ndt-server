@@ -165,12 +165,11 @@ using alarm(3) to cause pending I/O operations to fail with `EINTR`.
 
 As regards ping and pong messages, a ndt7 server MAY send periodic
 ping messages during any test. Servers MUST NOT send ping messages more
-frequently than they would send textual messages. Clients SHOULD be prepared
-to receive ping messages. They SHOULD reply to such messages with pong
-messages containing the same payload. If a client is receiving too
-many ping messages in a specific time interval, it MAY drop them at
-random. A client MAY decide to ignore ping messages. Clients that
-are implemented in C would probably want to do that for simplicity.
+frequently than they would send textual messages. Clients MUST be prepared
+to receive ping messages. They MUST reply to such messages with pong
+messages containing the same payload, and they SHOULD do that as soon
+as practical. If a client is receiving too many ping messages in a specific
+time interval, it MAY drop them at random.
 
 The server MAY initiate a WebSocket closing handshake at any time
 and during any test. This tells the client that either the specific
