@@ -86,7 +86,7 @@ RUN apt-get update && apt-get install -y nodejs libjansson4 libssl1.1 libssl1.0
 ENV GOPATH=/go
 RUN go get github.com/mattn/goveralls
 ADD . /go/src/github.com/m-lab/ndt-server
-RUN go get github.com/m-lab/ndt-server/cmd/ndt-client
+RUN go get github.com/m-lab/ndt7-client-go/cmd/ndt7-client
 WORKDIR /go/src/github.com/m-lab/ndt-server/testdata
 RUN npm install .
 WORKDIR /go/src/github.com/m-lab/ndt-server
