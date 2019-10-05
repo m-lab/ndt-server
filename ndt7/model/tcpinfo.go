@@ -1,10 +1,10 @@
 package model
 
-// The TCPInfo struct contains information measured using TCP_INFO.
-type TCPInfo struct {
-	// SmoothedRTT is the smoothed RTT in milliseconds.
-	SmoothedRTT float64 `json:"smoothed_rtt"`
+import "github.com/m-lab/tcp-info/tcp"
 
-	// RTTVar is the RTT variance in milliseconds.
-	RTTVar float64 `json:"rtt_var"`
+// The TCPInfo struct contains information measured using TCP_INFO. This
+// structure is described in the ndt7 specification.
+type TCPInfo struct {
+	tcp.LinuxTCPInfo
+	ElapsedTime   int64
 }

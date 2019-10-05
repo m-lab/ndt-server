@@ -258,7 +258,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 		// Test NDT7 clients
 		{
 			name: "Test the ndt7 protocol",
-			cmd:  "timeout 45s ndt-client -skip-tls-verify -port " + ndt7Addr,
+			cmd:  "timeout 45s ndt7-client -no-verify -hostname localhost:" + ndt7Addr,
 			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
 			ignoreData: true,
 		},
@@ -286,8 +286,8 @@ func Test_MainIntegrationTest(t *testing.T) {
 				preFileCount := countFiles(dataDir)
 				stdout, stderr, err := pipe.DividedOutput(pipe.Script(tc.name, pipe.System(tc.cmd)))
 				if err != nil {
-					t.Errorf("ERROR %s (Command: %s)\nStdout: %s\nStderr: %s\n",
-						tc.name, tc.cmd, string(stdout), string(stderr))
+					t.Errorf("ERROR %s gave error %q (Command: %s)\nStdout: %s\nStderr: %s\n",
+						tc.name, err, tc.cmd, string(stdout), string(stderr))
 				}
 				postFileCount := countFiles(dataDir)
 				if !tc.ignoreData {

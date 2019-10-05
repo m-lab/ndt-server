@@ -5,9 +5,9 @@ package tcpinfox
 import (
 	"os"
 
-	"github.com/m-lab/ndt-server/ndt7/model"
+	"github.com/m-lab/tcp-info/tcp"
 )
 
-func getTCPInfo(*os.File) (model.TCPInfo, error) {
-	return model.TCPInfo{}, ErrNoSupport
+func getTCPInfo(*os.File) (*tcp.LinuxTCPInfo, error) {
+	return &tcp.LinuxTCPInfo{}, ErrNoSupport
 }

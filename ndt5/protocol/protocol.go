@@ -126,32 +126,46 @@ type MeasuredConnection interface {
 	Measurable
 }
 
-// The measurer struct is a hack to ensure that we only have to write the
-// complicated measurement code at most once.
+// measurer allows all types of connections to embed this struct and be measured
+// in the same way. It also means that we have to write the complicated
+// measurement code at most once.
 type measurer struct {
-	measurements             chan *web100.Metrics
+	summaryC                 <-chan *web100.Metrics
 	cancelMeasurementContext context.CancelFunc
+}
+
+// newMeasurer creates a measurer struct with sensible and safe defaults.
+func newMeasurer() *measurer {
+	// We want the channel to be closed by default, not nil. A read on a closed
+	// channel returns immediately, while a read on a nil channel blocks forever.
+	c := make(chan *web100.Metrics)
+	close(c)
+	return &measurer{
+		summaryC: c,
+		// We want the cancel function to always be safe to call.
+		cancelMeasurementContext: func() {},
+	}
 }
 
 // StartMeasuring starts a polling measurement goroutine that runs until the ctx
 // expires. After measurement is complete, the given `fd` is closed.
 func (m *measurer) StartMeasuring(ctx context.Context, fd *os.File) {
-	m.measurements = make(chan *web100.Metrics)
 	var newctx context.Context
 	newctx, m.cancelMeasurementContext = context.WithCancel(ctx)
-	go func() {
-		defer fd.Close()
-		web100.MeasureViaPolling(newctx, fd, m.measurements)
-	}()
+	m.summaryC = web100.MeasureViaPolling(newctx, fd)
 }
 
+// StopMeasuring stops the measurement process and returns the collected
+// measurements. The measurement process can also be stopped by cancelling the
+// context that was passed in to StartMeasuring().
 func (m *measurer) StopMeasuring() (*web100.Metrics, error) {
-	m.cancelMeasurementContext()
-	info, ok := <-m.measurements
-	if !ok {
-		return nil, errors.New("No data")
+	m.cancelMeasurementContext() // Start the channel close process.
+
+	summary := <-m.summaryC
+	if summary == nil {
+		return nil, errors.New("No data returned from web100.MeasureViaPolling due to nil")
 	}
-	return info, nil
+	return summary, nil
 }
 
 // wsConnection wraps a websocket connection to allow it to be used as a
@@ -163,7 +177,7 @@ type wsConnection struct {
 
 // AdaptWsConn turns a websocket Connection into a struct which implements both Measurer and Connection
 func AdaptWsConn(ws *websocket.Conn) MeasuredConnection {
-	return &wsConnection{Conn: ws, measurer: &measurer{}}
+	return &wsConnection{Conn: ws, measurer: newMeasurer()}
 }
 
 func (ws *wsConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64, err error) {
@@ -320,7 +334,7 @@ type MeasuredFlexibleConnection interface {
 
 // AdaptNetConn turns a non-WS-based TCP connection into a protocol.MeasuredConnection that can have its encoding set on the fly.
 func AdaptNetConn(conn net.Conn, input io.Reader) MeasuredFlexibleConnection {
-	return &netConnection{Conn: conn, measurer: &measurer{}, input: input, c2sBuffer: make([]byte, 8192)}
+	return &netConnection{Conn: conn, measurer: newMeasurer(), input: input, c2sBuffer: make([]byte, 8192)}
 }
 
 // ReadTLVMessage reads a single NDT message out of the connection.
@@ -387,7 +401,7 @@ func ReceiveJSONMessage(ws Connection, expectedType MessageType) (*JSONMessage, 
 	}
 	err = json.Unmarshal(jsonString, &message)
 	if err != nil {
-		return nil, err
+		return &JSONMessage{Msg: string(jsonString)}, err
 	}
 	return message, nil
 }

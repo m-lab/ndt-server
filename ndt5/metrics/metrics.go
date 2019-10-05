@@ -76,6 +76,12 @@ var (
 		},
 		[]string{"protocol", "direction"},
 	)
+	ClientForwardingTimeouts = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "ndt5_forwarding_timeouts_total",
+			Help: "The number of times forwarded client connections have timed out on the server instead of being closed by the client",
+		},
+	)
 	ClientTestResults = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt5_client_test_results_total",

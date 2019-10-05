@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/ndt5"
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
@@ -28,6 +27,7 @@ type plainServer struct {
 	dialer   *net.Dialer
 	listener *net.TCPListener
 	datadir  string
+	timeout  time.Duration
 }
 
 func (ps *plainServer) SingleServingServer(direction string) (ndt.SingleMeasurementServer, error) {
@@ -39,7 +39,15 @@ func (ps *plainServer) SingleServingServer(direction string) (ndt.SingleMeasurem
 // first time, but enough clients exist that need it that we are keeping it in
 // this code. In the future, if you are thinking of adding protocol sniffing to
 // your system, don't.
-func (ps *plainServer) sniffThenHandle(conn net.Conn) {
+func (ps *plainServer) sniffThenHandle(ctx context.Context, conn net.Conn) {
+	// This close will frequently happen after clients have already "fled the
+	// scene" after a successful test. It is an expected case that this might
+	// happen after the connection has already been closed by the other side, and
+	// that the Close will return an error. Therefore, avoid log spam by not using
+	// warnonerror.
+	defer conn.Close()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	// Peek at the first three bytes. If they are "GET", then this is an HTTP
 	// conversation and should be forwarded to the HTTP server.
 	input := bufio.NewReader(conn)
@@ -75,22 +83,40 @@ func (ps *plainServer) sniffThenHandle(conn net.Conn) {
 			io.Copy(conn, fwd)
 			wg.Done()
 		}()
-		// When both Copy calls are done, close everything.
+		// When the waitgroup is done, cancel the context.
 		go func() {
 			wg.Wait()
-			conn.Close()
-			fwd.Close()
+			cancel()
 		}()
+		// When the context is canceled, close `fwd` and return (returning closes
+		// `conn`). Note that this cancellation could be caused by:
+		//
+		//   1. The context times out or is explicitly canceled, which causes fwd to
+		//   close, causing each Copy() to terminate and the waitgroup.Wait() to
+		//   complete.
+		//    OR
+		//   2. The other side of the connection closes `conn` or `fwd`, either of which
+		//   causes the `Copy` operations to terminate, which causes waitgroup.Wait() to
+		//   return, which cancels the context.
+		//
+		// No matter what happens, by the time the return executes all the above
+		// goroutines should be unblocked and be either already done or in the process
+		// of running to completion.
+		<-ctx.Done()
+		if err := ctx.Err(); err == context.DeadlineExceeded {
+			log.Println("Connection", conn, "timed out")
+			ndt5metrics.ClientForwardingTimeouts.Inc()
+		}
+		fwd.Close()
 		return
 	}
 
 	// If there was no error and there was no GET, then this should be treated as a
 	// legitimate attempt to perform a non-ws-based NDT test.
-	defer warnonerror.Close(conn, "Could not close connection")
 
 	// First, send the kickoff message (which is only sent for non-WS clients),
 	// then transition to the protocol engine where everything should be the same
-	// for TCP, WS, and WSS.
+	// for plain, WS, and WSS connections.
 	kickoff := "123456 654321"
 	n, err := conn.Write([]byte(kickoff))
 	if n != len(kickoff) || err != nil {
@@ -118,21 +144,20 @@ func (ps *plainServer) ListenAndServe(ctx context.Context, addr string) error {
 		for ctx.Err() == nil {
 			conn, err := ln.Accept()
 			if err != nil {
-				if ctx.Err() != nil {
-					break
-				}
 				log.Println("Failed to accept connection:", err)
 				continue
 			}
 			go func() {
+				connCtx, connCtxCancel := context.WithTimeout(ctx, ps.timeout)
 				defer func() {
+					connCtxCancel()
 					r := recover()
 					if r != nil {
 						// TODO add a metric for this.
 						log.Println("Recovered from panic in RawServer", r)
 					}
 				}()
-				ps.sniffThenHandle(conn)
+				ps.sniffThenHandle(connCtx, conn)
 			}()
 		}
 	}()
@@ -194,5 +219,7 @@ func NewServer(datadir, wsAddr string) Server {
 			Timeout: 1 * time.Second,
 		},
 		datadir: datadir,
+		// No client should wait around for more than 2 minutes.
+		timeout: 2 * time.Minute,
 	}
 }

@@ -5,12 +5,12 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/m-lab/ndt-server/ndt7/model"
+	"github.com/m-lab/tcp-info/tcp"
 )
 
-func getTCPInfo(fp *os.File) (model.TCPInfo, error) {
+func getTCPInfo(fp *os.File) (*tcp.LinuxTCPInfo, error) {
 	// Note: Fd() returns uintptr but on Unix we can safely use int for sockets.
-	tcpInfo := syscall.TCPInfo{}
+	tcpInfo := tcp.LinuxTCPInfo{}
 	tcpInfoLen := uint32(unsafe.Sizeof(tcpInfo))
 	_, _, err := syscall.Syscall6(
 		uintptr(syscall.SYS_GETSOCKOPT),
@@ -20,13 +20,8 @@ func getTCPInfo(fp *os.File) (model.TCPInfo, error) {
 		uintptr(unsafe.Pointer(&tcpInfo)),
 		uintptr(unsafe.Pointer(&tcpInfoLen)),
 		uintptr(0))
-	metrics := model.TCPInfo{}
 	if err != 0 {
-		return metrics, err
+		return &tcpInfo, err
 	}
-	// TODO(bassosimone): map more metrics. For now we only maps the metrics
-	// that are meaningful to a client to understand the context.
-	metrics.SmoothedRTT = float64(tcpInfo.Rtt) / 1000.0 // to msec
-	metrics.RTTVar = float64(tcpInfo.Rttvar) / 1000.0   // to msec
-	return metrics, nil
+	return &tcpInfo, nil
 }

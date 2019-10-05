@@ -119,7 +119,11 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	// the state assciated with initiating the close.
 	warnonerror.Close(testConn, "Could not close testConnection")
 
-	bps := 8 * float64(byteCount) / 10
+	// Bits per second is the number of bits divided by the duration of the
+	// test.  The duration of the test is supposed to be 10 seconds, but it
+	// can vary in practice, so we divide by the actual duration instead of
+	// assuming it was 10.
+	bps := 8 * float64(byteCount) / record.EndTime.Sub(record.StartTime).Seconds()
 	kbps := bps / 1000
 	record.MinRTT = time.Duration(web100metrics.MinRTT) * time.Millisecond
 	record.MeanThroughputMbps = kbps / 1000 // Convert Kbps to Mbps
@@ -135,7 +139,8 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	}
 
 	clientRateMsg, err := m.ReceiveMessage(protocol.TestMsg)
-	if err != nil {
+	// Do not return with an error if we got anything at all from the client.
+	if err != nil && clientRateMsg == nil {
 		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "TestMsgRcv").Inc()
 		log.Println("Could not receive a TestMsg", err)
 		return record, err
@@ -149,10 +154,16 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		// Being unable to parse the number should not be a fatal error, so continue.
 	}
 
-	err = protocol.SendMetrics(web100metrics, m)
+	err = protocol.SendMetrics(web100metrics, m, "")
 	if err != nil {
-		log.Println("Could not SendMetrics", err)
-		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "SendMetrics").Inc()
+		log.Println("Could not SendMetrics for the legacy data", err)
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "SendMetricsLegacy").Inc()
+		return record, err
+	}
+	err = protocol.SendMetrics(record, m, "NDTResult.S2C.")
+	if err != nil {
+		log.Println("Could not SendMetrics for the archival data", err)
+		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "SendMetricsArchival").Inc()
 		return record, err
 	}
 

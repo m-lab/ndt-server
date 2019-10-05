@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/ndt-server/bbr"
 	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/logging"
@@ -35,14 +36,21 @@ func getSocketAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 	return fp, nil
 }
 
-func measure(measurement *model.Measurement, sockfp *os.File) {
+func measure(measurement *model.Measurement, sockfp *os.File, elapsed time.Duration) {
+	// Implementation note: we always want to sample BBR before TCPInfo so we
+	// will know from TCPInfo if the connection has been closed.
+	t := int64(elapsed / time.Microsecond)
 	bbrinfo, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
 	if err == nil {
+		bbrinfo.ElapsedTime = t
 		measurement.BBRInfo = &bbrinfo
 	}
-	metrics, err := tcpinfox.GetTCPInfo(sockfp)
+	tcpInfo, err := tcpinfox.GetTCPInfo(sockfp)
 	if err == nil {
-		measurement.TCPInfo = &metrics
+		measurement.TCPInfo = &model.TCPInfo{
+			LinuxTCPInfo: *tcpInfo,
+			ElapsedTime:  t,
+		}
 	}
 }
 
@@ -59,20 +67,30 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 	}
 	defer sockfp.Close()
 	start := time.Now()
-	ticker := time.NewTicker(spec.MinMeasurementInterval)
-	defer ticker.Stop()
 	connectionInfo := &model.ConnectionInfo{
 		Client: conn.RemoteAddr().String(),
 		Server: conn.LocalAddr().String(),
 		UUID:   UUID,
 	}
-	for measurerctx.Err() == nil { // Liveness!
-		now := <-ticker.C
-		elapsed := now.Sub(start)
-		measurement := model.Measurement{
-			Elapsed: elapsed.Seconds(),
+	// Implementation note: the ticker will close its output channel
+	// after the controlling context is expired.
+	ticker, err := memoryless.MakeTicker(measurerctx, memoryless.Config{
+		Min:      spec.MinPoissonSamplingInterval,
+		Expected: spec.AveragePoissonSamplingInterval,
+		Max:      spec.MaxPoissonSamplingInterval,
+	})
+	if err != nil {
+		logging.Logger.WithError(err).Warn("memoryless.MakeTicker failed")
+		return
+	}
+	defer ticker.Stop()
+	for {
+		now, active := <-ticker.C
+		if !active {
+			return
 		}
-		measure(&measurement, sockfp)
+		var measurement model.Measurement
+		measure(&measurement, sockfp, now.Sub(start))
 		measurement.ConnectionInfo = connectionInfo
 		connectionInfo = nil
 		dst <- measurement // Liveness: this is blocking

@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
+	"github.com/m-lab/ndt-server/ndt7/ping"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
@@ -27,18 +28,23 @@ func loop(
 	logging.Logger.Debug("receiver: start")
 	defer logging.Logger.Debug("receiver: stop")
 	defer close(dst)
-	conn.SetReadLimit(spec.MinMaxMessageSize)
+	conn.SetReadLimit(spec.MaxMessageSize)
 	receiverctx, cancel := context.WithTimeout(ctx, spec.MaxRuntime)
 	defer cancel()
-	for {
-		select {
-		case <-receiverctx.Done(): // Liveness!
-			logging.Logger.Debug("receiver: context done")
-			return
-		default:
-			// FALLTHROUGH
+	err := conn.SetReadDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
+	if err != nil {
+		logging.Logger.WithError(err).Warn("receiver: conn.SetReadDeadline failed")
+		return
+	}
+	conn.SetPongHandler(func(s string) error {
+		rtt, err := ping.ParseTicks(s)
+		if err == nil {
+			rtt /= int64(time.Millisecond)
+			logging.Logger.Debugf("receiver: ApplicationLevel RTT: %d ms", rtt)
 		}
-		conn.SetReadDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
+		return err
+	})
+	for receiverctx.Err() == nil { // Liveness!
 		mtype, mdata, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
@@ -48,7 +54,7 @@ func loop(
 			return
 		}
 		if mtype != websocket.TextMessage {
-			switch (kind) {
+			switch kind {
 			case downloadReceiver:
 				logging.Logger.Warn("receiver: got non-Text message")
 				return // Unexpected message type
