@@ -14,7 +14,6 @@ import (
 )
 
 func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
-	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	data := make([]byte, size)
 	_, err := rand.Read(data)
 	if err != nil {
