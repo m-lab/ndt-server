@@ -129,8 +129,6 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	record.MeanThroughputMbps = kbps / 1000 // Convert Kbps to Mbps
 
 	// Send download results to the client.
-	// TODO: clean up this logic to use socket stats rather than application-level
-	// counters and the actual bytes sent.
 	err = m.SendS2CResults(int64(kbps), 0, web100metrics.TCPInfo.BytesAcked)
 	if err != nil {
 		log.Println("Could not write a TestMsg", err)
