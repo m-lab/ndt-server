@@ -95,7 +95,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 
 	testConn.StartMeasuring(localCtx)
 	record.StartTime = time.Now()
-	byteCount, err := testConn.FillUntil(time.Now().Add(10*time.Second), dataToSend)
+	_, err = testConn.FillUntil(time.Now().Add(10*time.Second), dataToSend)
 	record.EndTime = time.Now()
 	if err != nil {
 		warnonerror.Close(testConn, "Could not close test connection")
@@ -123,7 +123,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	// test.  The duration of the test is supposed to be 10 seconds, but it
 	// can vary in practice, so we divide by the actual duration instead of
 	// assuming it was 10.
-	bps := 8 * float64(byteCount) / record.EndTime.Sub(record.StartTime).Seconds()
+	bps := 8 * float64(web100metrics.TCPInfo.BytesAcked) / record.EndTime.Sub(record.StartTime).Seconds()
 	kbps := bps / 1000
 	record.MinRTT = time.Duration(web100metrics.MinRTT) * time.Millisecond
 	record.MeanThroughputMbps = kbps / 1000 // Convert Kbps to Mbps
@@ -131,7 +131,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	// Send download results to the client.
 	// TODO: clean up this logic to use socket stats rather than application-level
 	// counters and the actual bytes sent.
-	err = m.SendS2CResults(int64(kbps), 0, byteCount)
+	err = m.SendS2CResults(int64(kbps), 0, web100metrics.TCPInfo.BytesAcked)
 	if err != nil {
 		log.Println("Could not write a TestMsg", err)
 		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "TestMsgSend").Inc()
