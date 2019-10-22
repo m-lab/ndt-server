@@ -62,7 +62,7 @@ These instructions assume you have Docker for Windows/Mac installed.
 **Note: NDT5 does not work on Docker for Windows/Mac as it requires using the host's network, which is only supported on Linux**
 
 ```
-docker-compose run ndt-server ./gen_local_test_certs.sh
+docker-compose run ndt-server ./gen_local_test_certs.bash
 docker-compose up
 ```
 
