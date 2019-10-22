@@ -58,12 +58,14 @@ package fdcache
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/m-lab/uuid"
+	google_uuid "github.com/google/uuid"
 )
 
 // connKey is the key associated to a TCP connection.
@@ -162,11 +164,28 @@ func GetAndForgetFile(conn net.Conn) *os.File {
 // GetUUID returns the UUID for a passed-in connection.
 func GetUUID(conn net.Conn) (string, error) {
 	key := makekey(conn)
+	
 	mutex.Lock()
 	defer mutex.Unlock()
+
 	entry, found := cache[key]
 	if !found {
 		return "", errors.New("fd not found")
 	}
-	return uuid.FromFile(entry.Fp)
+
+	id, err := uuid.FromFile(entry.Fp)
+	if err != nil {
+		// Use UUID v1 as fallback when SO_COOKIE isn't supported by kernel
+		fallbackUUID, err := google_uuid.NewUUID() 
+		if err != nil {
+			return "", fmt.Errorf("unable to fallback to uuid: %s", err.Error())
+		}
+
+		id = fallbackUUID.String()
+		if id == "" {
+			return "", errors.New("unable to fallback to uuid: invalid uuid")
+		}
+	}
+
+	return id, nil
 }

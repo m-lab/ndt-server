@@ -8,6 +8,17 @@ spec/ndt7-protocol.md) server written in Go. This code may compile under
 many systems, including macOS and Windows, but is specifically designed
 and tested for running on Linux 4.17+.
 
+
+## Setup
+
+### Primary setup & running (Linux)
+
+Prepare the runtime environment
+
+```bash
+install -d certs datadir
+```
+
 To run the server locally, generate local self signed certificates (`key.pem`
 and `cert.pem`) using bash and OpenSSL
 
@@ -19,13 +30,6 @@ build the docker container for `ndt-server`
 
 ```bash
 docker build . -t ndt-server
-```
-
-prepare the runtime environment
-
-```bash
-install -d certs datadir
-mv key.pem cert.pem certs
 ```
 
 enable BBR (with which ndt7 works much better)
@@ -50,6 +54,21 @@ docker run --network=bridge                \
            -datadir /datadir               \
            -ndt7_addr :4443
 ```
+
+### Alternate setup & running (Windows & MacOS)
+
+These instructions assume you have Docker for Windows/Mac installed.
+
+**Note: NDT5 does not work on Docker for Windows/Mac as it requires using the host's network, which is only supported on Linux**
+
+```
+docker-compose run ndt-server ./gen_local_test_certs.bash
+docker-compose up
+```
+
+After making changes you will have to run `docker-compose up --build` to rebuild the ntd-server binary.
+
+## Accessing the service
 
 Once you have done that, you should have a ndt5 server running on ports
 `3001` (legacy binary flavour), `3002` (WebSocket flavour), and `3010`

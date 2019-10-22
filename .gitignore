@@ -2,3 +2,5 @@
 /key.pem
 /ndt7-*.jsonl.gz
 .idea/**
+/certs
+/datadir
