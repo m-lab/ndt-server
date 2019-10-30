@@ -45,7 +45,12 @@ mkdir -p "${DATA_DIR}"/tcpinfo
   --prometheusx.listen-address=:9991 \
   --uuid-prefix-file="${UUID_FILE}" \
   --output="${DATA_DIR}"/tcpinfo \
+  --eventsocket=/var/local/tcpeventsocket.sock \
   &
+
+while [[ ! -e /var/local/tcpeventsocket.sock ]]; do
+  sleep 1
+done
 
 # Start the traceroute service.
 mkdir -p "${DATA_DIR}"/traceroute
@@ -53,6 +58,7 @@ mkdir -p "${DATA_DIR}"/traceroute
   --prometheusx.listen-address=:9992 \
   --uuid-prefix-file="${UUID_FILE}" \
   --outputPath="${DATA_DIR}"/traceroute \
+  --tcpinfo.socket=/var/local/tcpeventsocket.sock \
   &
 
 # TODO: Start the packet header capture service.
