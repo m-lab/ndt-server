@@ -28,9 +28,7 @@ set -euxo pipefail
 
 # Set up UUIDs to have a common race-free prefix.
 UUID_FILE=$(mktemp /tmp/uuidprefix.XXXXXX)
-if [ ! -f "$UUID_FILE" ]; then
-    /create-uuid-prefix-file --filename="${UUID_FILE}"
-fi
+/create-uuid-prefix-file --filename="${UUID_FILE}"
 
 # Set up the data directory.
 DATA_DIR=/var/spool/ndt
