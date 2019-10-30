@@ -27,9 +27,7 @@ set -euxo pipefail
 # Set up the filesystem.
 
 # Set up UUIDs to have a common race-free prefix.
-UUID_DIR=/var/local/uuid
-UUID_FILE=${UUID_DIR}/prefix
-mkdir -p "${UUID_DIR}"
+UUID_FILE=$(mktemp /tmp/uuidprefix.XXXXXX)
 if [ ! -f "$UUID_FILE" ]; then
     /create-uuid-prefix-file --filename="${UUID_FILE}"
 fi
