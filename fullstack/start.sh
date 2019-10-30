@@ -27,12 +27,8 @@ set -euxo pipefail
 # Set up the filesystem.
 
 # Set up UUIDs to have a common race-free prefix.
-UUID_DIR=/var/local/uuid
-UUID_FILE=${UUID_DIR}/prefix
-mkdir -p "${UUID_DIR}"
-if [ ! -f "$UUID_FILE" ]; then
-    /create-uuid-prefix-file --filename="${UUID_FILE}"
-fi
+UUID_FILE=$(mktemp /tmp/uuidprefix.XXXXXX)
+/create-uuid-prefix-file --filename="${UUID_FILE}"
 
 # Set up the data directory.
 DATA_DIR=/var/spool/ndt
@@ -47,7 +43,12 @@ mkdir -p "${DATA_DIR}"/tcpinfo
   --prometheusx.listen-address=:9991 \
   --uuid-prefix-file="${UUID_FILE}" \
   --output="${DATA_DIR}"/tcpinfo \
+  --eventsocket=/var/local/tcpeventsocket.sock \
   &
+
+while [[ ! -e /var/local/tcpeventsocket.sock ]]; do
+  sleep 1
+done
 
 # Start the traceroute service.
 mkdir -p "${DATA_DIR}"/traceroute
@@ -55,6 +56,7 @@ mkdir -p "${DATA_DIR}"/traceroute
   --prometheusx.listen-address=:9992 \
   --uuid-prefix-file="${UUID_FILE}" \
   --outputPath="${DATA_DIR}"/traceroute \
+  --tcpinfo.socket=/var/local/tcpeventsocket.sock \
   &
 
 # TODO: Start the packet header capture service.
