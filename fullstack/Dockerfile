@@ -11,11 +11,16 @@ COPY --from=measurementlab/tcp-info /bin/tcp-info /tcp-info
 COPY --from=measurementlab/tcp-info /bin/zstd /bin/zstd
 COPY --from=measurementlab/tcp-info /licences/zstd/ /licences/zstd/
 
+# packet-headers needs its binary and libpcap.  There's no good way to get both
+# easily from the image, due to C-linking issues and the differences between
+# alpine and ubuntu, so just rebuild it here.
+RUN apt-get update && apt-get install -y libpcap-dev golang-go git
+RUN go get github.com/m-lab/packet-headers
+RUN mv /root/go/bin/packet-headers /packet-headers
+
 # The NDT server needs the server binary and its HTML files
 COPY --from=measurementlab/ndt-server /ndt-server /
 COPY --from=measurementlab/ndt-server /html /html
-
-# TODO: Still need packet-headers
 
 COPY fullstack/start.sh /start.sh
 RUN chmod +x /start.sh

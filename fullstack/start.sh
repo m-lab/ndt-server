@@ -59,7 +59,14 @@ mkdir -p "${DATA_DIR}"/traceroute
   --tcpinfo.socket=/var/local/tcpeventsocket.sock \
   &
 
-# TODO: Start the packet header capture service.
+# Start packet header capture.
+mkdir -p "${DATA_DIR}"/pcap
+/packet-headers \
+  --prometheusx.listen-address=:9993 \
+  --datadir="${DATA_DIR}"/pcap \
+  --eventsocket=/var/local/tcpeventsocket.sock \
+  &
+
 
 # Start the NDT server.
 /ndt-server \
