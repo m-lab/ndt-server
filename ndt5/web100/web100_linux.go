@@ -33,9 +33,9 @@ func summarize(snaps []*tcp.LinuxTCPInfo) (*Metrics, error) {
 	info := &Metrics{
 		TCPInfo: *snaps[len(snaps)-1], // Save the last snapshot of TCPInfo data into the metric struct.
 
-		MinRTT:   minrtt / 1000, // tcpinfo is microsecond data, web100 needs milliseconds
-		MaxRTT:   maxrtt / 1000, // tcpinfo is microsecond data, web100 needs milliseconds
-		SumRTT:   sumrtt / 1000, // tcpinfo is microsecond data, web100 needs milliseconds
+		MinRTT: minrtt / 1000, // tcpinfo is microsecond data, web100 needs milliseconds
+		MaxRTT: maxrtt / 1000, // tcpinfo is microsecond data, web100 needs milliseconds
+		SumRTT: sumrtt / 1000, // tcpinfo is microsecond data, web100 needs milliseconds
 
 		CountRTT: countrtt, // This counts how many samples went into SumRTT
 
@@ -53,6 +53,7 @@ func summarize(snaps []*tcp.LinuxTCPInfo) (*Metrics, error) {
 
 func measureUntilContextCancellation(ctx context.Context, fp *os.File) (*Metrics, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
+	defer fp.Close()
 	defer ticker.Stop()
 
 	snaps := make([]*tcp.LinuxTCPInfo, 0, 200) // Enough space for 20 seconds of data.
