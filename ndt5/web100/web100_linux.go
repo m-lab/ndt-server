@@ -53,6 +53,8 @@ func summarize(snaps []*tcp.LinuxTCPInfo) (*Metrics, error) {
 
 func measureUntilContextCancellation(ctx context.Context, fp *os.File) (*Metrics, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
+	// We need to make sure fp is closed when the polling loop ends to ensure legacy
+	// clients work. See https://github.com/m-lab/ndt-server/issues/160.
 	defer fp.Close()
 	defer ticker.Stop()
 
