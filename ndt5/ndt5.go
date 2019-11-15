@@ -159,7 +159,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	if err != nil {
 		ndt5metrics.ClientTestErrors.WithLabelValues(connType, "control", "LoginCeremony").Inc()
 	}
-	rtx.PanicOnError(err, "Login - error reading JSON message")
+	rtx.PanicOnError(err, "Login - error reading JSON message (uuid: %s)", record.Control.UUID)
 
 	if (tests & cTestStatus) == 0 {
 		log.Println("We don't support clients that don't support TestStatus")
@@ -204,13 +204,13 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	record.Control.MessageProtocol = m.Encoding().String()
 	rtx.PanicOnError(
 		m.SendMessage(protocol.SrvQueue, []byte("0")),
-		"SrvQueue - Could not send SrvQueue")
+		"SrvQueue - Could not send SrvQueue (uuid: %s)", record.Control.UUID)
 	rtx.PanicOnError(
 		m.SendMessage(protocol.MsgLogin, []byte("v5.0-NDTinGO")),
-		"MsgLoginVersion - Could not send MsgLogin with version")
+		"MsgLoginVersion - Could not send MsgLogin with version (uuid: %s)", record.Control.UUID)
 	rtx.PanicOnError(
 		m.SendMessage(protocol.MsgLogin, []byte(strings.Join(testsToRun, " "))),
-		"MsgLoginTests - Could not send MsgLogin with the tests")
+		"MsgLoginTests - Could not send MsgLogin with the tests (uuid: %s)", record.Control.UUID)
 
 	var c2sRate, s2cRate float64
 	if runC2s {
@@ -221,7 +221,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 		}
 		r := getResultLabel(err, record.C2S.MeanThroughputMbps)
 		ndt5metrics.ClientTestResults.WithLabelValues(connType, "c2s", r).Inc()
-		rtx.PanicOnError(err, "C2S - Could not run c2s test")
+		rtx.PanicOnError(err, "C2S - Could not run c2s test (uuid: %s)", record.Control.UUID)
 	}
 	if runS2c {
 		record.S2C, err = s2c.ManageTest(ctx, conn, s)
@@ -231,19 +231,19 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 		}
 		r := getResultLabel(err, record.S2C.MeanThroughputMbps)
 		ndt5metrics.ClientTestResults.WithLabelValues(connType, "s2c", r).Inc()
-		rtx.PanicOnError(err, "S2C - Could not run s2c test")
+		rtx.PanicOnError(err, "S2C - Could not run s2c test (uuid: %s)", record.Control.UUID)
 	}
 	if runMeta {
 		record.Control.ClientMetadata, err = meta.ManageTest(ctx, m, s)
-		rtx.PanicOnError(err, "META - Could not run meta test")
+		rtx.PanicOnError(err, "META - Could not run meta test (uuid: %s)", record.Control.UUID)
 	}
 	speedMsg := fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000)
 	log.Println(speedMsg)
 	// For historical reasons, clients expect results in kbps
 	rtx.PanicOnError(
 		m.SendMessage(protocol.MsgResults, []byte(speedMsg)),
-		"MsgResults - Could not send test results message")
+		"MsgResults - Could not send test results message (uuid: %s)", record.Control.UUID)
 	rtx.PanicOnError(
 		m.SendMessage(protocol.MsgLogout, []byte{}),
-		"MsgLogout - Could not send MsgLogout")
+		"MsgLogout - Could not send MsgLogout (uuid: %s)", record.Control.UUID)
 }

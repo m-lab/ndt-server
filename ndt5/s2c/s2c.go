@@ -88,7 +88,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	err = m.SendMessage(protocol.TestStart, []byte{})
 	if err != nil {
 		warnonerror.Close(testConn, "Could not close test connection")
-		log.Println("Could not write TestStart", err)
+		log.Println("Could not write TestStart", err, record.UUID)
 		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "TestStart").Inc()
 		return record, err
 	}
@@ -99,7 +99,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	record.EndTime = time.Now()
 	if err != nil {
 		warnonerror.Close(testConn, "Could not close test connection")
-		log.Println("Could not FillUntil", err)
+		log.Println("Could not FillUntil", err, record.UUID)
 		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "FillUntil").Inc()
 		return record, err
 	}
@@ -107,7 +107,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	web100metrics, err := testConn.StopMeasuring()
 	if err != nil {
 		warnonerror.Close(testConn, "Could not close test connection")
-		log.Println("Could not read metrics", err)
+		log.Println("Could not read metrics", err, record.UUID)
 		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "web100Metrics").Inc()
 		return record, err
 	}
@@ -131,7 +131,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	// Send download results to the client.
 	err = m.SendS2CResults(int64(kbps), 0, web100metrics.TCPInfo.BytesAcked)
 	if err != nil {
-		log.Println("Could not write a TestMsg", err)
+		log.Println("Could not write a TestMsg", err, record.UUID)
 		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "TestMsgSend").Inc()
 		return record, err
 	}
@@ -140,7 +140,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	// Do not return with an error if we got anything at all from the client.
 	if err != nil && clientRateMsg == nil {
 		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "TestMsgRcv").Inc()
-		log.Println("Could not receive a TestMsg", err)
+		log.Println("Could not receive a TestMsg", err, record.UUID)
 		return record, err
 	}
 	log.Println("We measured", kbps, "and the client sent us", clientRateMsg)
@@ -154,20 +154,20 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 
 	err = protocol.SendMetrics(web100metrics, m, "")
 	if err != nil {
-		log.Println("Could not SendMetrics for the legacy data", err)
+		log.Println("Could not SendMetrics for the legacy data", err, record.UUID)
 		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "SendMetricsLegacy").Inc()
 		return record, err
 	}
 	err = protocol.SendMetrics(record, m, "NDTResult.S2C.")
 	if err != nil {
-		log.Println("Could not SendMetrics for the archival data", err)
+		log.Println("Could not SendMetrics for the archival data", err, record.UUID)
 		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "SendMetricsArchival").Inc()
 		return record, err
 	}
 
 	err = m.SendMessage(protocol.TestFinalize, []byte{})
 	if err != nil {
-		log.Println("Could not send TestFinalize", err)
+		log.Println("Could not send TestFinalize", err, record.UUID)
 		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "TestFinalize").Inc()
 		return record, err
 	}
