@@ -30,6 +30,7 @@ import (
 var (
 	// Flags that can be passed in on the command line
 	ndt7Addr    = flag.String("ndt7_addr", ":443", "The address and port to use for the ndt7 test")
+	ndt7AddrCleartext = flag.String("ndt7_addr_cleartext", ":80", "The address and port to use for the ndt7 cleartext test")
 	ndt5Addr    = flag.String("ndt5_addr", ":3001", "The address and port to use for the unencrypted ndt5 test")
 	ndt5WsAddr  = flag.String("ndt5_ws_addr", "127.0.0.1:3002", "The address and port to use for the ndt5 WS test")
 	ndt5WssAddr = flag.String("ndt5_wss_addr", ":3010", "The address and port to use for the ndt5 WSS test")
@@ -165,6 +166,13 @@ func main() {
 		}
 		log.Println("About to listen for ndt7 tests on " + *ndt7Addr)
 		rtx.Must(listener.ListenAndServeTLSAsync(ndt7Server, *certFile, *keyFile), "Could not start ndt7 server")
+		defer ndt7Server.Close()
+		ndt7ServerCleartext := &http.Server{
+			Addr:    *ndt7AddrCleartext,
+			Handler: logging.MakeAccessLogHandler(ndt7Mux),
+		}
+		log.Println("About to listen for ndt7 cleartext tests on " + *ndt7AddrCleartext)
+		rtx.Must(listener.ListenAndServeAsync(ndt7ServerCleartext), "Could not start ndt7 cleartext server")
 		defer ndt7Server.Close()
 	} else {
 		log.Printf("Cert=%q and Key=%q means no TLS services will be started.\n", *certFile, *keyFile)
