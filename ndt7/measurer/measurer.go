@@ -74,13 +74,13 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 	}
 	// Implementation note: the ticker will close its output channel
 	// after the controlling context is expired.
-	ticker, err := memoryless.MakeTicker(measurerctx, memoryless.Config{
+	ticker, err := memoryless.NewTicker(measurerctx, memoryless.Config{
 		Min:      spec.MinPoissonSamplingInterval,
 		Expected: spec.AveragePoissonSamplingInterval,
 		Max:      spec.MaxPoissonSamplingInterval,
 	})
 	if err != nil {
-		logging.Logger.WithError(err).Warn("memoryless.MakeTicker failed")
+		logging.Logger.WithError(err).Warn("memoryless.NewTicker failed")
 		return
 	}
 	defer ticker.Stop()
