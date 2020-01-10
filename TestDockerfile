@@ -41,8 +41,8 @@ RUN git clone https://github.com/measurement-kit/measurement-kit.git
 WORKDIR /measurement-kit
 RUN ./autogen.sh
 RUN ./configure
-RUN make
-RUN make install
+RUN make -j 8
+RUN make -j 8 install
 
 
 # Build a version of web100clt that uses JSON.
@@ -52,7 +52,7 @@ WORKDIR /ndt
 RUN ./bootstrap
 RUN ./configure --enable-static
 WORKDIR /ndt/src
-RUN make web100clt
+RUN make -j 8 web100clt
 
 
 # Build a version of web100clt that does not use JSON.
@@ -63,7 +63,7 @@ FROM ndtbuild AS ndtrawnojson
 WORKDIR /ndt/I2util
 RUN ./bootstrap.sh
 RUN ./configure
-RUN make install
+RUN make -j 8 install
 WORKDIR /ndt
 # Check out a build from before JSON support was in the binary.  Because
 # libjansson is not installed in this image, if the build succeeds, then it
@@ -72,7 +72,7 @@ RUN git checkout 1f918aa4411c5bd3a863127b58bbd3b75c9d8a09
 RUN ./bootstrap
 RUN ./configure --enable-static
 WORKDIR /ndt/src
-RUN make web100clt
+RUN make -j 8 web100clt
 
 
 # Build the final image in which the server will be tested.
