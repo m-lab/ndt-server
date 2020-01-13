@@ -9,10 +9,8 @@ import (
 )
 
 // SendTicks sends the current ticks as a ping message.
-func SendTicks(conn *websocket.Conn, deadline time.Time) error {
-	// TODO(bassosimone): when we'll have a unique base time.Time reference for
-	// the whole test, we should use that, since UnixNano() is not monotonic.
-	ticks := int64(time.Now().UnixNano())
+func SendTicks(conn *websocket.Conn, start time.Time, deadline time.Time) error {
+	var ticks int64 = time.Since(start).Nanoseconds()
 	data, err := json.Marshal(ticks)
 	if err == nil {
 		err = conn.WriteControl(websocket.PingMessage, data, deadline)
@@ -20,13 +18,12 @@ func SendTicks(conn *websocket.Conn, deadline time.Time) error {
 	return err
 }
 
-func ParseTicks(s string) (d int64, err error) {
-	// TODO(bassosimone): when we'll have a unique base time.Time reference for
-	// the whole test, we should use that, since UnixNano() is not monotonic.
+func ParseTicks(s string, start time.Time) (d time.Duration, err error) {
+	elapsed := time.Since(start).Nanoseconds()
 	var prev int64
 	err = json.Unmarshal([]byte(s), &prev)
-	if err == nil {
-		d = (int64(time.Now().UnixNano()) - prev)
+	if err == nil && prev <= elapsed {
+		d = time.Duration(elapsed - prev)
 	}
 	return
 }

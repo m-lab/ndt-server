@@ -24,8 +24,10 @@
 </head>
 <body>
   <div>
+    <div id='ping' class='result row'>[Ping]</div>
     <div id='download' class='result row'>[Download]</div>
     <div id='upload' class='result row'>[Upload]</div>
+    <div id='done' class='result row'></div>
   </div>
   <script type='text/javascript'>
     /* jshint esversion: 6, asi: true */
@@ -54,12 +56,24 @@
         if (ev === 'complete') {
           if (callback !== undefined) {
             callback()
+          } else {
+            withElementDo('done', function (elem) {
+              elem.innerHTML = 'Done.'
+            })
           }
           return
         }
         if (ev === 'measurement' && val.AppInfo !== undefined &&
             val.Origin === 'client') {
           updateView(testName, val.AppInfo)
+        }
+        if (ev === 'measurement' && val.AppInfo !== undefined &&
+            val.Origin === 'server' && testName === 'ping') {
+          withElementDo('ping', function (elem) {
+            const ws = val.AppInfo.MinRTT / 1e3
+            const tcp = val.TCPInfo.MinRTT / 1e3
+            elem.innerHTML = ws.toFixed(1) + ' / ' + tcp.toFixed(1) + ' ms'
+          })
         }
       })
     }
@@ -72,7 +86,11 @@
       runSomething('upload', callback)
     }
 
-    runDownload(function() { runUpload(); })
+    function runPing(callback) {
+      runSomething('ping', callback)
+    }
+
+    runPing(function() { runDownload(function() { runUpload(); }); })
   </script>
 </body>
 </html>

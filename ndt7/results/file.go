@@ -66,8 +66,8 @@ func newFile(datadir, what, uuid string) (*File, error) {
 // containing the metadata. The conn argument is used to retrieve the local and
 // the remote endpoints addresses. The "datadir" argument specifies the
 // directory on disk to write the data into and the what argument should
-// indicate whether this is a spec.SubtestDownload or a spec.SubtestUpload
-// ndt7 measurement.
+// indicate whether this is a spec.SubtestDownload, a spec.SubtestUpload
+// or a spec.SubtestPing ndt7 measurement.
 func OpenFor(request *http.Request, conn *websocket.Conn, datadir string, what spec.SubtestKind) (*File, error) {
 	meta := make(metadata, 0)
 	netConn := conn.UnderlyingConn()

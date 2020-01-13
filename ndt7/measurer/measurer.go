@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"time"
+	"math"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/go/memoryless"
@@ -16,6 +17,10 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/tcpinfox"
+)
+
+const (
+	MaxDuration = math.MaxInt64 * time.Nanosecond
 )
 
 func getSocketAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
@@ -39,7 +44,7 @@ func getSocketAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 func measure(measurement *model.Measurement, sockfp *os.File, elapsed time.Duration) {
 	// Implementation note: we always want to sample BBR before TCPInfo so we
 	// will know from TCPInfo if the connection has been closed.
-	t := int64(elapsed / time.Microsecond)
+	t := elapsed.Microseconds()
 	bbrinfo, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
 	if err == nil {
 		bbrinfo.ElapsedTime = t
@@ -54,7 +59,7 @@ func measure(measurement *model.Measurement, sockfp *os.File, elapsed time.Durat
 	}
 }
 
-func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- model.Measurement) {
+func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- model.Measurement, start time.Time, rttch <-chan time.Duration) {
 	logging.Logger.Debug("measurer: start")
 	defer logging.Logger.Debug("measurer: stop")
 	defer close(dst)
@@ -66,7 +71,6 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 		return
 	}
 	defer sockfp.Close()
-	start := time.Now()
 	connectionInfo := &model.ConnectionInfo{
 		Client: conn.RemoteAddr().String(),
 		Server: conn.LocalAddr().String(),
@@ -83,17 +87,31 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 		logging.Logger.WithError(err).Warn("memoryless.NewTicker failed")
 		return
 	}
+	lastRTT, minRTT := MaxDuration, MaxDuration
 	defer ticker.Stop()
 	for {
-		now, active := <-ticker.C
-		if !active {
-			return
+		select {
+		case now, active := <-ticker.C:
+			if !active {
+				return
+			}
+			var measurement model.Measurement
+			measure(&measurement, sockfp, now.Sub(start))
+			measurement.ConnectionInfo = connectionInfo
+			connectionInfo = nil
+			if minRTT < MaxDuration {
+				measurement.AppInfo = &model.AppInfo{
+					ElapsedTime: now.Sub(start).Microseconds(),
+					LastRTT: lastRTT.Microseconds(),
+					MinRTT: minRTT.Microseconds(),
+				}
+			}
+			dst <- measurement // Liveness: this is blocking
+		case lastRTT = <-rttch:
+			if (lastRTT < minRTT) {
+				minRTT = lastRTT
+			}
 		}
-		var measurement model.Measurement
-		measure(&measurement, sockfp, now.Sub(start))
-		measurement.ConnectionInfo = connectionInfo
-		connectionInfo = nil
-		dst <- measurement // Liveness: this is blocking
 	}
 }
 
@@ -104,9 +122,10 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 // a timeout of DefaultRuntime seconds, provided that the consumer
 // continues reading from the returned channel.
 func Start(
-	ctx context.Context, conn *websocket.Conn, UUID string,
+	ctx context.Context, conn *websocket.Conn, UUID string, start time.Time,
+	rttch <-chan time.Duration,
 ) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
-	go loop(ctx, conn, UUID, dst)
+	go loop(ctx, conn, UUID, dst, start, rttch)
 	return dst
 }

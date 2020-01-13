@@ -9,6 +9,9 @@ const DownloadURLPath = "/ndt/v7/download"
 // UploadURLPath selects the upload subtest.
 const UploadURLPath = "/ndt/v7/upload"
 
+// PingURLPath selects the ping subtest.
+const PingURLPath = "/ndt/v7/ping"
+
 // SecWebSocketProtocol is the WebSocket subprotocol used by ndt7.
 const SecWebSocketProtocol = "net.measurementlab.ndt.v7"
 
@@ -57,4 +60,7 @@ const (
 
 	// SubtestUpload is a upload subtest
 	SubtestUpload = SubtestKind("upload")
+
+	// SubtestPing is a ping subtest
+	SubtestPing = SubtestKind("ping")
 )

@@ -45,4 +45,5 @@ type NDTResult struct {
 	// ndt7
 	Upload   *model.ArchivalData `json:",omitempty"`
 	Download *model.ArchivalData `json:",omitempty"`
+	Ping	 *model.ArchivalData `json:",omitempty"`
 }

@@ -5,4 +5,6 @@ package model
 type AppInfo struct {
 	NumBytes    int64
 	ElapsedTime int64
+	LastRTT 	int64
+	MinRTT		int64
 }

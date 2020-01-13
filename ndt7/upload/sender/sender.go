@@ -14,7 +14,7 @@ import (
 
 func loop(
 	conn *websocket.Conn, src <-chan model.Measurement,
-	dst chan<- model.Measurement,
+	dst chan<- model.Measurement, start time.Time,
 ) {
 	logging.Logger.Debug("sender: start")
 	defer logging.Logger.Debug("sender: stop")
@@ -24,7 +24,7 @@ func loop(
 			// make sure we drain the channel
 		}
 	}()
-	deadline := time.Now().Add(spec.MaxRuntime)
+	deadline := start.Add(spec.MaxRuntime)
 	err := conn.SetWriteDeadline(deadline) // Liveness!
 	if err != nil {
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
@@ -41,7 +41,7 @@ func loop(
 			return
 		}
 		dst <- m // Liveness: this is blocking
-		if err := ping.SendTicks(conn, deadline); err != nil {
+		if err := ping.SendTicks(conn, start, deadline); err != nil {
 			logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
 			return
 		}
@@ -55,9 +55,9 @@ func loop(
 // Liveness guarantee: the sender will not be stuck sending for more then
 // the MaxRuntime of the subtest, provided that the consumer will
 // continue reading from the returned channel. This is enforced by
-// setting the write deadline to MaxRuntime + time.Now.
-func Start(conn *websocket.Conn, src <-chan model.Measurement) <-chan model.Measurement {
+// setting the write deadline to |start| + MaxRuntime.
+func Start(conn *websocket.Conn, src <-chan model.Measurement, start time.Time) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
-	go loop(conn, src, dst)
+	go loop(conn, src, dst, start)
 	return dst
 }
