@@ -14,7 +14,7 @@ import (
 
 func loop(
 	conn *websocket.Conn, src <-chan model.Measurement,
-	dst chan<- model.Measurement,
+	dst chan<- model.Measurement, start time.Time, pongch <-chan model.WSInfo,
 ) {
 	logging.Logger.Debug("sender: start")
 	defer logging.Logger.Debug("sender: stop")
@@ -23,27 +23,41 @@ func loop(
 		for range src {
 			// make sure we drain the channel
 		}
+		for range pongch {
+			// it should be buffered channel, but let's drain it anyway
+		}
 	}()
-	deadline := time.Now().Add(spec.MaxRuntime)
+	deadline := start.Add(spec.MaxRuntime)
 	err := conn.SetWriteDeadline(deadline) // Liveness!
 	if err != nil {
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
 		return
 	}
 	for {
-		m, ok := <-src
-		if !ok { // This means that the previous step has terminated
-			closer.StartClosing(conn)
-			return
-		}
-		if err := conn.WriteJSON(m); err != nil {
-			logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
-			return
-		}
-		dst <- m // Liveness: this is blocking
-		if err := ping.SendTicks(conn, deadline); err != nil {
-			logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
-			return
+		select {
+		case m, ok := <-src:
+			if !ok { // This means that the previous step has terminated
+				closer.StartClosing(conn)
+				return
+			}
+			if err := conn.WriteJSON(m); err != nil {
+				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
+				return
+			}
+			dst <- m // Liveness: this is blocking
+			if err := ping.SendTicks(conn, start, deadline); err != nil {
+				logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
+				return
+			}
+		case wsinfo := <-pongch:
+			m := model.Measurement{
+				WSInfo: &wsinfo,
+			}
+			if err := conn.WriteJSON(m); err != nil {
+				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
+				return
+			}
+			dst <- m // Liveness: this is blocking write to log
 		}
 	}
 }
@@ -55,9 +69,9 @@ func loop(
 // Liveness guarantee: the sender will not be stuck sending for more then
 // the MaxRuntime of the subtest, provided that the consumer will
 // continue reading from the returned channel. This is enforced by
-// setting the write deadline to MaxRuntime + time.Now.
-func Start(conn *websocket.Conn, src <-chan model.Measurement) <-chan model.Measurement {
+// setting the write deadline to |start| + MaxRuntime.
+func Start(conn *websocket.Conn, src <-chan model.Measurement, start time.Time, pongch <-chan model.WSInfo) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
-	go loop(conn, src, dst)
+	go loop(conn, src, dst, start, pongch)
 	return dst
 }
