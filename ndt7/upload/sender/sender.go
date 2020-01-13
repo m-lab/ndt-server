@@ -14,7 +14,7 @@ import (
 
 func loop(
 	conn *websocket.Conn, src <-chan model.Measurement,
-	dst chan<- model.Measurement, start time.Time,
+	dst chan<- model.Measurement, start time.Time, pongch <-chan model.WSInfo,
 ) {
 	logging.Logger.Debug("sender: start")
 	defer logging.Logger.Debug("sender: stop")
@@ -22,6 +22,9 @@ func loop(
 	defer func() {
 		for range src {
 			// make sure we drain the channel
+		}
+		for range pongch {
+			// it should be buffered channel, but let's drain it anyway
 		}
 	}()
 	deadline := start.Add(spec.MaxRuntime)
@@ -31,19 +34,30 @@ func loop(
 		return
 	}
 	for {
-		m, ok := <-src
-		if !ok { // This means that the previous step has terminated
-			closer.StartClosing(conn)
-			return
-		}
-		if err := conn.WriteJSON(m); err != nil {
-			logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
-			return
-		}
-		dst <- m // Liveness: this is blocking
-		if err := ping.SendTicks(conn, start, deadline); err != nil {
-			logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
-			return
+		select {
+		case m, ok := <-src:
+			if !ok { // This means that the previous step has terminated
+				closer.StartClosing(conn)
+				return
+			}
+			if err := conn.WriteJSON(m); err != nil {
+				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
+				return
+			}
+			dst <- m // Liveness: this is blocking
+			if err := ping.SendTicks(conn, start, deadline); err != nil {
+				logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
+				return
+			}
+		case wsinfo := <-pongch:
+			m := model.Measurement{
+				WSInfo: &wsinfo,
+			}
+			if err := conn.WriteJSON(m); err != nil {
+				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
+				return
+			}
+			dst <- m // Liveness: this is blocking write to log
 		}
 	}
 }
@@ -56,8 +70,8 @@ func loop(
 // the MaxRuntime of the subtest, provided that the consumer will
 // continue reading from the returned channel. This is enforced by
 // setting the write deadline to |start| + MaxRuntime.
-func Start(conn *websocket.Conn, src <-chan model.Measurement, start time.Time) <-chan model.Measurement {
+func Start(conn *websocket.Conn, src <-chan model.Measurement, start time.Time, pongch <-chan model.WSInfo) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
-	go loop(conn, src, dst, start)
+	go loop(conn, src, dst, start, pongch)
 	return dst
 }

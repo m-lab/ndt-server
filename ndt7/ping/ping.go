@@ -3,6 +3,7 @@ package ping
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -18,12 +19,17 @@ func SendTicks(conn *websocket.Conn, start time.Time, deadline time.Time) error 
 	return err
 }
 
-func ParseTicks(s string, start time.Time) (d time.Duration, err error) {
-	elapsed := time.Since(start).Nanoseconds()
+func ParseTicks(s string, start time.Time) (elapsed time.Duration, d time.Duration, err error) {
+	elapsed = time.Since(start)
 	var prev int64
 	err = json.Unmarshal([]byte(s), &prev)
-	if err == nil && prev <= elapsed {
-		d = time.Duration(elapsed - prev)
+	if err != nil {
+		return
+	}
+	if 0 <= prev && prev <= elapsed.Nanoseconds() {
+		d = time.Duration(elapsed.Nanoseconds() - prev)
+	} else {
+		err = errors.New("RTT is negative")
 	}
 	return
 }

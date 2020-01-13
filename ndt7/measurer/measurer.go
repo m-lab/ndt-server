@@ -7,7 +7,6 @@ import (
 	"errors"
 	"os"
 	"time"
-	"math"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/go/memoryless"
@@ -17,10 +16,6 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/tcpinfox"
-)
-
-const (
-	MaxDuration = math.MaxInt64 * time.Nanosecond
 )
 
 func getSocketAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
@@ -59,7 +54,7 @@ func measure(measurement *model.Measurement, sockfp *os.File, elapsed time.Durat
 	}
 }
 
-func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- model.Measurement, start time.Time, rttch <-chan time.Duration) {
+func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- model.Measurement, start time.Time) {
 	logging.Logger.Debug("measurer: start")
 	defer logging.Logger.Debug("measurer: stop")
 	defer close(dst)
@@ -87,31 +82,17 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 		logging.Logger.WithError(err).Warn("memoryless.NewTicker failed")
 		return
 	}
-	lastRTT, minRTT := MaxDuration, MaxDuration
 	defer ticker.Stop()
 	for {
-		select {
-		case now, active := <-ticker.C:
-			if !active {
-				return
-			}
-			var measurement model.Measurement
-			measure(&measurement, sockfp, now.Sub(start))
-			measurement.ConnectionInfo = connectionInfo
-			connectionInfo = nil
-			if minRTT < MaxDuration {
-				measurement.AppInfo = &model.AppInfo{
-					ElapsedTime: now.Sub(start).Microseconds(),
-					LastRTT: lastRTT.Microseconds(),
-					MinRTT: minRTT.Microseconds(),
-				}
-			}
-			dst <- measurement // Liveness: this is blocking
-		case lastRTT = <-rttch:
-			if (lastRTT < minRTT) {
-				minRTT = lastRTT
-			}
+		now, active := <-ticker.C
+		if !active {
+			return
 		}
+		var measurement model.Measurement
+		measure(&measurement, sockfp, now.Sub(start))
+		measurement.ConnectionInfo = connectionInfo
+		connectionInfo = nil
+		dst <- measurement // Liveness: this is blocking
 	}
 }
 
@@ -123,9 +104,8 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 // continues reading from the returned channel.
 func Start(
 	ctx context.Context, conn *websocket.Conn, UUID string, start time.Time,
-	rttch <-chan time.Duration,
 ) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
-	go loop(ctx, conn, UUID, dst, start, rttch)
+	go loop(ctx, conn, UUID, dst, start)
 	return dst
 }

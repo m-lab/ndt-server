@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"time"
+	"math"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
@@ -22,13 +23,18 @@ const (
 	pingReceiver
 )
 
+const (
+	MaxDuration = math.MaxInt64 * time.Nanosecond
+)
+
 func loop(
 	ctx context.Context, conn *websocket.Conn, kind receiverKind,
-	dst chan<- model.Measurement, start time.Time, rttch chan<- time.Duration,
+	dst chan<- model.Measurement, start time.Time, pongch chan<- model.WSInfo,
 ) {
 	logging.Logger.Debug("receiver: start")
 	defer logging.Logger.Debug("receiver: stop")
 	defer close(dst)
+	defer close(pongch)
 	conn.SetReadLimit(spec.MaxMessageSize)
 	receiverctx, cancel := context.WithTimeout(ctx, spec.MaxRuntime)
 	defer cancel()
@@ -37,11 +43,20 @@ func loop(
 		logging.Logger.WithError(err).Warn("receiver: conn.SetReadDeadline failed")
 		return
 	}
+	minRTT := MaxDuration
 	conn.SetPongHandler(func(s string) error {
-		rtt, err := ping.ParseTicks(s, start)
+		elapsed, rtt, err := ping.ParseTicks(s, start)
 		if err == nil {
-			rttch <- rtt // Possibly blocking, but `measurer`
 			logging.Logger.Debugf("receiver: ApplicationLevel RTT: %d ms", rtt.Milliseconds())
+			if rtt < minRTT {
+				minRTT = rtt
+			}
+			wsinfo := model.WSInfo{
+                ElapsedTime: elapsed.Microseconds(),
+                LastRTT: rtt.Microseconds(),
+                MinRTT: minRTT.Microseconds(),
+			}
+			pongch <- wsinfo // Liveness: buffered (sender)
 		}
 		return err
 	})
@@ -73,11 +88,15 @@ func loop(
 	}
 }
 
-func startReceiver(ctx context.Context, conn *websocket.Conn, kind receiverKind, start time.Time) (<-chan model.Measurement, <-chan time.Duration) {
+func startReceiver(ctx context.Context, conn *websocket.Conn, kind receiverKind, start time.Time) (<-chan model.Measurement, <-chan model.WSInfo) {
+	// |dst| is going to the log file
 	dst := make(chan model.Measurement)
-	rttch := make(chan time.Duration)
-	go loop(ctx, conn, kind, dst, start, rttch)
-	return dst, rttch
+	// |pongch| goes to the client, it's buffered to avoid blocking on `download.sender.loop`
+	// while `conn.WritePreparedMessage()` is active.
+	// TODO(darkk): is it possible to reduce buffer size or to avoiding blocking in some other way? May avoiding L7 pings at /download altogether be the way?
+	pongch := make(chan model.WSInfo, 1 + spec.MaxRuntime / spec.MinPoissonSamplingInterval)
+	go loop(ctx, conn, kind, dst, start, pongch)
+	return dst, pongch
 }
 
 // StartDownloadReceiver starts the receiver in a background goroutine and
@@ -89,18 +108,18 @@ func startReceiver(ctx context.Context, conn *websocket.Conn, kind receiverKind,
 // Liveness guarantee: the goroutine will always terminate after a
 // MaxRuntime timeout, provided that the consumer will keep reading
 // from the returned channel.
-func StartDownloadReceiver(ctx context.Context, conn *websocket.Conn, start time.Time) (<-chan model.Measurement, <-chan time.Duration) {
+func StartDownloadReceiver(ctx context.Context, conn *websocket.Conn, start time.Time, msmch <-chan model.Measurement) (<-chan model.Measurement, <-chan model.WSInfo) {
 	return startReceiver(ctx, conn, downloadReceiver, start)
 }
 
 // StartUploadReceiver is like StartDownloadReceiver except that it
 // tolerates incoming binary messages, which are sent to cause
 // network load, and therefore must not be rejected.
-func StartUploadReceiver(ctx context.Context, conn *websocket.Conn, start time.Time) (<-chan model.Measurement, <-chan time.Duration)  {
+func StartUploadReceiver(ctx context.Context, conn *websocket.Conn, start time.Time) (<-chan model.Measurement, <-chan model.WSInfo) {
 	return startReceiver(ctx, conn, uploadReceiver, start)
 }
 
 // StartPingReceiver is exactly like StartDownloadReceiver currently.
-func StartPingReceiver(ctx context.Context, conn *websocket.Conn, start time.Time) (<-chan model.Measurement, <-chan time.Duration)  {
+func StartPingReceiver(ctx context.Context, conn *websocket.Conn, start time.Time) (<-chan model.Measurement, <-chan model.WSInfo) {
 	return startReceiver(ctx, conn, pingReceiver, start)
 }
