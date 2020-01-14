@@ -39,7 +39,7 @@ func getSocketAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
 func measure(measurement *model.Measurement, sockfp *os.File, elapsed time.Duration) {
 	// Implementation note: we always want to sample BBR before TCPInfo so we
 	// will know from TCPInfo if the connection has been closed.
-	t := elapsed.Microseconds()
+	t := int64(elapsed / time.Microsecond)
 	bbrinfo, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
 	if err == nil {
 		bbrinfo.ElapsedTime = t

@@ -47,14 +47,15 @@ func loop(
 	conn.SetPongHandler(func(s string) error {
 		elapsed, rtt, err := ping.ParseTicks(s, start)
 		if err == nil {
-			logging.Logger.Debugf("receiver: ApplicationLevel RTT: %d ms", rtt.Milliseconds())
+			logging.Logger.Debugf("receiver: ApplicationLevel RTT: %d ms", int64(rtt / time.Millisecond))
 			if rtt < minRTT {
 				minRTT = rtt
 			}
+
 			wsinfo := model.WSInfo{
-                ElapsedTime: elapsed.Microseconds(),
-                LastRTT: rtt.Microseconds(),
-                MinRTT: minRTT.Microseconds(),
+				ElapsedTime: int64(elapsed / time.Microsecond),
+				LastRTT: int64(rtt / time.Microsecond),
+				MinRTT: int64(minRTT / time.Microsecond),
 			}
 			pongch <- wsinfo // Liveness: buffered (sender)
 		}
