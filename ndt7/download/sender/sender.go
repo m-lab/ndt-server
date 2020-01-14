@@ -50,6 +50,11 @@ func loop(
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
 		return
 	}
+	// only the first RTT sample taken before flooding the conn is not affected by HOL
+	if err := ping.SendTicks(conn, start, deadline); err != nil {
+		logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
+		return
+	}
 	var totalSent int64
 	for {
 		select {
