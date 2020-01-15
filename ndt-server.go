@@ -173,7 +173,7 @@ func main() {
 		}
 		log.Println("About to listen for ndt7 cleartext tests on " + *ndt7AddrCleartext)
 		rtx.Must(listener.ListenAndServeAsync(ndt7ServerCleartext), "Could not start ndt7 cleartext server")
-		defer ndt7Server.Close()
+		defer ndt7ServerCleartext.Close()
 	} else {
 		log.Printf("Cert=%q and Key=%q means no TLS services will be started.\n", *certFile, *keyFile)
 	}
