@@ -13,7 +13,7 @@
 # "/etc/certs/cert.pem").  To run an NDT7 server on port 443, you can do:
 #  $ docker run -v /etc/certs:/certs --net=host measurementlab/ndt \
 #      --key=/certs/key.pem --cert=/certs/cert.pem
-# 
+#
 # The NDT server produces data on disk. If you would like this data saved to a
 # directory outside of the docker container, then you need to mount the external
 # directory inside the container at /var/spool/ndt using the -v argument to
@@ -43,7 +43,7 @@ mkdir -p "${DATA_DIR}"/tcpinfo
   --prometheusx.listen-address=:9991 \
   --uuid-prefix-file="${UUID_FILE}" \
   --output="${DATA_DIR}"/tcpinfo \
-  --eventsocket=/var/local/tcpeventsocket.sock \
+  --tcpinfo.eventsocket=/var/local/tcpeventsocket.sock \
   &
 
 while [[ ! -e /var/local/tcpeventsocket.sock ]]; do
@@ -56,7 +56,7 @@ mkdir -p "${DATA_DIR}"/traceroute
   --prometheusx.listen-address=:9992 \
   --uuid-prefix-file="${UUID_FILE}" \
   --outputPath="${DATA_DIR}"/traceroute \
-  --tcpinfo.socket=/var/local/tcpeventsocket.sock \
+  --tcpinfo.eventsocket=/var/local/tcpeventsocket.sock \
   &
 
 # Start packet header capture.
@@ -64,7 +64,7 @@ mkdir -p "${DATA_DIR}"/pcap
 /packet-headers \
   --prometheusx.listen-address=:9993 \
   --datadir="${DATA_DIR}"/pcap \
-  --eventsocket=/var/local/tcpeventsocket.sock \
+  --tcpinfo.eventsocket=/var/local/tcpeventsocket.sock \
   &
 
 
