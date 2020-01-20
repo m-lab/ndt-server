@@ -3,6 +3,7 @@ package download
 
 import (
 	"context"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/ndt7/download/sender"
@@ -15,13 +16,15 @@ import (
 // Do implements the download subtest. The ctx argument is the parent
 // context for the subtest. The conn argument is the open WebSocket
 // connection. The resultfp argument is the file where to save results. Both
-// arguments are owned by the caller of this function.
-func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File) {
+// arguments are owned by the caller of this function. The start argument is
+// the test start time used to calculate ElapsedTime and deadlines.
+func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File, start time.Time) {
 	// Implementation note: use child context so that, if we cannot save the
 	// results in the loop below, we terminate the goroutines early
 	wholectx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	senderch := sender.Start(conn, measurer.Start(wholectx, conn, resultfp.Data.UUID))
-	receiverch := receiver.StartDownloadReceiver(wholectx, conn)
+	measurerch := measurer.Start(wholectx, conn, resultfp.Data.UUID, start)
+	receiverch, pongch := receiver.StartDownloadReceiver(wholectx, conn, start, measurerch)
+	senderch := sender.Start(conn, measurerch, start, pongch)
 	saver.SaveAll(resultfp, senderch, receiverch)
 }

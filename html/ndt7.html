@@ -24,8 +24,10 @@
 </head>
 <body>
   <div>
+    <div id='ping' class='result row'>[Ping]</div>
     <div id='download' class='result row'>[Download]</div>
     <div id='upload' class='result row'>[Upload]</div>
+    <div id='done' class='result row'></div>
   </div>
   <script type='text/javascript'>
     /* jshint esversion: 6, asi: true */
@@ -49,17 +51,34 @@
     }
 
     function runSomething(testName, callback) {
+      let ws = Number.NaN;
+      let tcp = Number.NaN;
       ndt7core.run(location.href, testName, function(ev, val) {
         console.log(ev, val)
         if (ev === 'complete') {
           if (callback !== undefined) {
             callback()
+          } else {
+            withElementDo('done', function (elem) {
+              elem.innerHTML = 'Done.'
+            })
           }
           return
         }
         if (ev === 'measurement' && val.AppInfo !== undefined &&
             val.Origin === 'client') {
           updateView(testName, val.AppInfo)
+        }
+        if (ev === 'measurement' && val.Origin === 'server' && testName === 'ping') {
+          if (val.WSInfo !== undefined) {
+            ws = val.WSInfo.MinRTT / 1e3
+          }
+          if (val.TCPInfo !== undefined) {
+            tcp = val.TCPInfo.MinRTT / 1e3
+          }
+          withElementDo('ping', function (elem) {
+            elem.innerHTML = '⓻ ' + ws.toFixed(1) + ' / ⓸ ' + tcp.toFixed(1) + ' ms'
+          })
         }
       })
     }
@@ -72,7 +91,11 @@
       runSomething('upload', callback)
     }
 
-    runDownload(function() { runUpload(); })
+    function runPing(callback) {
+      runSomething('ping', callback)
+    }
+
+    runPing(function() { runDownload(function() { runUpload(); }); })
   </script>
 </body>
 </html>

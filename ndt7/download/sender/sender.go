@@ -22,13 +22,19 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 }
 
-func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.Measurement) {
+func loop(
+	conn *websocket.Conn, src <-chan model.Measurement,
+	dst chan<- model.Measurement, start time.Time, pongch <-chan model.WSInfo,
+) {
 	logging.Logger.Debug("sender: start")
 	defer logging.Logger.Debug("sender: stop")
 	defer close(dst)
 	defer func() {
 		for range src {
 			// make sure we drain the channel
+		}
+		for range pongch {
+			// it should be buffered channel, but let's drain it anyway
 		}
 	}()
 	logging.Logger.Debug("sender: generating random buffer")
@@ -38,10 +44,15 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 		logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
 		return
 	}
-	deadline := time.Now().Add(spec.MaxRuntime)
+	deadline := start.Add(spec.MaxRuntime)
 	err = conn.SetWriteDeadline(deadline) // Liveness!
 	if err != nil {
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
+		return
+	}
+	// only the first RTT sample taken before flooding the conn is not affected by HOL
+	if err := ping.SendTicks(conn, start, deadline); err != nil {
+		logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
 		return
 	}
 	var totalSent int64
@@ -57,10 +68,19 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 				return
 			}
 			dst <- m // Liveness: this is blocking
-			if err := ping.SendTicks(conn, deadline); err != nil {
+			if err := ping.SendTicks(conn, start, deadline); err != nil {
 				logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
 				return
 			}
+		case wsinfo := <-pongch:
+			m := model.Measurement{
+				WSInfo: &wsinfo,
+			}
+			if err := conn.WriteJSON(m); err != nil {
+				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
+				return
+			}
+			dst <- m // Liveness: this is blocking write to log
 		default:
 			if err := conn.WritePreparedMessage(preparedMessage); err != nil {
 				logging.Logger.WithError(err).Warn(
@@ -99,9 +119,9 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 // Liveness guarantee: the sender will not be stuck sending for more then
 // the MaxRuntime of the subtest, provided that the consumer will
 // continue reading from the returned channel. This is enforced by
-// setting the write deadline to Time.Now() + MaxRuntime.
-func Start(conn *websocket.Conn, src <-chan model.Measurement) <-chan model.Measurement {
+// setting the write deadline to |start| + MaxRuntime.
+func Start(conn *websocket.Conn, src <-chan model.Measurement, start time.Time, pongch <-chan model.WSInfo) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
-	go loop(conn, src, dst)
+	go loop(conn, src, dst, start, pongch)
 	return dst
 }

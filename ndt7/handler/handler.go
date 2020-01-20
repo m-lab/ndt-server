@@ -36,14 +36,15 @@ func warnAndClose(writer http.ResponseWriter, message string) {
 // testerFunc is the function implementing a subtest. The first argument
 // is the subtest context. The second argument is the connected websocket. The
 // third argument is the open file where to write results. This function does
-// not own the second or the third argument.
-type testerFunc = func(context.Context, *websocket.Conn, *results.File)
+// not own the second or the third argument. The fourth argument is the base
+// start time of the test.
+type testerFunc = func(context.Context, *websocket.Conn, *results.File, time.Time)
 
 // downloadOrUpload implements both download and upload. The writer argument
 // is the HTTP response writer. The request argument is the HTTP request
-// that we received. The kind argument must be spec.SubtestDownload or
-// spec.SubtestUpload. The tester is a function actually implementing the
-// requested ndt7 subtest.
+// that we received. The kind argument must be spec.SubtestDownload,
+// spec.SubtestUpload, or SubtestPing. The tester is a function actually
+// implementing the requested ndt7 subtest.
 func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Request, kind spec.SubtestKind, tester testerFunc) {
 	logging.Logger.Debug("downloadOrUpload: upgrading to WebSockets")
 	if request.Header.Get("Sec-WebSocket-Protocol") != spec.SecWebSocketProtocol {
@@ -106,6 +107,8 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 			result.Download = resultfp.Data
 		} else if kind == spec.SubtestUpload {
 			result.Upload = resultfp.Data
+		} else if kind == spec.SubtestPing {
+			result.Ping = resultfp.Data
 		} else {
 			logging.Logger.Warn(string(kind) + ": data not saved")
 		}
@@ -114,7 +117,7 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 		}
 		warnonerror.Close(resultfp, string(kind)+": ignoring resultfp.Close error")
 	}()
-	tester(request.Context(), conn, resultfp)
+	tester(request.Context(), conn, resultfp, result.StartTime)
 }
 
 // Download handles the download subtest.
@@ -125,4 +128,9 @@ func (h Handler) Download(writer http.ResponseWriter, request *http.Request) {
 // Upload handles the upload subtest.
 func (h Handler) Upload(writer http.ResponseWriter, request *http.Request) {
 	h.downloadOrUpload(writer, request, spec.SubtestUpload, upload.Do)
+}
+
+// Ping handles the ping subtest.
+func (h Handler) Ping(writer http.ResponseWriter, request *http.Request) {
+	h.downloadOrUpload(writer, request, spec.SubtestPing, upload.Do)
 }
