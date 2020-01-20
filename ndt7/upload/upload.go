@@ -3,7 +3,6 @@ package upload
 
 import (
 	"context"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/ndt7/results"
@@ -16,15 +15,13 @@ import (
 // Do implements the upload subtest. The ctx argument is the parent context
 // for the subtest. The conn argument is the open WebSocket connection. The
 // resultfp argument is the file where to save results. Both arguments are
-// owned by the caller of this function.  The start argument is the test
-// start time used to calculate ElapsedTime and deadlines.
-func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File, start time.Time) {
+// owned by the caller of this function.
+func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File) {
 	// Implementation note: use child context so that, if we cannot save the
 	// results in the loop below, we terminate the goroutines early
 	wholectx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	measurerch := measurer.Start(wholectx, conn, resultfp.Data.UUID, start)
-	receiverch, pongch := receiver.StartUploadReceiver(wholectx, conn, start)
-	senderch := sender.Start(conn, measurerch, start, pongch)
+	senderch := sender.Start(conn, measurer.Start(wholectx, conn, resultfp.Data.UUID))
+	receiverch := receiver.StartUploadReceiver(wholectx, conn)
 	saver.SaveAll(resultfp, senderch, receiverch)
 }
