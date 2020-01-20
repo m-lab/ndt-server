@@ -159,7 +159,6 @@ func main() {
 		}
 		ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
 		ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
-		ndt7Mux.Handle(spec.PingURLPath, http.HandlerFunc(ndt7Handler.Ping))
 		ndt7Server := &http.Server{
 			Addr:    *ndt7Addr,
 			Handler: logging.MakeAccessLogHandler(ndt7Mux),

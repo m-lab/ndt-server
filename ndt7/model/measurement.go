@@ -8,5 +8,4 @@ type Measurement struct {
 	ConnectionInfo *ConnectionInfo `json:",omitempty" bigquery:"-"`
 	BBRInfo        *BBRInfo        `json:",omitempty"`
 	TCPInfo        *TCPInfo        `json:",omitempty"`
-	WSInfo         *WSInfo	       `json:",omitempty"`
 }

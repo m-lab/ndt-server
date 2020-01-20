@@ -3,15 +3,16 @@ package ping
 
 import (
 	"encoding/json"
-	"errors"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 // SendTicks sends the current ticks as a ping message.
-func SendTicks(conn *websocket.Conn, start time.Time, deadline time.Time) error {
-	var ticks int64 = time.Since(start).Nanoseconds()
+func SendTicks(conn *websocket.Conn, deadline time.Time) error {
+	// TODO(bassosimone): when we'll have a unique base time.Time reference for
+	// the whole test, we should use that, since UnixNano() is not monotonic.
+	ticks := int64(time.Now().UnixNano())
 	data, err := json.Marshal(ticks)
 	if err == nil {
 		err = conn.WriteControl(websocket.PingMessage, data, deadline)
@@ -19,17 +20,13 @@ func SendTicks(conn *websocket.Conn, start time.Time, deadline time.Time) error 
 	return err
 }
 
-func ParseTicks(s string, start time.Time) (elapsed time.Duration, d time.Duration, err error) {
-	elapsed = time.Since(start)
+func ParseTicks(s string) (d int64, err error) {
+	// TODO(bassosimone): when we'll have a unique base time.Time reference for
+	// the whole test, we should use that, since UnixNano() is not monotonic.
 	var prev int64
 	err = json.Unmarshal([]byte(s), &prev)
-	if err != nil {
-		return
-	}
-	if 0 <= prev && prev <= elapsed.Nanoseconds() {
-		d = time.Duration(elapsed.Nanoseconds() - prev)
-	} else {
-		err = errors.New("RTT is negative")
+	if err == nil {
+		d = (int64(time.Now().UnixNano()) - prev)
 	}
 	return
 }
