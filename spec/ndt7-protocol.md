@@ -225,7 +225,7 @@ has the following structure:
   },
   "Origin": "server",
   "Test": "download",
-  "WSInfo": {
+  "WSPingInfo": {
     "ElapsedTime": 1234,
     "LastRTT": 134,
     "MinRTT": 1234
@@ -289,7 +289,7 @@ Where:
   current test. This field SHOULD only be used when the current test
   should otherwise not be obvious.
 
-- `WSInfo` is an _optional_ `object` only included in the measurement
+- `WSPingInfo` is an _optional_ `object` only included in the measurement
   when a reasonable websocket-level measurement is available:
 
     - `ElapsedTime` (a `int64`) is the time elapsed since the beginning of
@@ -668,7 +668,7 @@ BBR. It generally indicates the presence of a bottleneck with a large buffer
 that's filling as the test proceeds. The `MinRTT` can also be useful to verify
 we're using a reasonably nearby-server. Also, an unreasonably small RTT when
 the link is 2G or 3G could indicate a performance enhancing proxy, one can
-compare `TCPInfo.MinRTT` against `WSInfo.MinRTT` to get additional evidence
+compare `TCPInfo.MinRTT` against `WSPingInfo.MinRTT` to get additional evidence
 supporing this case.
 
 The times (`BusyTime`, `RWndLimited`, and `SndBufLimited`) are useful to
@@ -711,10 +711,10 @@ measure end-to-end latency in addition to end-to-end bandwidth. Such
 proxies may include ISP-level performance-enhancing proxies, OpenSSH,
 Tor anonymity network and many others.
 
-`WSInfo.LastRTT` samples may be affected by the payload during download
+`WSPingInfo.LastRTT` samples may be affected by the payload during download
 and upload tests, as the queue of BinaryMessage may delay either ping
-or pong frame. Ping test does not send BinaryMessage payload, so WSInfo
+or pong frame. Ping test does not send BinaryMessage payload, so WSPingInfo
 RTT measurements should be reasonably accurate (unless it's practical
-for the client to delay pong frames). The very first `WSInfo` sample
+for the client to delay pong frames). The very first `WSPingInfo` sample
 collected during the download test also has a chance to be accurate as
 the ping frame SHOULD precede any BinaryMessages in the case.

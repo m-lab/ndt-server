@@ -29,7 +29,7 @@ const (
 
 func loop(
 	ctx context.Context, conn *websocket.Conn, kind receiverKind,
-	dst chan<- model.Measurement, start time.Time, pongch chan<- model.WSInfo,
+	dst chan<- model.Measurement, start time.Time, pongch chan<- model.WSPingInfo,
 ) {
 	logging.Logger.Debug("receiver: start")
 	defer logging.Logger.Debug("receiver: stop")
@@ -52,7 +52,7 @@ func loop(
 				minRTT = rtt
 			}
 
-			wsinfo := model.WSInfo{
+			wsinfo := model.WSPingInfo{
 				ElapsedTime: int64(elapsed / time.Microsecond),
 				LastRTT: int64(rtt / time.Microsecond),
 				MinRTT: int64(minRTT / time.Microsecond),
@@ -89,13 +89,13 @@ func loop(
 	}
 }
 
-func startReceiver(ctx context.Context, conn *websocket.Conn, kind receiverKind, start time.Time) (<-chan model.Measurement, <-chan model.WSInfo) {
+func startReceiver(ctx context.Context, conn *websocket.Conn, kind receiverKind, start time.Time) (<-chan model.Measurement, <-chan model.WSPingInfo) {
 	// |dst| is going to the log file
 	dst := make(chan model.Measurement)
 	// |pongch| goes to the client, it's buffered to avoid blocking on `download.sender.loop`
 	// while `conn.WritePreparedMessage()` is active.
 	// TODO(darkk): is it possible to reduce buffer size or to avoiding blocking in some other way? May avoiding L7 pings at /download altogether be the way?
-	pongch := make(chan model.WSInfo, 1 + spec.MaxRuntime / spec.MinPoissonSamplingInterval)
+	pongch := make(chan model.WSPingInfo, 1 + spec.MaxRuntime / spec.MinPoissonSamplingInterval)
 	go loop(ctx, conn, kind, dst, start, pongch)
 	return dst, pongch
 }
@@ -109,18 +109,18 @@ func startReceiver(ctx context.Context, conn *websocket.Conn, kind receiverKind,
 // Liveness guarantee: the goroutine will always terminate after a
 // MaxRuntime timeout, provided that the consumer will keep reading
 // from the returned channel.
-func StartDownloadReceiver(ctx context.Context, conn *websocket.Conn, start time.Time, msmch <-chan model.Measurement) (<-chan model.Measurement, <-chan model.WSInfo) {
+func StartDownloadReceiver(ctx context.Context, conn *websocket.Conn, start time.Time, msmch <-chan model.Measurement) (<-chan model.Measurement, <-chan model.WSPingInfo) {
 	return startReceiver(ctx, conn, downloadReceiver, start)
 }
 
 // StartUploadReceiver is like StartDownloadReceiver except that it
 // tolerates incoming binary messages, which are sent to cause
 // network load, and therefore must not be rejected.
-func StartUploadReceiver(ctx context.Context, conn *websocket.Conn, start time.Time) (<-chan model.Measurement, <-chan model.WSInfo) {
+func StartUploadReceiver(ctx context.Context, conn *websocket.Conn, start time.Time) (<-chan model.Measurement, <-chan model.WSPingInfo) {
 	return startReceiver(ctx, conn, uploadReceiver, start)
 }
 
 // StartPingReceiver is exactly like StartDownloadReceiver currently.
-func StartPingReceiver(ctx context.Context, conn *websocket.Conn, start time.Time) (<-chan model.Measurement, <-chan model.WSInfo) {
+func StartPingReceiver(ctx context.Context, conn *websocket.Conn, start time.Time) (<-chan model.Measurement, <-chan model.WSPingInfo) {
 	return startReceiver(ctx, conn, pingReceiver, start)
 }

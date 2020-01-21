@@ -14,7 +14,7 @@ import (
 
 func loop(
 	conn *websocket.Conn, src <-chan model.Measurement,
-	dst chan<- model.Measurement, start time.Time, pongch <-chan model.WSInfo,
+	dst chan<- model.Measurement, start time.Time, pongch <-chan model.WSPingInfo,
 ) {
 	logging.Logger.Debug("sender: start")
 	defer logging.Logger.Debug("sender: stop")
@@ -51,7 +51,7 @@ func loop(
 			}
 		case wsinfo := <-pongch:
 			m := model.Measurement{
-				WSInfo: &wsinfo,
+				WSPingInfo: &wsinfo,
 			}
 			if err := conn.WriteJSON(m); err != nil {
 				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
@@ -70,7 +70,7 @@ func loop(
 // the MaxRuntime of the subtest, provided that the consumer will
 // continue reading from the returned channel. This is enforced by
 // setting the write deadline to |start| + MaxRuntime.
-func Start(conn *websocket.Conn, src <-chan model.Measurement, start time.Time, pongch <-chan model.WSInfo) <-chan model.Measurement {
+func Start(conn *websocket.Conn, src <-chan model.Measurement, start time.Time, pongch <-chan model.WSPingInfo) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
 	go loop(conn, src, dst, start, pongch)
 	return dst

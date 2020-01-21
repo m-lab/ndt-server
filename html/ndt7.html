@@ -70,8 +70,8 @@
           updateView(testName, val.AppInfo)
         }
         if (ev === 'measurement' && val.Origin === 'server' && testName === 'ping') {
-          if (val.WSInfo !== undefined) {
-            ws = val.WSInfo.MinRTT / 1e3
+          if (val.WSPingInfo !== undefined) {
+            ws = val.WSPingInfo.MinRTT / 1e3
           }
           if (val.TCPInfo !== undefined) {
             tcp = val.TCPInfo.MinRTT / 1e3
