@@ -16,6 +16,7 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/ndt7/upload"
+	"github.com/m-lab/ndt-server/ndt7/ping"
 	"github.com/m-lab/ndt-server/version"
 )
 
@@ -132,5 +133,5 @@ func (h Handler) Upload(writer http.ResponseWriter, request *http.Request) {
 
 // Ping handles the ping subtest.
 func (h Handler) Ping(writer http.ResponseWriter, request *http.Request) {
-	h.downloadOrUpload(writer, request, spec.SubtestPing, upload.Do)
+	h.downloadOrUpload(writer, request, spec.SubtestPing, ping.Do)
 }

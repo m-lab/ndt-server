@@ -292,8 +292,8 @@ Where:
 - `WSPingInfo` is an _optional_ `object` only included in the measurement
   when a reasonable websocket-level measurement is available:
 
-    - `ElapsedTime` (a `int64`) is the time elapsed since the beginning of
-      this test, measured in microseconds.
+    - `ElapsedTime` (a `int64`) is the pong frame arrival time elapsed
+      since the beginning of this test, measured in microseconds.
 
     - `LastRTT` (an _optional_ `int64`), the last observed RTT for the websocket
       ping-pong exchange, measured in microseconds.
