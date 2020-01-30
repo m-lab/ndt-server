@@ -29,6 +29,8 @@ func loop(conn *websocket.Conn, senderch <-chan model.Measurement, start time.Ti
 		return
 	}
 
+	// Initial ping is sent ASAP as all the following pings are sent if an only if pong frame
+	// has arrived. So, without this ping, no pong arrives and the test gets stuck till deadline.
 	if err := message.SendTicks(conn, start, deadline); err != nil {
 		logging.Logger.WithError(err).Warn("sender: ping.message.SendTicks failed")
 		return

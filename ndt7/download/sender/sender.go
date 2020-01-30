@@ -44,7 +44,8 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
 		return
 	}
-	// only the first RTT sample taken before flooding the conn is not affected by HOL
+	// One RTT sample is taken before flooding the connection with data.
+	// That sample is not affected by HOL, so it has additional value and is treated specially.
 	if err := message.SendTicks(conn, start, deadline); err != nil {
 		logging.Logger.WithError(err).Warn("sender: ping.message.SendTicks failed")
 		return

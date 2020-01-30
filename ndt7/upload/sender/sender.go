@@ -30,6 +30,9 @@ func loop(
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
 		return
 	}
+	// There is no "special" first RTT sample for /upload. The server can't control if the client
+	// has already started flooding the connection.  So, if server sends ping frame here,
+	// the pong frame may be still affected by HOL, like every other ping-pong frame.
 	for {
 		m, ok := <-src
 		if !ok { // This means that the previous step has terminated
