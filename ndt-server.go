@@ -9,12 +9,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/m-lab/go/prometheusx"
 
 	"github.com/m-lab/go/flagx"
 	"github.com/m-lab/go/rtx"
 
+	"github.com/m-lab/ndt-server/access"
 	"github.com/m-lab/ndt-server/logging"
 	ndt5handler "github.com/m-lab/ndt-server/ndt5/handler"
 	"github.com/m-lab/ndt-server/ndt5/plain"
@@ -36,6 +38,7 @@ var (
 	certFile    = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile     = flag.String("key", "", "The file with server key in PEM format.")
 	dataDir     = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
+	maxRate     = flag.Uint64("max-rate", 0, "The max rate beyond which, the TxController will reject new clients")
 
 	// A metric to use to signal that the server is in lame duck mode.
 	lameDuck = promauto.NewGauge(prometheus.GaugeOpts{
@@ -114,6 +117,10 @@ func main() {
 
 	platformx.WarnIfNotFullySupported()
 
+	tx, err := access.NewTxController(*maxRate, time.Second)
+	rtx.Must(err, "Failed to allocate new TxController")
+	go tx.Watch(ctx)
+
 	// The ndt5 protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
 	ndt5Server := plain.NewServer(*dataDir+"/ndt5", *ndt5WsAddr)
@@ -129,7 +136,7 @@ func main() {
 	ndt5WsMux.Handle("/ndt_protocol", ndt5handler.NewWS(*dataDir+"/ndt5"))
 	ndt5WsServer := &http.Server{
 		Addr:    *ndt5WsAddr,
-		Handler: logging.MakeAccessLogHandler(ndt5WsMux),
+		Handler: tx.Limit(logging.MakeAccessLogHandler(ndt5WsMux)),
 	}
 	log.Println("About to listen for unencrypted ndt5 NDT tests on " + *ndt5WsAddr)
 	rtx.Must(listener.ListenAndServeAsync(ndt5WsServer), "Could not start unencrypted ndt5 NDT server")
@@ -144,7 +151,7 @@ func main() {
 		ndt5WssMux.Handle("/ndt_protocol", ndt5handler.NewWSS(*dataDir+"/ndt5", *certFile, *keyFile))
 		ndt5WssServer := &http.Server{
 			Addr:    *ndt5WssAddr,
-			Handler: logging.MakeAccessLogHandler(ndt5WssMux),
+			Handler: tx.Limit(logging.MakeAccessLogHandler(ndt5WssMux)),
 		}
 		log.Println("About to listen for ndt5 WsS tests on " + *ndt5WssAddr)
 		rtx.Must(listener.ListenAndServeTLSAsync(ndt5WssServer, *certFile, *keyFile), "Could not start ndt5 WsS server")
@@ -161,7 +168,7 @@ func main() {
 		ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
 		ndt7Server := &http.Server{
 			Addr:    *ndt7Addr,
-			Handler: logging.MakeAccessLogHandler(ndt7Mux),
+			Handler: tx.Limit(logging.MakeAccessLogHandler(ndt7Mux)),
 		}
 		log.Println("About to listen for ndt7 tests on " + *ndt7Addr)
 		rtx.Must(listener.ListenAndServeTLSAsync(ndt7Server, *certFile, *keyFile), "Could not start ndt7 server")
