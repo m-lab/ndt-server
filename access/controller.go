@@ -26,13 +26,14 @@ type TxController struct {
 	period  time.Duration
 	device  string
 	current uint64
+	rate    uint64
 	initial uint64
 	pfs     procfs.FS
 	handler http.Handler
 }
 
 // NewTxController creates a new instance initialized to run every period.
-func NewTxController(period time.Duration) (*TxController, error) {
+func NewTxController(rate uint64, period time.Duration) (*TxController, error) {
 	pfs, err := procfs.NewFS(procPath)
 	if err != nil {
 		return nil, err
@@ -49,23 +50,35 @@ func NewTxController(period time.Duration) (*TxController, error) {
 	tx := &TxController{
 		device:  device,
 		initial: v.TxBytes,
+		rate:    rate,
 		pfs:     pfs,
 		period:  period,
 	}
 	return tx, err
 }
 
-// Wrap..
-func (tx *TxController) Wrap(h http.Handler) {
-	tx.handler = h
+// Limit enforces that the TxController rate limit is respected before running
+// the next handler.
+func (tx *TxController) Limit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cur := atomic.LoadUint64(&tx.current)
+		if tx.rate > 0 && cur > tx.rate {
+			// 503 - https://tools.ietf.org/html/rfc7231#section-6.6.4
+			w.WriteHeader(http.StatusServiceUnavailable)
+			// Return without additional response.
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
-func (tx *TxController) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if
-	tx.handler.ServeHTTP(rw, req)
-}
-
+// Watch updates the current rate every period. If the context is cancelled, the
+// context error is returned.
 func (tx *TxController) Watch(ctx context.Context) error {
+	if tx.rate == 0 {
+		// No need to do anything.
+		return nil
+	}
 	t := time.NewTicker(tx.period)
 	for prev := tx.initial; ctx.Err() == nil; <-t.C {
 		netdev, err := tx.pfs.NetDev()
