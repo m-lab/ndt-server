@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/m-lab/go/prometheusx"
 
@@ -117,7 +116,7 @@ func main() {
 
 	platformx.WarnIfNotFullySupported()
 
-	tx, err := access.NewTxController(*maxRate, time.Second)
+	tx, err := access.NewTxController(*maxRate)
 	rtx.Must(err, "Failed to allocate new TxController")
 	go tx.Watch(ctx)
 

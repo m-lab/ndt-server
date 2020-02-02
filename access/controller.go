@@ -9,12 +9,22 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/prometheus/procfs"
 )
 
 var (
-	procPath = "/proc"
-	device   string
+	procPath       = "/proc"
+	device         string
+	accessRequests = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt_access_txcontroller_requests_total",
+			Help: "Total number of requests handled by the access txcontroller.",
+		},
+		[]string{"request"},
+	)
 )
 
 func init() {
@@ -32,8 +42,8 @@ type TxController struct {
 	handler http.Handler
 }
 
-// NewTxController creates a new instance initialized to run every period.
-func NewTxController(rate uint64, period time.Duration) (*TxController, error) {
+// NewTxController creates a new instance initialized to run every second.
+func NewTxController(rate uint64) (*TxController, error) {
 	pfs, err := procfs.NewFS(procPath)
 	if err != nil {
 		return nil, err
@@ -52,28 +62,30 @@ func NewTxController(rate uint64, period time.Duration) (*TxController, error) {
 		initial: v.TxBytes,
 		rate:    rate,
 		pfs:     pfs,
-		period:  period,
+		period:  time.Second,
 	}
 	return tx, err
 }
 
 // Limit enforces that the TxController rate limit is respected before running
-// the next handler.
+// the next handler. If the rate is unspecified (zero), all requests are accepted.
 func (tx *TxController) Limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cur := atomic.LoadUint64(&tx.current)
 		if tx.rate > 0 && cur > tx.rate {
+			accessRequests.WithLabelValues("rejected").Inc()
 			// 503 - https://tools.ietf.org/html/rfc7231#section-6.6.4
 			w.WriteHeader(http.StatusServiceUnavailable)
 			// Return without additional response.
 			return
 		}
+		accessRequests.WithLabelValues("accepted").Inc() // accepted != success.
 		next.ServeHTTP(w, r)
 	})
 }
 
 // Watch updates the current rate every period. If the context is cancelled, the
-// context error is returned.
+// context error is returned. Callers should typically run Watch in a goroutine.
 func (tx *TxController) Watch(ctx context.Context) error {
 	if tx.rate == 0 {
 		// No need to do anything.
