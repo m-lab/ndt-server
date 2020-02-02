@@ -43,6 +43,7 @@ type TxController struct {
 }
 
 // NewTxController creates a new instance initialized to run every second.
+// Caller should run Watch in a goroutine to regularly update the current rate.
 func NewTxController(rate uint64) (*TxController, error) {
 	pfs, err := procfs.NewFS(procPath)
 	if err != nil {
@@ -53,6 +54,7 @@ func NewTxController(rate uint64) (*TxController, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Check at creation time whether device exists.
 	v, ok := nd[device]
 	if !ok {
 		return nil, fmt.Errorf("Given device not found: %q", device)
@@ -85,7 +87,8 @@ func (tx *TxController) Limit(next http.Handler) http.Handler {
 }
 
 // Watch updates the current rate every period. If the context is cancelled, the
-// context error is returned. Callers should typically run Watch in a goroutine.
+// context error is returned. If the TxController rate is zero, Watch returns
+// immediately. Callers should typically run Watch in a goroutine.
 func (tx *TxController) Watch(ctx context.Context) error {
 	if tx.rate == 0 {
 		// No need to do anything.
