@@ -41,7 +41,7 @@ func loop(
 		if err == nil {
 			// Writing rtt to |dst| will write the Measurement to `ClientMeasurements` object.
 			// That goes against data format, so the value is just logged.
-			logging.Logger.Debugf("receiver: ApplicationLevel RTT: %d ms", int64(rtt / time.Microsecond))
+			logging.Logger.Debugf("receiver: ApplicationLevel RTT: %d ms", int64(rtt / time.Millisecond))
 		}
 		return err
 	})
