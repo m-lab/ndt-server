@@ -95,6 +95,7 @@ func (tx *TxController) Watch(ctx context.Context) error {
 		return nil
 	}
 	t := time.NewTicker(tx.period)
+	defer t.Stop()
 	for prev := tx.initial; ctx.Err() == nil; <-t.C {
 		netdev, err := tx.pfs.NetDev()
 		if err != nil {
