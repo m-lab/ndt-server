@@ -16,7 +16,7 @@ import (
 func TestTxController_Limit(t *testing.T) {
 	tests := []struct {
 		name     string
-		rate     uint64
+		limit uint64
 		current  uint64
 		procPath string
 		visited  bool
@@ -29,7 +29,7 @@ func TestTxController_Limit(t *testing.T) {
 		},
 		{
 			name:     "reject",
-			rate:     1,
+			limit :     1,
 			current:  2,
 			procPath: "testdata/proc-success",
 			visited:  false,
@@ -38,12 +38,12 @@ func TestTxController_Limit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			procPath = tt.procPath
-			tx, err := NewTxController(tt.rate)
+			tx, err := NewTxController(tt.limit)
 			if !tt.wantErr && (err != nil) {
 				t.Errorf("NewTxController() got %v, want %t", err, tt.wantErr)
 				return
 			}
-			tx.rate = tt.rate
+			tx.limit = tt.limit
 			tx.current = tt.current
 			visited := false
 			next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -64,7 +64,7 @@ func TestTxController_Limit(t *testing.T) {
 func TestNewTxController(t *testing.T) {
 	tests := []struct {
 		name     string
-		rate     uint64
+		limit uint64
 		want     *TxController
 		procPath string
 		wantErr  bool
@@ -88,7 +88,7 @@ func TestNewTxController(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			procPath = tt.procPath
-			got, err := NewTxController(tt.rate)
+			got, err := NewTxController(tt.limit)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewTxController() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -103,7 +103,7 @@ func TestNewTxController(t *testing.T) {
 func TestTxController_Watch(t *testing.T) {
 	tests := []struct {
 		name     string
-		rate     uint64
+		limit uint64
 		want     *TxController
 		procPath string
 		badProc string
@@ -112,18 +112,18 @@ func TestTxController_Watch(t *testing.T) {
 		{
 			name:     "success-zero-rate",
 			procPath: "testdata/proc-success",
-			rate: 0,
+			limit: 0,
 		},
 		{
 			name:     "success-rate",
 			procPath: "testdata/proc-success",
-			rate: 1,
+			limit: 1,
 			wantWatchErr: true,
 		},
 		{
 			name:     "success-error-reading-proc",
 			procPath: "testdata/proc-success",
-			rate: 1,
+			limit: 1,
 			badProc: "testdata/proc-nodevfile",
 			wantWatchErr: true,
 		},
@@ -131,7 +131,7 @@ func TestTxController_Watch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			procPath = tt.procPath
-			tx, err := NewTxController(tt.rate)
+			tx, err := NewTxController(tt.limit)
 			if err != nil {
 				t.Errorf("NewTxController() error = %v, want nil", err)
 				return

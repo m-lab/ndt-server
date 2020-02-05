@@ -36,7 +36,7 @@ type TxController struct {
 	period  time.Duration
 	device  string
 	current uint64
-	rate    uint64
+	limit uint64
 	initial uint64
 	pfs     procfs.FS
 	handler http.Handler
@@ -62,7 +62,7 @@ func NewTxController(rate uint64) (*TxController, error) {
 	tx := &TxController{
 		device:  device,
 		initial: v.TxBytes,
-		rate:    rate,
+		limit:    rate,
 		pfs:     pfs,
 		period:  time.Second,
 	}
@@ -74,7 +74,7 @@ func NewTxController(rate uint64) (*TxController, error) {
 func (tx *TxController) Limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cur := atomic.LoadUint64(&tx.current)
-		if tx.rate > 0 && cur > tx.rate {
+		if tx.limit > 0 && cur > tx.limit {
 			accessRequests.WithLabelValues("rejected").Inc()
 			// 503 - https://tools.ietf.org/html/rfc7231#section-6.6.4
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -90,7 +90,7 @@ func (tx *TxController) Limit(next http.Handler) http.Handler {
 // context error is returned. If the TxController rate is zero, Watch returns
 // immediately. Callers should typically run Watch in a goroutine.
 func (tx *TxController) Watch(ctx context.Context) error {
-	if tx.rate == 0 {
+	if tx.limit == 0 {
 		// No need to do anything.
 		return nil
 	}
