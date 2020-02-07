@@ -36,10 +36,8 @@ type TxController struct {
 	period  time.Duration
 	device  string
 	current uint64
-	limit uint64
-	initial uint64
+	limit   uint64
 	pfs     procfs.FS
-	handler http.Handler
 }
 
 // NewTxController creates a new instance initialized to run every second.
@@ -49,22 +47,16 @@ func NewTxController(rate uint64) (*TxController, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Read the device once to initialize the TxBytes count.
-	nd, err := pfs.NetDev()
+	// Read the device once to verify that the device exists.
+	_, err = readNetDevLine(pfs, device)
 	if err != nil {
 		return nil, err
 	}
-	// Check at creation time whether device exists.
-	v, ok := nd[device]
-	if !ok {
-		return nil, fmt.Errorf("Given device not found: %q", device)
-	}
 	tx := &TxController{
-		device:  device,
-		initial: v.TxBytes,
-		limit:    rate,
-		pfs:     pfs,
-		period:  time.Second,
+		device: device,
+		limit:  rate,
+		pfs:    pfs,
+		period: time.Second,
 	}
 	return tx, err
 }
@@ -96,18 +88,36 @@ func (tx *TxController) Watch(ctx context.Context) error {
 	}
 	t := time.NewTicker(tx.period)
 	defer t.Stop()
-	for prev := tx.initial; ctx.Err() == nil; <-t.C {
-		netdev, err := tx.pfs.NetDev()
+
+	// Read current vaule of TxBytes for device to initialize the following loop.
+	v, err := readNetDevLine(tx.pfs, tx.device)
+	if err != nil {
+		return err
+	}
+
+	// Check the device every period until the context returns an error.
+	for prev := v.TxBytes; ctx.Err() == nil; <-t.C {
+		v, err := readNetDevLine(tx.pfs, tx.device)
 		if err != nil {
 			log.Println("Error reading /proc/net/dev:", err)
 			continue
 		}
-		v, ok := netdev[tx.device]
-		if ok {
-			cur := (v.TxBytes - prev) * 8
-			atomic.StoreUint64(&tx.current, cur)
-			prev = v.TxBytes
-		}
+		cur := (v.TxBytes - prev) * 8
+		atomic.StoreUint64(&tx.current, cur)
+		prev = v.TxBytes
 	}
 	return ctx.Err()
+}
+
+func readNetDevLine(pfs procfs.FS, device string) (procfs.NetDevLine, error) {
+	nd, err := pfs.NetDev()
+	if err != nil {
+		return procfs.NetDevLine{}, err
+	}
+	// Check at creation time whether device exists.
+	v, ok := nd[device]
+	if !ok {
+		return procfs.NetDevLine{}, fmt.Errorf("Given device not found: %q", device)
+	}
+	return v, nil
 }
