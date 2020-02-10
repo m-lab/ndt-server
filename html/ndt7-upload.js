@@ -17,7 +17,7 @@ onmessage = function (ev) {
       sock.close()
       return
     }
-    const maxMessageSize = 16777216 /* (1<<24) */
+    const maxMessageSize = 16777216 /* = (1<<24) = 16MB */
     if (data.length < maxMessageSize && data.length < (total - sock.bufferedAmount)/16) {
       data = new Uint8Array(data.length * 2) // TODO(bassosimone): fill this message
     }
@@ -38,11 +38,9 @@ onmessage = function (ev) {
       })
       previous = now
     }
-    const drainSpeed = (total - sock.bufferedAmount) / (now - start)
-    const nextSleep = (sock.bufferedAmount / drainSpeed) / 2
-    setTimeout(function() {
-      uploader(sock, data, start, previous, total)
-    }, nextSleep)
+    setTimeout(
+      function() { uploader(sock, data, start, previous, total) },
+      0)
   }
   sock.onopen = function () {
     const initialMessageSize = 8192 /* (1<<13) */
