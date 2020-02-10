@@ -136,6 +136,23 @@ func main() {
 	rtx.Must(listener.ListenAndServeAsync(ndt5WsServer), "Could not start unencrypted ndt5 NDT server")
 	defer ndt5WsServer.Close()
 
+	// The ndt7 listener serving up NDT7 tests, likely on standard ports.
+	ndt7Mux := http.NewServeMux()
+	ndt7Mux.HandleFunc("/", defaultHandler)
+	ndt7Mux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
+	ndt7Handler := &handler.Handler{
+		DataDir: *dataDir,
+	}
+	ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
+	ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
+	ndt7ServerCleartext := &http.Server{
+		Addr:    *ndt7AddrCleartext,
+		Handler: logging.MakeAccessLogHandler(ndt7Mux),
+	}
+	log.Println("About to listen for ndt7 cleartext tests on " + *ndt7AddrCleartext)
+	rtx.Must(listener.ListenAndServeAsync(ndt7ServerCleartext), "Could not start ndt7 cleartext server")
+	defer ndt7ServerCleartext.Close()
+
 	// Only start TLS-based services if certs and keys are provided
 	if *certFile != "" && *keyFile != "" {
 		// The ndt5 protocol serving WsS-based tests.
@@ -151,15 +168,7 @@ func main() {
 		rtx.Must(listener.ListenAndServeTLSAsync(ndt5WssServer, *certFile, *keyFile), "Could not start ndt5 WsS server")
 		defer ndt5WssServer.Close()
 
-		// The ndt7 listener serving up NDT7 tests, likely on standard ports.
-		ndt7Mux := http.NewServeMux()
-		ndt7Mux.HandleFunc("/", defaultHandler)
-		ndt7Mux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
-		ndt7Handler := &handler.Handler{
-			DataDir: *dataDir,
-		}
-		ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
-		ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
+		// The ndt7 listener serving up WSS based tests
 		ndt7Server := &http.Server{
 			Addr:    *ndt7Addr,
 			Handler: logging.MakeAccessLogHandler(ndt7Mux),
@@ -167,13 +176,6 @@ func main() {
 		log.Println("About to listen for ndt7 tests on " + *ndt7Addr)
 		rtx.Must(listener.ListenAndServeTLSAsync(ndt7Server, *certFile, *keyFile), "Could not start ndt7 server")
 		defer ndt7Server.Close()
-		ndt7ServerCleartext := &http.Server{
-			Addr:    *ndt7AddrCleartext,
-			Handler: logging.MakeAccessLogHandler(ndt7Mux),
-		}
-		log.Println("About to listen for ndt7 cleartext tests on " + *ndt7AddrCleartext)
-		rtx.Must(listener.ListenAndServeAsync(ndt7ServerCleartext), "Could not start ndt7 cleartext server")
-		defer ndt7ServerCleartext.Close()
 	} else {
 		log.Printf("Cert=%q and Key=%q means no TLS services will be started.\n", *certFile, *keyFile)
 	}
