@@ -68,7 +68,7 @@ func measure(measurement *model.Measurement, sockfp *os.File, elapsed time.Durat
 	}
 }
 
-func (m *Measure) loop(ctx context.Context, dst chan<- model.Measurement) {
+func (m *Measurer) loop(ctx context.Context, dst chan<- model.Measurement) {
 	logging.Logger.Debug("measurer: start")
 	defer logging.Logger.Debug("measurer: stop")
 	defer close(dst)
