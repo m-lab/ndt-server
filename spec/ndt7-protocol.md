@@ -7,18 +7,19 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.8.3 of the ndt7 specification.
+This is version v0.9.0 of the ndt7 specification.
 
 ## Design choices
 
 (This section is non-normative.)
 
 Ndt7 measures the application-level download and upload performance
-using WebSockets over TLS. Each test type is independent, and
-there are two types of test: the download and the upload tests. Ndt7
-always uses a single TCP connection. Whenever possible, ndt7 uses a recent
-version of TCP BBR. Writing an ndt7 client is designed to be as simple
-as possible. [A complete Go language ndt7 client](
+using WebSockets over TLS. Each test type is independent, and there are
+three types of test: the download, the upload tests, and the latency
+test. Ndt7 always uses a single new TCP connection for each type of
+test. Whenever possible, ndt7 uses a recent version of TCP BBR. Writing
+an ndt7 client is designed to be as simple as possible. [A complete Go
+language ndt7 client](
 https://github.com/bassosimone/ndt7-client-go-minimal) has been implemented
 in just 151 lines. We used 26 lines for the download, 33 for the upload, and
 17 for establishing a connections. No code from the NDT server has been
@@ -68,12 +69,14 @@ servers should behave during the download and the upload tests.
 The client connects to the server using HTTPS and requests to upgrade the
 connection to WebSockets. The same connection will be used to exchange
 control and measurement messages. The upgrade request URL will indicate
-the type of test that the client wants to perform. Two tests and
-hence two URLs are defined:
+the type of test that the client wants to perform. Three tests and
+hence three URLs are defined:
 
 - `/ndt/v7/download`, which selects the download test;
 
-- `/ndt/v7/upload`, which selects the upload test.
+- `/ndt/v7/upload`, which selects the upload test;
+
+- `/ndt/v7/ping`, which selects the ping test.
 
 The upgrade message MUST also contain the WebSocket subprotocol that
 identifies ndt7, which is `net.measurementlab.ndt.v7`. The URL in the
@@ -199,14 +202,14 @@ provide information useful to diagnose performance issues.
 While in theory we could specify all `TCP_INFO` and `BBR_INFO` variables,
 different kernel versions provide different subsets of these measurements
 and we do not want to be needlessly restrictive regarding the underlying
-kernel for the server. Instead, 
+kernel for the server. Instead,
 our guiding principle is to describe only the variables that in our
 experience are useful to understand performance issues. More variables
 could be added in the future. No variables should be removed, but, if
 some are removed, we should document them as being removed rather than
 removing them from this specification.
 
-Since version v0.8.0 of this specification, the measurement message
+Since version v0.9.0 of this specification, the measurement message
 has the following structure:
 
 ```json
@@ -222,6 +225,11 @@ has the following structure:
   },
   "Origin": "server",
   "Test": "download",
+  "WSPingInfo": {
+    "ElapsedTime": 1234,
+    "LastRTT": 134,
+    "MinRTT": 1234
+  },
   "TCPInfo": {
     "BusyTime": 1234,
     "BytesAcked": 1234,
@@ -280,6 +288,18 @@ Where:
 - `Test` is an _optional_ `string` that indicates the name of the
   current test. This field SHOULD only be used when the current test
   should otherwise not be obvious.
+
+- `WSPingInfo` is an _optional_ `object` only included in the measurement
+  when a reasonable websocket-level measurement is available:
+
+    - `ElapsedTime` (a `int64`) is the pong frame arrival time elapsed
+      since the beginning of this test, measured in microseconds.
+
+    - `LastRTT` (an _optional_ `int64`), the last observed RTT for the websocket
+      ping-pong exchange, measured in microseconds.
+
+    - `MinRTT` (an _optional_ `int64`), the minimum observed RTT for the websocket
+      ping-pong exchange, measured in microseconds.
 
 - `TCPInfo` is an _optional_ `object` only included in the measurement
   when it is possible to access `TCP_INFO` stats. It contains:
@@ -387,9 +407,11 @@ When the server sends measurement messages, the download becomes:
 ```
 > GET /ndt/v7/download Upgrade: websocket
 < 101 Switching Protocols
+< PingMessage
 < BinaryMessage
 < BinaryMessage
 < TextMessage    clientElapsedTime=0.30 s
+> PongMessage
 < BinaryMessage
 < BinaryMessage
 < TextMessage    clientElapsedTime=0.55 s
@@ -645,7 +667,9 @@ of the round-trip time. The buildup of a large queue is unexpected when using
 BBR. It generally indicates the presence of a bottleneck with a large buffer
 that's filling as the test proceeds. The `MinRTT` can also be useful to verify
 we're using a reasonably nearby-server. Also, an unreasonably small RTT when
-the link is 2G or 3G could indicate a performance enhancing proxy.
+the link is 2G or 3G could indicate a performance enhancing proxy, one can
+compare `TCPInfo.MinRTT` against `WSPingInfo.MinRTT` to get additional evidence
+supporing this case.
 
 The times (`BusyTime`, `RWndLimited`, and `SndBufLimited`) are useful to
 understand where the bottleneck could be. In general we would like to see
@@ -679,3 +703,18 @@ packet is uniformly distributed, which isn't likely the case. Yet, it
 may be an useful first order information to characterise a network
 as possibly very lossy. Some packet loss is normal and healthy, but
 too much packet loss is the sign of a network path with systemic problems.
+
+### Measuring latency
+
+The presence of TCP-level proxies leads to L7 means being needed to
+measure end-to-end latency in addition to end-to-end bandwidth. Such
+proxies may include ISP-level performance-enhancing proxies, OpenSSH,
+Tor anonymity network and many others.
+
+`WSPingInfo.LastRTT` samples may be affected by the payload during download
+and upload tests, as the queue of BinaryMessage may delay either ping
+or pong frame. Ping test does not send BinaryMessage payload, so WSPingInfo
+RTT measurements should be reasonably accurate (unless it's practical
+for the client to delay pong frames). The very first `WSPingInfo` sample
+collected during the download test also has a chance to be accurate as
+the ping frame SHOULD precede any BinaryMessages in the case.

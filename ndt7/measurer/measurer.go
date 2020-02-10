@@ -54,7 +54,7 @@ func measure(measurement *model.Measurement, sockfp *os.File, elapsed time.Durat
 	}
 }
 
-func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- model.Measurement) {
+func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- model.Measurement, start time.Time) {
 	logging.Logger.Debug("measurer: start")
 	defer logging.Logger.Debug("measurer: stop")
 	defer close(dst)
@@ -66,7 +66,6 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 		return
 	}
 	defer sockfp.Close()
-	start := time.Now()
 	connectionInfo := &model.ConnectionInfo{
 		Client: conn.RemoteAddr().String(),
 		Server: conn.LocalAddr().String(),
@@ -104,9 +103,9 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 // a timeout of DefaultRuntime seconds, provided that the consumer
 // continues reading from the returned channel.
 func Start(
-	ctx context.Context, conn *websocket.Conn, UUID string,
+	ctx context.Context, conn *websocket.Conn, UUID string, start time.Time,
 ) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
-	go loop(ctx, conn, UUID, dst)
+	go loop(ctx, conn, UUID, dst, start)
 	return dst
 }

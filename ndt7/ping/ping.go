@@ -1,32 +1,32 @@
-// Package ping implements WebSocket PING messages.
+// Package ping implements the ndt7 ping test.
 package ping
 
 import (
-	"encoding/json"
+	"context"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/ndt-server/ndt7/measurer"
+	"github.com/m-lab/ndt-server/ndt7/ping/mux"
+	"github.com/m-lab/ndt-server/ndt7/ping/receiver"
+	"github.com/m-lab/ndt-server/ndt7/ping/sender"
+	"github.com/m-lab/ndt-server/ndt7/results"
+	"github.com/m-lab/ndt-server/ndt7/saver"
+	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
-// SendTicks sends the current ticks as a ping message.
-func SendTicks(conn *websocket.Conn, deadline time.Time) error {
-	// TODO(bassosimone): when we'll have a unique base time.Time reference for
-	// the whole test, we should use that, since UnixNano() is not monotonic.
-	ticks := int64(time.Now().UnixNano())
-	data, err := json.Marshal(ticks)
-	if err == nil {
-		err = conn.WriteControl(websocket.PingMessage, data, deadline)
-	}
-	return err
-}
-
-func ParseTicks(s string) (d int64, err error) {
-	// TODO(bassosimone): when we'll have a unique base time.Time reference for
-	// the whole test, we should use that, since UnixNano() is not monotonic.
-	var prev int64
-	err = json.Unmarshal([]byte(s), &prev)
-	if err == nil {
-		d = (int64(time.Now().UnixNano()) - prev)
-	}
-	return
+// Do implements the ping subtest. The ctx argument is the parent
+// context for the subtest. The conn argument is the open WebSocket
+// connection. The resultfp argument is the file where to save results. Both
+// arguments are owned by the caller of this function. The start argument is
+// the test start time used to calculate ElapsedTime and deadlines.
+func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File, start time.Time) {
+	wholectx, cancel := context.WithTimeout(ctx, spec.MaxRuntime)
+	// saver.SaveAll() blocks till channels are drained, so cancel() is just for consistency here.
+	defer cancel()
+	measurerch := measurer.Start(wholectx, conn, resultfp.Data.UUID, start)
+	receiverch := receiver.Start(wholectx, conn, start)
+	x := mux.Start(measurerch, receiverch, cancel)
+	sender.Start(conn, x.SenderC, start)
+	saver.SaveAll(resultfp, x.ServerLog, x.ClientLog)
 }
