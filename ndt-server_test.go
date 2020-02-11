@@ -266,7 +266,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 		},
 		{
 			name: "Test the ndt7 protocol in cleartext",
-			cmd:  "timeout 45s ndt7-client -no-verify -scheme ws -hostname localhost:" + ndt7AddrCleartext,
+			cmd:  "timeout 45s ndt7-client -scheme ws -hostname localhost:" + ndt7AddrCleartext,
 			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
 			ignoreData: true,
 		},
