@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.8.3 of the ndt7 specification.
+This is version v0.8.4 of the ndt7 specification.
 
 ## Design choices
 
@@ -139,7 +139,9 @@ such as C where reading and writing messages at the same time significantly
 increases the implementation complexity. A ndt7 implementation SHOULD NOT send
 more than ten textual messages per second on the average. A ndt7 implementation
 MAY choose to discard incoming textual messages at random, if it is receiving
-too many textual messages in a given time interval.
+too many textual messages in a given time interval. Server implementation SHOULD
+send textual messages containing measurements during uploads, so to provide
+clients with reliable upload-speed measurements.
 
 Binary messages SHOULD contain random data and are used to generate network
 load. Therefore, during the download test the server sends binary
