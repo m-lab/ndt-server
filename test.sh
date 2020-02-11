@@ -6,10 +6,6 @@ set -ex
 # Test the NDT binary
 PATH=${PATH}:${GOPATH}/bin
 
-# Check that we haven't blatently broken etl dependencies.
-go get -t github.com/m-lab/etl/...
-go vet github.com/m-lab/etl/...
-
 # If we aren't running on Travis, then there's no need to produce a coverage
 # file and submit it to coveralls.io
 if [[ -z ${TRAVIS_PULL_REQUEST} ]]; then
