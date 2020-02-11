@@ -69,12 +69,13 @@ func setupMain() func() {
 		"Failed to generate server key and certs")
 
 	// Set up the command-line args via environment variables:
-	ports := getOpenPorts(4)
+	ports := getOpenPorts(5)
 	for _, ev := range []struct{ key, value string }{
 		{"NDT7_ADDR", ports[0]},
 		{"NDT5_ADDR", ports[1]},
 		{"NDT5_WS_ADDR", ports[2]},
 		{"NDT5_WSS_ADDR", ports[3]},
+		{"NDT7_ADDR_CLEARTEXT", ports[4]},
 		{"CERT", certFile},
 		{"KEY", keyFile},
 		{"DATADIR", dir},
@@ -137,6 +138,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 	wsAddr := os.Getenv("NDT5_WS_ADDR")[1:]
 	wssAddr := os.Getenv("NDT5_WSS_ADDR")[1:]
 	ndt7Addr := os.Getenv("NDT7_ADDR")[1:]
+	ndt7AddrCleartext := os.Getenv("NDT7_ADDR_CLEARTEXT")[1:]
 
 	// Get the datadir
 	dataDir := os.Getenv("DATADIR")
@@ -259,6 +261,12 @@ func Test_MainIntegrationTest(t *testing.T) {
 		{
 			name: "Test the ndt7 protocol",
 			cmd:  "timeout 45s ndt7-client -no-verify -hostname localhost:" + ndt7Addr,
+			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
+			ignoreData: true,
+		},
+		{
+			name: "Test the ndt7 protocol in cleartext",
+			cmd:  "timeout 45s ndt7-client -scheme ws -hostname localhost:" + ndt7AddrCleartext,
 			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
 			ignoreData: true,
 		},
