@@ -140,7 +140,7 @@ increases the implementation complexity. A ndt7 implementation SHOULD NOT send
 more than ten textual messages per second on the average. A ndt7 implementation
 MAY choose to discard incoming textual messages at random, if it is receiving
 too many textual messages in a given time interval. Server implementation SHOULD
-send textual messages containing measurements during uploads, so to provide
+send textual messages containing measurements during uploads, to provide
 clients with reliable upload-speed measurements.
 
 Binary messages SHOULD contain random data and are used to generate network
