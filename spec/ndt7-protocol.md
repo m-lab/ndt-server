@@ -139,7 +139,7 @@ such as C where reading and writing messages at the same time significantly
 increases the implementation complexity. A ndt7 implementation SHOULD NOT send
 more than ten textual messages per second on the average. A ndt7 implementation
 MAY choose to discard incoming textual messages at random, if it is receiving
-too many textual messages in a given time interval. Server implementation SHOULD
+too many textual messages in a given time interval. Server implementations SHOULD
 send textual messages containing measurements during uploads, to provide
 clients with reliable upload-speed measurements.
 
