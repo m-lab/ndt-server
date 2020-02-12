@@ -123,6 +123,8 @@ func main() {
 		// Only watch interface and run tx.Limit on success.
 		go tx.Watch(ctx)
 		ac.Append(tx.Limit)
+	} else {
+		log.Println("WARNING: access.TxController disabled:", err)
 	}
 
 	// The ndt5 protocol serving non-HTTP-based tests - forwards to Ws-based
