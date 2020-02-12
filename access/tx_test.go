@@ -16,7 +16,7 @@ import (
 func TestTxController_Limit(t *testing.T) {
 	tests := []struct {
 		name     string
-		limit uint64
+		limit    uint64
 		current  uint64
 		procPath string
 		visited  bool
@@ -29,7 +29,7 @@ func TestTxController_Limit(t *testing.T) {
 		},
 		{
 			name:     "reject",
-			limit :     1,
+			limit:    1,
 			current:  2,
 			procPath: "testdata/proc-success",
 			visited:  false,
@@ -38,6 +38,7 @@ func TestTxController_Limit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			procPath = tt.procPath
+			device = "eth0"
 			tx, err := NewTxController(tt.limit)
 			if !tt.wantErr && (err != nil) {
 				t.Errorf("NewTxController() got %v, want %t", err, tt.wantErr)
@@ -64,7 +65,7 @@ func TestTxController_Limit(t *testing.T) {
 func TestNewTxController(t *testing.T) {
 	tests := []struct {
 		name     string
-		limit uint64
+		limit    uint64
 		want     *TxController
 		procPath string
 		wantErr  bool
@@ -102,29 +103,29 @@ func TestNewTxController(t *testing.T) {
 
 func TestTxController_Watch(t *testing.T) {
 	tests := []struct {
-		name     string
-		limit uint64
-		want     *TxController
-		procPath string
-		badProc string
-		wantWatchErr  bool
+		name         string
+		limit        uint64
+		want         *TxController
+		procPath     string
+		badProc      string
+		wantWatchErr bool
 	}{
 		{
 			name:     "success-zero-rate",
 			procPath: "testdata/proc-success",
-			limit: 0,
+			limit:    0,
 		},
 		{
-			name:     "success-rate",
-			procPath: "testdata/proc-success",
-			limit: 1,
+			name:         "success-rate",
+			procPath:     "testdata/proc-success",
+			limit:        1,
 			wantWatchErr: true,
 		},
 		{
-			name:     "success-error-reading-proc",
-			procPath: "testdata/proc-success",
-			limit: 1,
-			badProc: "testdata/proc-nodevfile",
+			name:         "success-error-reading-proc",
+			procPath:     "testdata/proc-success",
+			limit:        1,
+			badProc:      "testdata/proc-nodevfile",
 			wantWatchErr: true,
 		},
 	}
