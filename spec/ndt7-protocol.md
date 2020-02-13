@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.8.4 of the ndt7 specification.
+This is version v0.9.0 of the ndt7 specification.
 
 ## Design choices
 
@@ -35,7 +35,7 @@ a measurement of your last mile speed. Rather it is a measurement
 of what performance is possible with your device, your current internet
 connection (landline, Wi-Fi, 4G, etc.), the characteristics of
 your ISP and possibly of other ISPs in the middle, and the server
-being used. The main metric measured by ndt7 is the goodput, i.e.,
+being used. The main metric measured by ndt7 is the goodput. That is,
 the speed measured at application level, without including the
 overheads of WebSockets, TLS, TCP/IP, and link layer headers. But we
 also provide kernel-level information from `TCP_INFO` where available. For
@@ -254,10 +254,9 @@ Where:
       overheaded of the WebSockets, TLS, TCP/IP, and link layers.
 
 - `ConnectionInfo` is an _optional_ `object` used to provide information
-  about the connection four tuple. Clients MUST NOT send this message. Servers
-  MUST send this message exactly once. Clients SHOULD cache the first
-  received instance of this message, and discard any subsequently received
-  instance of this message. The contents of the object are:
+  about the connection four tuple. Clients MUST NOT send this message. Since
+  v0.9.0 of this specification, servers MUST always include this object.
+  The contents of this object are:
 
     - `Client` (a `string`), which contains the serialization of the client
       endpoint according to the server. Note that the general format of

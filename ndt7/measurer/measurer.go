@@ -106,7 +106,6 @@ func (m *Measurer) loop(ctx context.Context, dst chan<- model.Measurement) {
 		var measurement model.Measurement
 		measure(&measurement, sockfp, now.Sub(start))
 		measurement.ConnectionInfo = connectionInfo
-		connectionInfo = nil
 		dst <- measurement // Liveness: this is blocking
 	}
 }
