@@ -34,7 +34,7 @@ type File struct {
 // directory on success and returns an error on failure.
 func newFile(datadir, what, uuid string) (*File, error) {
 	timestamp := time.Now().UTC()
-	dir := path.Join(datadir, "ndt7"+what, timestamp.Format("2006/01/02"))
+	dir := path.Join(datadir, "ndt7", timestamp.Format("2006/01/02"))
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		return nil, err
