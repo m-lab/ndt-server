@@ -18,8 +18,24 @@ import (
 	"github.com/m-lab/ndt-server/tcpinfox"
 )
 
-func getSocketAndPossiblyEnableBBR(conn *websocket.Conn) (*os.File, error) {
-	fp := fdcache.GetAndForgetFile(conn.UnderlyingConn())
+// Measurer performs measurements
+type Measurer struct {
+	conn  *websocket.Conn
+	start time.Time
+	uuid  string
+}
+
+// New creates a new measurer instance
+func New(conn *websocket.Conn, UUID string, start time.Time) *Measurer {
+	return &Measurer{
+		conn:  conn,
+		start: start,
+		uuid:  UUID,
+	}
+}
+
+func (m *Measurer) getSocketAndPossiblyEnableBBR() (*os.File, error) {
+	fp := fdcache.GetAndForgetFile(m.conn.UnderlyingConn())
 	// Implementation note: in theory fp SHOULD always be non-nil because
 	// now we always register the fp bound to a net.TCPConn. However, in
 	// some weird cases it MAY happen that the cache pruning mechanism will
@@ -54,22 +70,22 @@ func measure(measurement *model.Measurement, sockfp *os.File, elapsed time.Durat
 	}
 }
 
-func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- model.Measurement, start time.Time) {
+func (m *Measurer) loop(ctx context.Context, dst chan<- model.Measurement) {
 	logging.Logger.Debug("measurer: start")
 	defer logging.Logger.Debug("measurer: stop")
 	defer close(dst)
 	measurerctx, cancel := context.WithTimeout(ctx, spec.DefaultRuntime)
 	defer cancel()
-	sockfp, err := getSocketAndPossiblyEnableBBR(conn)
+	sockfp, err := m.getSocketAndPossiblyEnableBBR()
 	if err != nil {
 		logging.Logger.WithError(err).Warn("getSocketAndPossiblyEnableBBR failed")
 		return
 	}
 	defer sockfp.Close()
 	connectionInfo := &model.ConnectionInfo{
-		Client: conn.RemoteAddr().String(),
-		Server: conn.LocalAddr().String(),
-		UUID:   UUID,
+		Client: m.conn.RemoteAddr().String(),
+		Server: m.conn.LocalAddr().String(),
+		UUID:   m.uuid,
 	}
 	// Implementation note: the ticker will close its output channel
 	// after the controlling context is expired.
@@ -89,7 +105,7 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 			return
 		}
 		var measurement model.Measurement
-		measure(&measurement, sockfp, now.Sub(start))
+		measure(&measurement, sockfp, now.Sub(m.start))
 		measurement.ConnectionInfo = connectionInfo
 		connectionInfo = nil
 		dst <- measurement // Liveness: this is blocking
@@ -102,10 +118,8 @@ func loop(ctx context.Context, conn *websocket.Conn, UUID string, dst chan<- mod
 // Liveness guarantee: the measurer will always terminate after
 // a timeout of DefaultRuntime seconds, provided that the consumer
 // continues reading from the returned channel.
-func Start(
-	ctx context.Context, conn *websocket.Conn, UUID string, start time.Time,
-) <-chan model.Measurement {
+func (m *Measurer) Start(ctx context.Context) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
-	go loop(ctx, conn, UUID, dst, start)
+	go m.loop(ctx, dst)
 	return dst
 }

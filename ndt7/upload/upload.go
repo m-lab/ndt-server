@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/measurer"
 	"github.com/m-lab/ndt-server/ndt7/receiver"
+	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/saver"
 	"github.com/m-lab/ndt-server/ndt7/upload/sender"
 )
@@ -21,9 +21,10 @@ import (
 func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File, start time.Time) {
 	// Implementation note: use child context so that, if we cannot save the
 	// results in the loop below, we terminate the goroutines early
-	wholectx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	senderch := sender.Start(conn, measurer.Start(wholectx, conn, resultfp.Data.UUID, start), start)
-	receiverch := receiver.StartUploadReceiver(wholectx, conn, start)
+	measurer := measurer.New(conn, resultfp.Data.UUID, start)
+	senderch := sender.Start(conn, measurer.Start(ctx), start)
+	receiverch := receiver.StartUploadReceiver(ctx, conn, start)
 	saver.SaveAll(resultfp, senderch, receiverch)
 }

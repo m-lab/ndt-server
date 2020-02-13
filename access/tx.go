@@ -2,6 +2,7 @@ package access
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -25,10 +26,11 @@ var (
 		},
 		[]string{"request"},
 	)
+	ErrNoDevice = errors.New("no device found")
 )
 
 func init() {
-	flag.StringVar(&device, "txcontroller.device", "eth0", "Calculate bytes transmitted from this device.")
+	flag.StringVar(&device, "txcontroller.device", "", "Calculate bytes transmitted from this device.")
 }
 
 // TxController calculates the bytes transmitted every period from the named device.
@@ -43,6 +45,9 @@ type TxController struct {
 // NewTxController creates a new instance initialized to run every second.
 // Caller should run Watch in a goroutine to regularly update the current rate.
 func NewTxController(rate uint64) (*TxController, error) {
+	if device == "" {
+		return nil, ErrNoDevice
+	}
 	pfs, err := procfs.NewFS(procPath)
 	if err != nil {
 		return nil, err
