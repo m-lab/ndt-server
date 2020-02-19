@@ -37,7 +37,7 @@ var (
 	certFile          = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
 	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
-	maxRate           = flag.Uint64("max-rate", 0, "The max rate beyond which, the TxController will reject new clients")
+	maxRate           = flag.Uint64("txcontroller.max-rate", 0, "The max rate beyond which, the TxController will reject new clients")
 
 	// A metric to use to signal that the server is in lame duck mode.
 	lameDuck = promauto.NewGauge(prometheus.GaugeOpts{
@@ -122,7 +122,7 @@ func main() {
 	if err == nil {
 		// Only watch interface and run tx.Limit on success.
 		go tx.Watch(ctx)
-		ac.Append(tx.Limit)
+		ac = ac.Append(tx.Limit)
 	} else {
 		log.Println("WARNING: access.TxController disabled:", err)
 	}
