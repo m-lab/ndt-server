@@ -13,6 +13,12 @@ import (
 	"github.com/m-lab/go/rtx"
 )
 
+type fakeAccepter struct{}
+
+func (f *fakeAccepter) Accept(l net.Listener) (net.Conn, error) {
+	return l.Accept()
+}
+
 func TestNewPlainServer(t *testing.T) {
 	d, err := ioutil.TempDir("", "TestNewPlainServer")
 	rtx.Must(err, "Could not create tempdir")
@@ -53,7 +59,8 @@ func TestNewPlainServer(t *testing.T) {
 	tcpS := NewServer(d, wsSrv.Addr)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	rtx.Must(tcpS.ListenAndServe(ctx, ":0"), "Could not start tcp server")
+	fa := &fakeAccepter{}
+	rtx.Must(tcpS.ListenAndServe(ctx, ":0", fa), "Could not start tcp server")
 
 	t.Run("Test that GET forwarding works", func(t *testing.T) {
 		url := "http://" + tcpS.Addr().String() + "/test_url"
@@ -76,7 +83,8 @@ func TestNewPlainServer(t *testing.T) {
 	})
 
 	t.Run("Test that we can't listen and run twice on the same port", func(t *testing.T) {
-		err := tcpS.ListenAndServe(ctx, tcpS.Addr().String())
+		fa := &fakeAccepter{}
+		err := tcpS.ListenAndServe(ctx, tcpS.Addr().String(), fa)
 		if err == nil {
 			t.Error("We should not have been able to start a second server")
 		}
@@ -106,7 +114,8 @@ func TestNewPlainServerBrokenForwarding(t *testing.T) {
 	tcpS := NewServer(d, "127.0.0.1:1")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	rtx.Must(tcpS.ListenAndServe(ctx, ":0"), "Could not start tcp server")
+	fa := &fakeAccepter{}
+	rtx.Must(tcpS.ListenAndServe(ctx, ":0", fa), "Could not start tcp server")
 
 	client := &http.Client{
 		Timeout: 10 * time.Millisecond,
