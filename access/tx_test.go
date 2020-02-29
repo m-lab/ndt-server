@@ -2,14 +2,15 @@ package access
 
 import (
 	"context"
+	"net"
 	"net/http"
-	"time"
-
 	"net/http/httptest"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/m-lab/go/rtx"
+
 	"github.com/prometheus/procfs"
 )
 
@@ -68,26 +69,36 @@ func TestNewTxController(t *testing.T) {
 		limit    uint64
 		want     *TxController
 		procPath string
+		device   string
 		wantErr  bool
 	}{
 		{
 			name:     "failure",
 			procPath: "testdata/proc-failure",
+			device:   "eth0",
 			wantErr:  true,
 		},
 		{
 			name:     "failure-nodevfile",
 			procPath: "testdata/proc-nodevfile",
+			device:   "eth0",
 			wantErr:  true,
 		},
 		{
 			name:     "failure-nodevice",
 			procPath: "testdata/proc-nodevice",
+			device:   "eth0",
 			wantErr:  true,
+		},
+		{
+			name:    "failure-nodevice",
+			device:  "",
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			device = tt.device
 			procPath = tt.procPath
 			got, err := NewTxController(tt.limit)
 			if (err != nil) != tt.wantErr {
@@ -131,6 +142,7 @@ func TestTxController_Watch(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			device = "eth0"
 			procPath = tt.procPath
 			tx, err := NewTxController(tt.limit)
 			if err != nil {
@@ -150,6 +162,77 @@ func TestTxController_Watch(t *testing.T) {
 			if (err != nil) != tt.wantWatchErr {
 				t.Errorf("Watch() error = %v, wantErr %v", err, tt.wantWatchErr)
 				return
+			}
+		})
+	}
+}
+
+type fakeListener struct {
+	conn   fakeConn
+	err    error
+	closed int
+}
+
+type fakeConn struct {
+	net.TCPConn
+	closed int
+}
+
+func (c *fakeConn) Close() error {
+	c.closed++
+	return nil
+}
+
+func (f *fakeListener) Accept() (net.Conn, error) {
+	return &f.conn, f.err
+}
+func (f *fakeListener) Close() error {
+	f.closed++
+	return nil
+}
+func (f *fakeListener) Addr() net.Addr {
+	return &net.TCPAddr{}
+}
+
+func TestTxController_Accept(t *testing.T) {
+	tests := []struct {
+		name       string
+		l          *fakeListener
+		current    uint64
+		limit      uint64
+		wantClosed int
+		wantErr    bool
+	}{
+		{
+			name:       "success-accepted",
+			l:          &fakeListener{},
+			current:    0,
+			limit:      1,
+			wantClosed: 0,
+		},
+		{
+			name:       "success-rejected",
+			l:          &fakeListener{conn: fakeConn{}},
+			current:    2,
+			limit:      1,
+			wantClosed: 1,
+			wantErr:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tx := &TxController{
+				current: tt.current,
+				limit:   tt.limit,
+			}
+			conn, err := tx.Accept(tt.l)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("TxController.Accept() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			fc, ok := conn.(*fakeConn)
+			if conn != nil && ok && fc.closed != tt.wantClosed {
+				t.Errorf("TxController.Accept() failed to close conn; got %d, want %d", fc.closed, tt.wantClosed)
 			}
 		})
 	}

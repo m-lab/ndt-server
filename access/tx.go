@@ -6,13 +6,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
+	"net"
 	"net/http"
 	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-
 	"github.com/prometheus/procfs"
 )
 
@@ -24,8 +25,9 @@ var (
 			Name: "ndt_access_txcontroller_requests_total",
 			Help: "Total number of requests handled by the access txcontroller.",
 		},
-		[]string{"request"},
+		[]string{"request", "protocol"},
 	)
+	// ErrNoDevice is returned when device is empty or not found in procfs.
 	ErrNoDevice = errors.New("no device found")
 )
 
@@ -61,24 +63,49 @@ func NewTxController(rate uint64) (*TxController, error) {
 		device: device,
 		limit:  rate,
 		pfs:    pfs,
-		period: time.Second,
+		period: 100 * time.Millisecond,
 	}
 	return tx, err
+}
+
+// Accept wraps the call to listener's Accept. If the TxController is
+// limited, then Accept immediately closes the connection and returns an error.
+func (tx *TxController) Accept(l net.Listener) (net.Conn, error) {
+	conn, err := l.Accept()
+	if err == nil && tx.isLimited("raw") {
+		defer conn.Close()
+		return nil, fmt.Errorf("TxController rejected connection %s", conn.RemoteAddr())
+	}
+	return conn, err
+}
+
+// Current exports the current rate. Useful for diagnostics.
+func (tx *TxController) Current() uint64 {
+	return atomic.LoadUint64(&tx.current)
+}
+
+// isLimited checks the current tx rate and returns whether the connection should
+// be accepted or rejected.
+func (tx *TxController) isLimited(proto string) bool {
+	cur := atomic.LoadUint64(&tx.current)
+	if tx.limit > 0 && cur > tx.limit {
+		accessRequests.WithLabelValues("rejected", proto).Inc()
+		return true
+	}
+	accessRequests.WithLabelValues("accepted", proto).Inc()
+	return false
 }
 
 // Limit enforces that the TxController rate limit is respected before running
 // the next handler. If the rate is unspecified (zero), all requests are accepted.
 func (tx *TxController) Limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cur := atomic.LoadUint64(&tx.current)
-		if tx.limit > 0 && cur > tx.limit {
-			accessRequests.WithLabelValues("rejected").Inc()
+		if tx.isLimited("http") {
 			// 503 - https://tools.ietf.org/html/rfc7231#section-6.6.4
 			w.WriteHeader(http.StatusServiceUnavailable)
 			// Return without additional response.
 			return
 		}
-		accessRequests.WithLabelValues("accepted").Inc() // accepted != success.
 		next.ServeHTTP(w, r)
 	})
 }
@@ -101,15 +128,23 @@ func (tx *TxController) Watch(ctx context.Context) error {
 	}
 
 	// Check the device every period until the context returns an error.
-	for prev := v.TxBytes; ctx.Err() == nil; <-t.C {
-		v, err := readNetDevLine(tx.pfs, tx.device)
+	ratePrev := 0.0
+	prevTxBytes := v.TxBytes
+	for ; ctx.Err() == nil; <-t.C {
+		cur, err := readNetDevLine(tx.pfs, tx.device)
 		if err != nil {
 			log.Println("Error reading /proc/net/dev:", err)
 			continue
 		}
-		cur := (v.TxBytes - prev) * 8
-		atomic.StoreUint64(&tx.current, cur)
-		prev = v.TxBytes
+
+		// Calculate the new rate in bits-per-second.
+		rateNow := float64(8*(cur.TxBytes-prevTxBytes)) / tx.period.Seconds()
+		// A few seconds for decreases and rapid response for increases.
+		ratePrev = math.Max(rateNow, 0.95*ratePrev+0.05*rateNow)
+		atomic.StoreUint64(&tx.current, uint64(ratePrev))
+
+		// Save the total bytes sent from this round for the next.
+		prevTxBytes = cur.TxBytes
 	}
 	return ctx.Err()
 }
