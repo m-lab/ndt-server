@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	procPath       = "/proc"
-	device         string
-	accessRequests = promauto.NewCounterVec(
+	procPath         = "/proc"
+	device           string
+	txAccessRequests = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ndt_access_txcontroller_requests_total",
 			Help: "Total number of requests handled by the access txcontroller.",
@@ -89,10 +89,10 @@ func (tx *TxController) Current() uint64 {
 func (tx *TxController) isLimited(proto string) bool {
 	cur := atomic.LoadUint64(&tx.current)
 	if tx.limit > 0 && cur > tx.limit {
-		accessRequests.WithLabelValues("rejected", proto).Inc()
+		txAccessRequests.WithLabelValues("rejected", proto).Inc()
 		return true
 	}
-	accessRequests.WithLabelValues("accepted", proto).Inc()
+	txAccessRequests.WithLabelValues("accepted", proto).Inc()
 	return false
 }
 
