@@ -65,13 +65,17 @@ func NewTxController(rate uint64) (*TxController, error) {
 		pfs:    pfs,
 		period: 100 * time.Millisecond,
 	}
-	return tx, err
+	return tx, nil
 }
 
 // Accept wraps the call to listener's Accept. If the TxController is
 // limited, then Accept immediately closes the connection and returns an error.
 func (tx *TxController) Accept(l net.Listener) (net.Conn, error) {
 	conn, err := l.Accept()
+	if tx == nil {
+		// Simple pass-through.
+		return conn, err
+	}
 	if err == nil && tx.isLimited("raw") {
 		defer conn.Close()
 		return nil, fmt.Errorf("TxController rejected connection %s", conn.RemoteAddr())

@@ -198,34 +198,38 @@ func TestTxController_Accept(t *testing.T) {
 	tests := []struct {
 		name       string
 		l          *fakeListener
-		current    uint64
-		limit      uint64
+		tx         *TxController
 		wantClosed int
 		wantErr    bool
 	}{
 		{
-			name:       "success-accepted",
-			l:          &fakeListener{},
-			current:    0,
-			limit:      1,
+			name: "success-accepted",
+			l:    &fakeListener{},
+			tx: &TxController{
+				current: 0,
+				limit:   1,
+			},
 			wantClosed: 0,
 		},
 		{
-			name:       "success-rejected",
-			l:          &fakeListener{conn: fakeConn{}},
-			current:    2,
-			limit:      1,
+			name: "success-rejected",
+			l:    &fakeListener{conn: fakeConn{}},
+			tx: &TxController{
+				current: 2,
+				limit:   1,
+			},
 			wantClosed: 1,
 			wantErr:    true,
+		},
+		{
+			name: "success-accept-with-nil-tx",
+			l:    &fakeListener{conn: fakeConn{}},
+			tx:   nil, // Accept should work even with a nil tx.
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tx := &TxController{
-				current: tt.current,
-				limit:   tt.limit,
-			}
-			conn, err := tx.Accept(tt.l)
+			conn, err := tt.tx.Accept(tt.l)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("TxController.Accept() error = %v, wantErr %v", err, tt.wantErr)
 				return
