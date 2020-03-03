@@ -155,8 +155,8 @@ func (tx *TxController) Watch(ctx context.Context) error {
 		}
 
 		// Under heavy load, tickers may fire slow (and then early). Only update
-		// values when interval is long enough, i.e. more than half 'alpha'.
-		if tickNow.Sub(tickPrev).Seconds() > alpha/2 {
+		// values when interval is long enough, i.e. more than half the tx.period.
+		if tickNow.Sub(tickPrev).Seconds() > tx.period.Seconds()/2 {
 			// Calculate the new rate in bits-per-second, using the actual interval.
 			rateNow := float64(8*(cur.TxBytes-prevTxBytes)) / tickNow.Sub(tickPrev).Seconds()
 			// A few seconds for decreases and rapid response for increases.
