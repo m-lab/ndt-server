@@ -76,22 +76,30 @@ func (tx *TxController) Accept(l net.Listener) (net.Conn, error) {
 		// Simple pass-through.
 		return conn, err
 	}
-	if err == nil && tx.isLimited("raw") {
+	if err != nil {
+		// No need to check isLimited, the accept failed.
+		return nil, err
+	}
+	if tx.isLimited("raw") {
 		defer conn.Close()
 		return nil, fmt.Errorf("TxController rejected connection %s", conn.RemoteAddr())
 	}
-	return conn, err
+	// err was nil, so the conn is good.
+	return conn, nil
 }
 
 // Current exports the current rate. Useful for diagnostics.
 func (tx *TxController) Current() uint64 {
 	return atomic.LoadUint64(&tx.current)
 }
+func (tx *TxController) set(value uint64) {
+	atomic.StoreUint64(&tx.current, value)
+}
 
 // isLimited checks the current tx rate and returns whether the connection should
 // be accepted or rejected.
 func (tx *TxController) isLimited(proto string) bool {
-	cur := atomic.LoadUint64(&tx.current)
+	cur := tx.Current()
 	if tx.limit > 0 && cur > tx.limit {
 		txAccessRequests.WithLabelValues("rejected", proto).Inc()
 		return true
@@ -131,24 +139,30 @@ func (tx *TxController) Watch(ctx context.Context) error {
 		return err
 	}
 
-	// Check the device every period until the context returns an error.
+	// Setup.
 	ratePrev := 0.0
 	prevTxBytes := v.TxBytes
-	for ; ctx.Err() == nil; <-t.C {
+	tickNow := <-t.C                    // Read first time from ticker.
+	tickPrev := tickNow.Add(-tx.period) // Initialize difference to expected sample period.
+	alpha := tx.period.Seconds() / 2    // Alpha controls the decay rate based on configured period.
+
+	// Check the device every period until the context returns an error.
+	for ; ctx.Err() == nil; tickNow = <-t.C {
 		cur, err := readNetDevLine(tx.pfs, tx.device)
 		if err != nil {
 			log.Println("Error reading /proc/net/dev:", err)
 			continue
 		}
 
-		// Calculate the new rate in bits-per-second.
-		rateNow := float64(8*(cur.TxBytes-prevTxBytes)) / tx.period.Seconds()
+		// Calculate the new rate in bits-per-second, using the actual interval.
+		rateNow := float64(8*(cur.TxBytes-prevTxBytes)) / tickNow.Sub(tickPrev).Seconds()
 		// A few seconds for decreases and rapid response for increases.
-		ratePrev = math.Max(rateNow, 0.95*ratePrev+0.05*rateNow)
-		atomic.StoreUint64(&tx.current, uint64(ratePrev))
+		ratePrev = math.Max(rateNow, (1-alpha)*ratePrev+alpha*rateNow)
+		tx.set(uint64(ratePrev))
 
 		// Save the total bytes sent from this round for the next.
 		prevTxBytes = cur.TxBytes
+		tickPrev = tickNow
 	}
 	return ctx.Err()
 }

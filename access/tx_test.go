@@ -2,6 +2,7 @@ package access
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -225,6 +226,12 @@ func TestTxController_Accept(t *testing.T) {
 			name: "success-accept-with-nil-tx",
 			l:    &fakeListener{conn: fakeConn{}},
 			tx:   nil, // Accept should work even with a nil tx.
+		},
+		{
+			name:    "error-accept-returns-error",
+			l:       &fakeListener{err: errors.New("this is a fake accept error")},
+			tx:      &TxController{},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
