@@ -127,7 +127,7 @@ func (ps *plainServer) sniffThenHandle(ctx context.Context, conn net.Conn) {
 
 // ListenAndServe starts up the sniffing server that delegates to the
 // appropriate just-TCP or WS protocol.Connection.
-func (ps *plainServer) ListenAndServe(ctx context.Context, addr string) error {
+func (ps *plainServer) ListenAndServe(ctx context.Context, addr string, tx Accepter) error {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func (ps *plainServer) ListenAndServe(ctx context.Context, addr string) error {
 	// Serve requests until the context is canceled.
 	go func() {
 		for ctx.Err() == nil {
-			conn, err := ln.Accept()
+			conn, err := tx.Accept(ln)
 			if err != nil {
 				log.Println("Failed to accept connection:", err)
 				continue
@@ -199,10 +199,16 @@ func (ps *plainServer) Addr() net.Addr {
 	return ps.listener.Addr()
 }
 
+// Accepter defines an interface the listening server to decide whether to
+// accept new connections.
+type Accepter interface {
+	Accept(l net.Listener) (net.Conn, error)
+}
+
 // Server is the interface implemented by the non-HTTP-based NDT server.
 // Because it isn't run by the http.Server machinery, it has its own interface.
 type Server interface {
-	ListenAndServe(ctx context.Context, addr string) error
+	ListenAndServe(ctx context.Context, addr string, tx Accepter) error
 	Addr() net.Addr
 }
 

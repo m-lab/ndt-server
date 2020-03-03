@@ -131,7 +131,7 @@ func main() {
 	// server if the first three bytes are "GET".
 	ndt5Server := plain.NewServer(*dataDir+"/ndt5", *ndt5WsAddr)
 	rtx.Must(
-		ndt5Server.ListenAndServe(ctx, *ndt5Addr),
+		ndt5Server.ListenAndServe(ctx, *ndt5Addr, tx),
 		"Could not start raw server")
 
 	// The ndt5 protocol serving Ws-based tests. Most clients are hard-coded to
@@ -141,8 +141,10 @@ func main() {
 	ndt5WsMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
 	ndt5WsMux.Handle("/ndt_protocol", ndt5handler.NewWS(*dataDir+"/ndt5"))
 	ndt5WsServer := &http.Server{
-		Addr:    *ndt5WsAddr,
-		Handler: ac.Then(logging.MakeAccessLogHandler(ndt5WsMux)),
+		Addr: *ndt5WsAddr,
+		// NOTE: do not use `ac.Then()` to prevent 'double jeopardy' for
+		// forwarded clients when txcontroller is enabled.
+		Handler: logging.MakeAccessLogHandler(ndt5WsMux),
 	}
 	log.Println("About to listen for unencrypted ndt5 NDT tests on " + *ndt5WsAddr)
 	rtx.Must(listener.ListenAndServeAsync(ndt5WsServer), "Could not start unencrypted ndt5 NDT server")
