@@ -2,18 +2,18 @@ package access
 
 import (
 	"context"
+	"flag"
 	"net/http"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/stephen-soltesz/adhoc/jwt/token"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 // TokenController manages access control for clients providing access_token parameters.
 type TokenController struct {
-	token   *token.Verifier
+	token   Verifier
 	machine string
 }
 
@@ -25,9 +25,27 @@ var (
 			Name: "ndt_access_tokencontroller_requests_total",
 			Help: "Total number of requests handled by the access tokencontroller.",
 		},
-		[]string{"request", "protocol"},
+		[]string{"request"},
 	)
+	requireTokens bool
 )
+
+func init() {
+	flag.BoolVar(&requireTokens, "tokencontroller.required", false, "Whether access tokens are required by HTTP-based clients.")
+}
+
+// Verifier is used by the TokenController to verify JWT claims in access tokens.
+type Verifier interface {
+	Verify(token string, exp jwt.Expected) (*jwt.Claims, error)
+}
+
+// NewTokenController creates a new token controller.
+func NewTokenController(name string, verifier Verifier) *TokenController {
+	return &TokenController{
+		token:   verifier,
+		machine: name,
+	}
+}
 
 // Limit implements the Controller interface by checking clients provided access_tokens.
 func (t *TokenController) Limit(next http.Handler) http.Handler {
@@ -49,7 +67,7 @@ func (t *TokenController) Limit(next http.Handler) http.Handler {
 func (t *TokenController) isVerified(r *http.Request) (bool, context.Context) {
 	ctx := r.Context()
 	token := r.Form.Get("access_token")
-	if token == "" {
+	if token == "" && !requireTokens {
 		// TODO: after migrating clients to locate service, require access_token.
 		// For now, accept the request.
 		tokenAccessRequests.WithLabelValues("accepted").Inc()
