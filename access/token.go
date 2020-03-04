@@ -11,12 +11,6 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
-// TokenController manages access control for clients providing access_token parameters.
-type TokenController struct {
-	token   Verifier
-	machine string
-}
-
 const monitorIssuer = "monitoring"
 
 var (
@@ -34,6 +28,12 @@ func init() {
 	flag.BoolVar(&requireTokens, "tokencontroller.required", false, "Whether access tokens are required by HTTP-based clients.")
 }
 
+// TokenController manages access control for clients providing access_token parameters.
+type TokenController struct {
+	token   Verifier
+	machine string
+}
+
 // Verifier is used by the TokenController to verify JWT claims in access tokens.
 type Verifier interface {
 	Verify(token string, exp jwt.Expected) (*jwt.Claims, error)
@@ -47,7 +47,7 @@ func NewTokenController(name string, verifier Verifier) *TokenController {
 	}
 }
 
-// Limit implements the Controller interface by checking clients provided access_tokens.
+// Limit checks client-provided access_tokens. Limit implements the Controller interface.
 func (t *TokenController) Limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		verified, ctx := t.isVerified(r)
@@ -62,14 +62,15 @@ func (t *TokenController) Limit(next http.Handler) http.Handler {
 	})
 }
 
-// isVerified validates the access_token and if the access token issuer is
-// monitoring, add a context value derived from the given request context.
+// isVerified validates the client-provided access_token. If the access_token is
+// not found and tokens are not required, the request will be accepted. If the
+// token is valid, then the returned context will include a boolean value
+// indicating whether the token issuer is "monitoring" or not.
 func (t *TokenController) isVerified(r *http.Request) (bool, context.Context) {
 	ctx := r.Context()
 	token := r.Form.Get("access_token")
 	if token == "" && !requireTokens {
-		// TODO: after migrating clients to locate service, require access_token.
-		// For now, accept the request.
+		// The access token is missing and tokens are not requried, so accept the request.
 		tokenAccessRequests.WithLabelValues("accepted").Inc()
 		return true, ctx
 	}
@@ -77,6 +78,7 @@ func (t *TokenController) isVerified(r *http.Request) (bool, context.Context) {
 	cl, err := t.token.Verify(token, jwt.Expected{
 		// Do not specify the Issuer here so we can check for monitoring or the
 		// locate service below.
+		// TODO: explicitly check for the locate service issuer.
 		Subject:  "ndt",
 		Audience: jwt.Audience{t.machine}, // current server.
 		Time:     time.Now(),
@@ -86,8 +88,8 @@ func (t *TokenController) isVerified(r *http.Request) (bool, context.Context) {
 		tokenAccessRequests.WithLabelValues("rejected").Inc()
 		return false, ctx
 	}
-	// If the claim was for monitoring, set the context value so subsequent access
-	// controllers can check the advisory information to exepmpt the request.
+	// If the claim Issuer was monitoring, set the context value so subsequent
+	// access controllers can check the context to allow monitoring reqeusts.
 	tokenAccessRequests.WithLabelValues("accepted").Inc()
 	return true, SetMonitoring(ctx, cl.Issuer == monitorIssuer)
 }
