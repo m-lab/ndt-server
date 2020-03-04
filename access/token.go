@@ -16,10 +16,10 @@ const monitorIssuer = "monitoring"
 var (
 	tokenAccessRequests = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "ndt_access_tokencontroller_requests_total",
-			Help: "Total number of requests handled by the access tokencontroller.",
+			Name: "ndt_access_token_requests_total",
+			Help: "Total number of NDT requests handled by the access tokencontroller.",
 		},
-		[]string{"request"},
+		[]string{"request", "reason"},
 	)
 	requireTokens bool
 )
@@ -71,7 +71,7 @@ func (t *TokenController) isVerified(r *http.Request) (bool, context.Context) {
 	token := r.Form.Get("access_token")
 	if token == "" && !requireTokens {
 		// The access token is missing and tokens are not requried, so accept the request.
-		tokenAccessRequests.WithLabelValues("accepted").Inc()
+		tokenAccessRequests.WithLabelValues("accepted", "empty").Inc()
 		return true, ctx
 	}
 	// Attempt to verify the token.
@@ -85,11 +85,11 @@ func (t *TokenController) isVerified(r *http.Request) (bool, context.Context) {
 	})
 	if err != nil {
 		// The access token was invalid; reject this request.
-		tokenAccessRequests.WithLabelValues("rejected").Inc()
+		tokenAccessRequests.WithLabelValues("rejected", "invalid").Inc()
 		return false, ctx
 	}
 	// If the claim Issuer was monitoring, set the context value so subsequent
 	// access controllers can check the context to allow monitoring reqeusts.
-	tokenAccessRequests.WithLabelValues("accepted").Inc()
+	tokenAccessRequests.WithLabelValues("accepted", cl.Issuer).Inc()
 	return true, SetMonitoring(ctx, cl.Issuer == monitorIssuer)
 }
