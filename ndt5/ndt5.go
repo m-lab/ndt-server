@@ -38,7 +38,7 @@ const (
 )
 
 // SaveData archives the data to disk.
-func SaveData(record *data.NDTResult, datadir string) {
+func SaveData(record *data.NDT5Result, datadir string) {
 	if record == nil {
 		log.Println("nil record won't be saved")
 		return
@@ -137,7 +137,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server) {
 	connType := s.ConnectionType().String()
 	sIP, sPort := conn.ServerIPAndPort()
 	cIP, cPort := conn.ClientIPAndPort()
-	record := &data.NDTResult{
+	record := &data.NDT5Result{
 		GitShortCommit: prometheusx.GitShortCommit,
 		Version:        version.Version,
 		StartTime:      time.Now(),

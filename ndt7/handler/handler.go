@@ -87,7 +87,7 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 	if !ok {
 		serverAddr = &net.TCPAddr{IP: net.ParseIP("::1"), Port: 1}
 	}
-	result := &data.NDTResult{
+	result := &data.NDT7Result{
 		GitShortCommit: prometheusx.GitShortCommit,
 		Version:        version.Version,
 		ClientIP:       clientAddr.IP.String(),
@@ -99,7 +99,7 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 	resultfp.StartTest()
 	// Guarantee that we record an end time, even if tester panics.
 	defer func() {
-		// TODO(m-lab/ndt-server/issues/152): Simplify interface between result.File and data.NDTResult.
+		// TODO(m-lab/ndt-server/issues/152): Simplify interface between result.File and data.NDT7Result.
 		result.EndTime = time.Now()
 		resultfp.EndTest()
 		if kind == spec.SubtestDownload {
