@@ -35,6 +35,14 @@ type AppInfo struct {
 	ElapsedTime int64
 }
 
+// ConnectionInfo contains connection info. This structure is described
+// in the ndt7 specification.
+type ConnectionInfo struct {
+	Client string
+	Server string
+	UUID   string `json:",omitempty"`
+}
+
 // The BBRInfo struct contains information measured using BBR. This structure is
 // an extension to the ndt7 specification. Variables here have the same
 // measurement unit that is used by the Linux kernel.
