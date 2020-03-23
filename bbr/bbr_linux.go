@@ -59,7 +59,9 @@ func getMaxBandwidthAndMinRTT(fp *os.File) (model.BBRInfo, error) {
 	if maxbw > math.MaxInt64 {
 		return metrics, syscall.EOVERFLOW
 	}
-	metrics.MaxBandwidth = int64(maxbw)  // Java has no uint64
-	metrics.MinRTT = int64(bbrip.bbr_min_rtt)
+	metrics.BW = int64(maxbw) // Java has no uint64
+	metrics.MinRTT = uint32(bbrip.bbr_min_rtt)
+	metrics.PacingGain = uint32(bbrip.bbr_pacing_gain)
+	metrics.CwndGain = uint32(bbrip.bbr_cwnd_gain)
 	return metrics, nil
 }
