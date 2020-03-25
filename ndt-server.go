@@ -125,9 +125,10 @@ func main() {
 	platformx.WarnIfNotFullySupported()
 
 	// Setup sequence of access control http.Handlers. NewVerifier errors are
-	// not fatal. This allows access tokens to be optional because not all users
-	// need this. An invalid verifier is handled safely by Setup and only prints
-	// a warning when access tokens verification is disabled.
+	// not fatal as long as tokens are not required. This allows access tokens
+	// to be optional for users who have no need for access tokens. An invalid
+	// verifier is handled safely by Setup and only prints a warning when access
+	// token verification is disabled.
 	v, err := token.NewVerifier(tokenVerifyKey)
 	if tokenRequired && err != nil {
 		rtx.Must(err, "Failed to load verifier for when tokens are required")
