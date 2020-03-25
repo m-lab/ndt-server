@@ -10,10 +10,11 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/m-lab/access/controller"
+	"github.com/m-lab/access/token"
 	"github.com/m-lab/go/flagx"
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/rtx"
-	"github.com/m-lab/ndt-server/access"
 	"github.com/m-lab/ndt-server/logging"
 	ndt5handler "github.com/m-lab/ndt-server/ndt5/handler"
 	"github.com/m-lab/ndt-server/ndt5/plain"
@@ -22,7 +23,6 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/platformx"
 
-	"github.com/justinas/alice"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -37,7 +37,9 @@ var (
 	certFile          = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
 	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
-	maxRate           = flag.Uint64("txcontroller.max-rate", 0, "The max rate beyond which, the TxController will reject new clients")
+	tokenVerifyKey    = flagx.FileBytes{}
+	tokenRequired     bool
+	tokenMachine      string
 
 	// A metric to use to signal that the server is in lame duck mode.
 	lameDuck = promauto.NewGauge(prometheus.GaugeOpts{
@@ -48,6 +50,12 @@ var (
 	// Context for the whole program.
 	ctx, cancel = context.WithCancel(context.Background())
 )
+
+func init() {
+	flag.Var(&tokenVerifyKey, "token.verify-key", "Public key for verifying access tokens")
+	flag.BoolVar(&tokenRequired, "token.required", false, "Require access token in requests")
+	flag.StringVar(&tokenMachine, "token.machine", "", "Use given machine name to verify token claims")
+}
 
 func defaultHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
@@ -116,16 +124,12 @@ func main() {
 
 	platformx.WarnIfNotFullySupported()
 
-	// Setup sequence of access control http.Handlers.
-	ac := alice.New()
-	tx, err := access.NewTxController(*maxRate)
-	if err == nil {
-		// Only watch interface and run tx.Limit on success.
-		go tx.Watch(ctx)
-		ac = ac.Append(tx.Limit)
-	} else {
-		log.Println("WARNING: access.TxController disabled:", err)
-	}
+	// Setup sequence of access control http.Handlers. NewVerifier errors are
+	// not fatal. This allows access tokens to be optional because not all users
+	// need this. An invalid verifier is handled safely by Setup and only prints
+	// a warning when access tokens verification is disabled.
+	v, _ := token.NewVerifier(tokenVerifyKey)
+	ac, tx := controller.Setup(ctx, v, tokenRequired, tokenMachine)
 
 	// The ndt5 protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
