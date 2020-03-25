@@ -128,7 +128,10 @@ func main() {
 	// not fatal. This allows access tokens to be optional because not all users
 	// need this. An invalid verifier is handled safely by Setup and only prints
 	// a warning when access tokens verification is disabled.
-	v, _ := token.NewVerifier(tokenVerifyKey)
+	v, err := token.NewVerifier(tokenVerifyKey)
+	if tokenRequired && err != nil {
+		rtx.Must(err, "Failed to load verifier for when tokens are required")
+	}
 	ac, tx := controller.Setup(ctx, v, tokenRequired, tokenMachine)
 
 	// The ndt5 protocol serving non-HTTP-based tests - forwards to Ws-based
