@@ -24,6 +24,6 @@ var (
 				100, 150, 250, 400, 600,
 				1000},
 		},
-		[]string{"protocol", "direction"},
+		[]string{"protocol", "direction", "monitoring"},
 	)
 )

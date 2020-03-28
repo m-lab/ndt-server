@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 
+	"github.com/m-lab/access/controller"
 	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/ndt5"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
@@ -64,7 +66,8 @@ func (s *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ws := protocol.AdaptWsConn(wsc)
 	defer warnonerror.Close(ws, "Could not close connection")
-	ndt5.HandleControlChannel(ws, s)
+	isMon := fmt.Sprintf("%t", controller.IsMonitoring(controller.GetClaim(r.Context())))
+	ndt5.HandleControlChannel(ws, s, isMon)
 }
 
 // NewWS returns a handler suitable for http-based connections.

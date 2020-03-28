@@ -122,7 +122,7 @@ func (ps *plainServer) sniffThenHandle(ctx context.Context, conn net.Conn) {
 	if n != len(kickoff) || err != nil {
 		log.Printf("Could not write %d byte kickoff string: %d bytes written err: %v\n", len(kickoff), n, err)
 	}
-	ndt5.HandleControlChannel(protocol.AdaptNetConn(conn, input), ps)
+	ndt5.HandleControlChannel(protocol.AdaptNetConn(conn, input), ps, "false")
 }
 
 // ListenAndServe starts up the sniffing server that delegates to the
