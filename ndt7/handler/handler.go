@@ -3,16 +3,20 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/m-lab/access/controller"
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/data"
 	"github.com/m-lab/ndt-server/logging"
+	"github.com/m-lab/ndt-server/metrics"
 	"github.com/m-lab/ndt-server/ndt7/download"
+	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/ndt7/upload"
@@ -97,6 +101,7 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 		StartTime:      time.Now(),
 	}
 	resultfp.StartTest()
+	isMon := fmt.Sprintf("%t", controller.IsMonitoring(controller.GetClaim(request.Context())))
 	// Guarantee that we record an end time, even if tester panics.
 	defer func() {
 		// TODO(m-lab/ndt-server/issues/152): Simplify interface between result.File and data.NDT7Result.
@@ -104,8 +109,16 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 		resultfp.EndTest()
 		if kind == spec.SubtestDownload {
 			result.Download = resultfp.Data
+			downloadMbps := downRate(result.Download.ServerMeasurements)
+			if downloadMbps > 0 {
+				metrics.TestRate.WithLabelValues("NDT7", "download", isMon).Observe(downloadMbps)
+			}
 		} else if kind == spec.SubtestUpload {
 			result.Upload = resultfp.Data
+			uploadMbps := upRate(result.Upload.ServerMeasurements)
+			if uploadMbps > 0 {
+				metrics.TestRate.WithLabelValues("NDT7", "upload", isMon).Observe(uploadMbps)
+			}
 		} else {
 			logging.Logger.Warn(string(kind) + ": data not saved")
 		}
@@ -125,4 +138,22 @@ func (h Handler) Download(writer http.ResponseWriter, request *http.Request) {
 // Upload handles the upload subtest.
 func (h Handler) Upload(writer http.ResponseWriter, request *http.Request) {
 	h.downloadOrUpload(writer, request, spec.SubtestUpload, upload.Do)
+}
+
+func upRate(m []model.Measurement) float64 {
+	var mbps float64
+	if len(m) > 0 {
+		// Convert to Mbps.
+		mbps = 8 * float64(m[len(m)-1].TCPInfo.BytesReceived) / float64(m[len(m)-1].TCPInfo.ElapsedTime)
+	}
+	return mbps
+}
+
+func downRate(m []model.Measurement) float64 {
+	var mbps float64
+	if len(m) > 0 {
+		// Convert to Mbps.
+		mbps = 8 * float64(m[len(m)-1].TCPInfo.BytesAcked) / float64(m[len(m)-1].TCPInfo.ElapsedTime)
+	}
+	return mbps
 }
