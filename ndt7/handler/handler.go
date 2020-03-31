@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -27,6 +28,10 @@ import (
 type Handler struct {
 	// DataDir is the directory where results are saved.
 	DataDir string
+	// SecurePort should contain the port used for secure, WSS tests.
+	SecurePort string
+	// InsecurePort should contain the port used for insecure, WS tests.
+	InsecurePort string
 }
 
 // warnAndClose emits message as a warning and the sends a Bad Request
@@ -35,6 +40,17 @@ func warnAndClose(writer http.ResponseWriter, message string) {
 	logging.Logger.Warn(message)
 	writer.Header().Set("Connection", "Close")
 	writer.WriteHeader(http.StatusBadRequest)
+}
+
+// getProtocol infers an appropriate label for the websocket protocol.
+func (h Handler) getProtocol(conn *websocket.Conn) string {
+	if strings.HasSuffix(conn.LocalAddr().String(), h.SecurePort) {
+		return "ndt7+wss"
+	}
+	if strings.HasSuffix(conn.LocalAddr().String(), h.InsecurePort) {
+		return "ndt7+ws"
+	}
+	return "ndt7+unknown"
 }
 
 // testerFunc is the function implementing a subtest. The first argument
@@ -102,6 +118,7 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 	}
 	resultfp.StartTest()
 	isMon := fmt.Sprintf("%t", controller.IsMonitoring(controller.GetClaim(request.Context())))
+	proto := h.getProtocol(conn)
 	// Guarantee that we record an end time, even if tester panics.
 	defer func() {
 		// TODO(m-lab/ndt-server/issues/152): Simplify interface between result.File and data.NDT7Result.
@@ -111,13 +128,13 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 			result.Download = resultfp.Data
 			downloadMbps := downRate(result.Download.ServerMeasurements)
 			if downloadMbps > 0 {
-				metrics.TestRate.WithLabelValues("NDT7", "download", isMon).Observe(downloadMbps)
+				metrics.TestRate.WithLabelValues(proto, "download", isMon).Observe(downloadMbps)
 			}
 		} else if kind == spec.SubtestUpload {
 			result.Upload = resultfp.Data
 			uploadMbps := upRate(result.Upload.ServerMeasurements)
 			if uploadMbps > 0 {
-				metrics.TestRate.WithLabelValues("NDT7", "upload", isMon).Observe(uploadMbps)
+				metrics.TestRate.WithLabelValues(proto, "upload", isMon).Observe(uploadMbps)
 			}
 		} else {
 			logging.Logger.Warn(string(kind) + ": data not saved")
