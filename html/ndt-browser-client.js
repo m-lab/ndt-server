@@ -255,7 +255,11 @@ NDTjs.prototype.ndtC2sTest = function () {
         testConnection.send(dataToSend);
         totalSent += dataToSend.length;
       }
-      if (that.updateInterval && currentTime > (testStart + nextCallback)) {
+      // Subtracting 0.1s from currentTime below ensures that this expression
+      // will always evaluate to false just a tiny bit before 10s, which
+      // eliminates a race condition between setting that.results.c2sRate
+      // here and further down in this code.
+      if (that.updateInterval && (currentTime - 0.1) > (testStart + nextCallback)) {
         that.results.c2sRate = 8 * (totalSent - testConnection.bufferedAmount)
           / 1000 / (currentTime - testStart);
         that.callbacks.onprogress('interval_c2s', that.results);
