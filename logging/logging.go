@@ -3,6 +3,7 @@
 package logging
 
 import (
+	golog "log"
 	"net/http"
 	"os"
 
@@ -17,7 +18,7 @@ import (
 // when dockerising an Apache or Nginx instance.
 var Logger = log.Logger{
 	Handler: json.New(os.Stderr),
-	Level: log.DebugLevel,
+	Level:   log.DebugLevel,
 }
 
 // MakeAccessLogHandler wraps |handler| with another handler that logs
@@ -26,5 +27,5 @@ var Logger = log.Logger{
 // access logs, because access logs are a fairly standard format that
 // has been around for a long time now, so better to follow such standard.
 func MakeAccessLogHandler(handler http.Handler) http.Handler {
-	return handlers.LoggingHandler(os.Stdout, handler)
+	return handlers.LoggingHandler(golog.Writer(), handler)
 }
