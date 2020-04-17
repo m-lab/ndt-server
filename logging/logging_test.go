@@ -24,11 +24,11 @@ func TestMakeAccessLogHandler(t *testing.T) {
 	}()
 	log.SetOutput(buff)
 	f := MakeAccessLogHandler(&fakeHandler{})
+	log.SetOutput(old)
 	srv := http.Server{
 		Addr:    ":0",
 		Handler: f,
 	}
-	log.SetOutput(old)
 	rtx.Must(httpx.ListenAndServeAsync(&srv), "Could not start server")
 	defer srv.Close()
 	_, err := http.Get("http://" + srv.Addr + "/")
