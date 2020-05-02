@@ -181,6 +181,7 @@ func AdaptWsConn(ws *websocket.Conn) MeasuredConnection {
 }
 
 func (ws *wsConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64, err error) {
+	ws.SetWriteDeadline(t)
 	messageToSend, err := websocket.NewPreparedMessage(websocket.BinaryMessage, bytes)
 	if err != nil {
 		return 0, err
@@ -274,6 +275,7 @@ func (nc *netConnection) ReadBytes() (bytesRead int64, err error) {
 }
 
 func (nc *netConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64, err error) {
+	nc.SetWriteDeadline(t)
 	for time.Now().Before(t) {
 		n, err := nc.Write(bytes)
 		if err != nil {
