@@ -95,13 +95,8 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 
 	testConn.StartMeasuring(localCtx)
 	record.StartTime = time.Now()
-	_, err = testConn.FillUntil(time.Now().Add(10*time.Second), dataToSend)
+	testConn.FillUntil(time.Now().Add(10*time.Second), dataToSend)
 	record.EndTime = time.Now()
-	if err != nil {
-		warnonerror.Close(testConn, "Could not close test connection")
-		log.Println("Could not FillUntil", err, record.UUID)
-		// NOTE: Fall through. This is not a fatal error.
-	}
 
 	web100metrics, err := testConn.StopMeasuring()
 	if err != nil {
