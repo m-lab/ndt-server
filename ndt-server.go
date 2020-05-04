@@ -135,6 +135,7 @@ func main() {
 	if (tokenRequired5 || tokenRequired7) && err != nil {
 		rtx.Must(err, "Failed to load verifier for when tokens are required")
 	}
+	// NDT5 uses a raw server, which requires tx5. NDT7 is HTTP only.
 	ac5, tx5 := controller.Setup(ctx, v, tokenRequired5, tokenMachine)
 	ac7, _ := controller.Setup(ctx, v, tokenRequired7, tokenMachine)
 
