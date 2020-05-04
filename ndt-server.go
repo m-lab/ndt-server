@@ -38,7 +38,8 @@ var (
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
 	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
 	tokenVerifyKey    = flagx.FileBytes{}
-	tokenRequired     bool
+	tokenRequired5    bool
+	tokenRequired7    bool
 	tokenMachine      string
 
 	// A metric to use to signal that the server is in lame duck mode.
@@ -53,7 +54,8 @@ var (
 
 func init() {
 	flag.Var(&tokenVerifyKey, "token.verify-key", "Public key for verifying access tokens")
-	flag.BoolVar(&tokenRequired, "token.required", false, "Require access token in requests")
+	flag.BoolVar(&tokenRequired5, "ndt5.token.required", false, "Require access token in NDT5 requests")
+	flag.BoolVar(&tokenRequired7, "ndt7.token.required", false, "Require access token in NDT7 requests")
 	flag.StringVar(&tokenMachine, "token.machine", "", "Use given machine name to verify token claims")
 }
 
@@ -130,16 +132,18 @@ func main() {
 	// verifier is handled safely by Setup and only prints a warning when access
 	// token verification is disabled.
 	v, err := token.NewVerifier(tokenVerifyKey)
-	if tokenRequired && err != nil {
+	if (tokenRequired5 || tokenRequired7) && err != nil {
 		rtx.Must(err, "Failed to load verifier for when tokens are required")
 	}
-	ac, tx := controller.Setup(ctx, v, tokenRequired, tokenMachine)
+	// NDT5 uses a raw server, which requires tx5. NDT7 is HTTP only.
+	ac5, tx5 := controller.Setup(ctx, v, tokenRequired5, tokenMachine)
+	ac7, _ := controller.Setup(ctx, v, tokenRequired7, tokenMachine)
 
 	// The ndt5 protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
 	ndt5Server := plain.NewServer(*dataDir+"/ndt5", *ndt5WsAddr)
 	rtx.Must(
-		ndt5Server.ListenAndServe(ctx, *ndt5Addr, tx),
+		ndt5Server.ListenAndServe(ctx, *ndt5Addr, tx5),
 		"Could not start raw server")
 
 	// The ndt5 protocol serving Ws-based tests. Most clients are hard-coded to
@@ -171,7 +175,7 @@ func main() {
 	ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
 	ndt7ServerCleartext := &http.Server{
 		Addr:    *ndt7AddrCleartext,
-		Handler: ac.Then(logging.MakeAccessLogHandler(ndt7Mux)),
+		Handler: ac7.Then(logging.MakeAccessLogHandler(ndt7Mux)),
 	}
 	log.Println("About to listen for ndt7 cleartext tests on " + *ndt7AddrCleartext)
 	rtx.Must(listener.ListenAndServeAsync(ndt7ServerCleartext), "Could not start ndt7 cleartext server")
@@ -186,7 +190,7 @@ func main() {
 		ndt5WssMux.Handle("/ndt_protocol", ndt5handler.NewWSS(*dataDir+"/ndt5", *certFile, *keyFile))
 		ndt5WssServer := &http.Server{
 			Addr:    *ndt5WssAddr,
-			Handler: ac.Then(logging.MakeAccessLogHandler(ndt5WssMux)),
+			Handler: ac5.Then(logging.MakeAccessLogHandler(ndt5WssMux)),
 		}
 		log.Println("About to listen for ndt5 WsS tests on " + *ndt5WssAddr)
 		rtx.Must(listener.ListenAndServeTLSAsync(ndt5WssServer, *certFile, *keyFile), "Could not start ndt5 WsS server")
@@ -195,7 +199,7 @@ func main() {
 		// The ndt7 listener serving up WSS based tests
 		ndt7Server := &http.Server{
 			Addr:    *ndt7Addr,
-			Handler: ac.Then(logging.MakeAccessLogHandler(ndt7Mux)),
+			Handler: ac7.Then(logging.MakeAccessLogHandler(ndt7Mux)),
 		}
 		log.Println("About to listen for ndt7 tests on " + *ndt7Addr)
 		rtx.Must(listener.ListenAndServeTLSAsync(ndt7Server, *certFile, *keyFile), "Could not start ndt7 server")
