@@ -95,14 +95,8 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 
 	testConn.StartMeasuring(localCtx)
 	record.StartTime = time.Now()
-	_, err = testConn.FillUntil(time.Now().Add(10*time.Second), dataToSend)
+	testConn.FillUntil(time.Now().Add(10*time.Second), dataToSend)
 	record.EndTime = time.Now()
-	if err != nil {
-		warnonerror.Close(testConn, "Could not close test connection")
-		log.Println("Could not FillUntil", err, record.UUID)
-		metrics.ClientTestErrors.WithLabelValues(connType, "s2c", "FillUntil").Inc()
-		return record, err
-	}
 
 	web100metrics, err := testConn.StopMeasuring()
 	if err != nil {
@@ -143,7 +137,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		log.Println("Could not receive a TestMsg", err, record.UUID)
 		return record, err
 	}
-	log.Println("We measured", kbps, "and the client sent us", clientRateMsg)
+	log.Println("We measured", kbps, "and the client sent us", string(clientRateMsg))
 	clientRateKbps, err := strconv.ParseFloat(string(clientRateMsg), 64)
 	if err == nil {
 		record.ClientReportedMbps = clientRateKbps / 1000
