@@ -31,6 +31,7 @@ type ArchivalData struct {
 	StartTime          time.Time
 	EndTime            time.Time
 	MeanThroughputMbps float64
+	MinRTT             time.Duration
 	// TODO: Add TCPEngine (bbr, cubic, reno, etc.)
 
 	Error string `json:",omitempty"`
@@ -94,13 +95,13 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	}
 
 	record.StartTime = time.Now()
-	byteCount, err := drainForeverButMeasureFor(ctx, testConn, 10*time.Second)
+	web100Metrics, err := drainForeverButMeasureFor(ctx, testConn, 10*time.Second)
 	record.EndTime = time.Now()
 	seconds := record.EndTime.Sub(record.StartTime).Seconds()
 	log.Println("Ended C2S test on", testConn, record.UUID)
 	if err != nil {
-		if byteCount == 0 {
-			log.Println("Could not drain the test connection", byteCount, err, record.UUID)
+		if web100Metrics.TCPInfo.BytesReceived == 0 {
+			log.Println("Could not drain the test connection", err, record.UUID)
 			metrics.ClientTestErrors.WithLabelValues(connType, "c2s", "Drain").Inc()
 			return record, err
 		}
@@ -114,8 +115,9 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		log.Printf("C2S test had an error (%v) after %f seconds. We will continue with the test.\n", err, seconds)
 	}
 
-	throughputValue := 8 * float64(byteCount) / 1000 / seconds
+	throughputValue := 8 * float64(web100Metrics.TCPInfo.BytesReceived) / 1000 / seconds
 	record.MeanThroughputMbps = throughputValue / 1000 // Convert Kbps to Mbps
+	record.MinRTT = time.Duration(web100Metrics.MinRTT) * time.Millisecond
 
 	log.Println(controlConn, "sent us", throughputValue, "Kbps")
 	err = m.SendMessage(protocol.TestMsg, []byte(strconv.FormatInt(int64(throughputValue), 10)))
@@ -139,7 +141,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 // measuring the connection for the first part of the drain. This method does
 // not close the passed-in Connection, and starts a goroutine which runs until
 // that Connection is closed.
-func drainForeverButMeasureFor(ctx context.Context, conn protocol.MeasuredConnection, d time.Duration) (int64, error) {
+func drainForeverButMeasureFor(ctx context.Context, conn protocol.MeasuredConnection, d time.Duration) (*web100.Metrics, error) {
 	derivedCtx, derivedCancel := context.WithTimeout(ctx, d)
 	defer derivedCancel()
 
@@ -169,9 +171,9 @@ func drainForeverButMeasureFor(ctx context.Context, conn protocol.MeasuredConnec
 		socketStats, _ = conn.StopMeasuring()
 	}
 	if socketStats == nil {
-		return 0, err
+		return nil, err
 	}
 	// The TCPInfo element of socketstats is a value not a pointer, so this is safe
 	// if socketStats is not nil.
-	return socketStats.TCPInfo.BytesReceived, err
+	return socketStats, err
 }
