@@ -32,6 +32,7 @@ type ArchivalData struct {
 	EndTime            time.Time
 	MeanThroughputMbps float64
 	MinRTT             time.Duration
+	MaxRTT             time.Duration
 	// TODO: Add TCPEngine (bbr, cubic, reno, etc.)
 
 	Error string `json:",omitempty"`
@@ -118,6 +119,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	throughputValue := 8 * float64(web100Metrics.TCPInfo.BytesReceived) / 1000 / seconds
 	record.MeanThroughputMbps = throughputValue / 1000 // Convert Kbps to Mbps
 	record.MinRTT = time.Duration(web100Metrics.MinRTT) * time.Millisecond
+	record.MaxRTT = time.Duration(web100Metrics.MaxRTT) * time.Millisecond
 
 	log.Println(controlConn, "sent us", throughputValue, "Kbps")
 	err = m.SendMessage(protocol.TestMsg, []byte(strconv.FormatInt(int64(throughputValue), 10)))
