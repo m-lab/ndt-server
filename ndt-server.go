@@ -37,7 +37,7 @@ var (
 	certFile          = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
 	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
-	tokenVerifyKey    = flagx.FileBytes{}
+	tokenVerifyKey    = flagx.FileBytesArray{}
 	tokenRequired5    bool
 	tokenRequired7    bool
 	tokenMachine      string
@@ -131,7 +131,7 @@ func main() {
 	// to be optional for users who have no need for access tokens. An invalid
 	// verifier is handled safely by Setup and only prints a warning when access
 	// token verification is disabled.
-	v, err := token.NewVerifier(tokenVerifyKey)
+	v, err := token.NewVerifier(tokenVerifyKey.Get()...)
 	if (tokenRequired5 || tokenRequired7) && err != nil {
 		rtx.Must(err, "Failed to load verifier for when tokens are required")
 	}
