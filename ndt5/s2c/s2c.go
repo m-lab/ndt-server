@@ -38,7 +38,6 @@ type ArchivalData struct {
 	MaxRTT             time.Duration
 	SumRTT             time.Duration
 	CountRTT           uint32
-	LossRate           float64
 	ClientReportedMbps float64
 	// TODO: Add TCPEngine (bbr, cubic, reno, etc.), MaxThroughputKbps, and Jitter
 
@@ -130,7 +129,6 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	record.SumRTT = time.Duration(web100metrics.SumRTT) * time.Millisecond
 	record.CountRTT = web100metrics.CountRTT
 	record.MeanThroughputMbps = kbps / 1000 // Convert Kbps to Mbps
-	record.LossRate = float64(web100metrics.TCPInfo.BytesRetrans) / float64(web100metrics.TCPInfo.BytesSent)
 	record.TCPInfo = &web100metrics.TCPInfo
 
 	// Send download results to the client.
