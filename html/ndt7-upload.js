@@ -44,6 +44,14 @@ onmessage = function (ev) {
       function() { uploader(sock, data, start, previous, total) },
       0)
   }
+  sock.onmessage = function (ev) {
+      if (!(ev.data instanceof Blob)) {
+          let m = JSON.parse(ev.data)
+          m.Origin = 'server'
+          m.Test = 'upload'
+          postMessage(m)
+      }
+  }
   sock.onopen = function () {
     const initialMessageSize = 8192 /* (1<<13) */
     const data = new Uint8Array(initialMessageSize) // TODO(bassosimone): fill this message
