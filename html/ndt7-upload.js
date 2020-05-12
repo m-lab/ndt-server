@@ -11,8 +11,9 @@ onmessage = function (ev) {
     postMessage(null)
   }
   function uploader(socket, data, start, previous, total) {
-    let now = new Date().getTime()
+    let now = performance.now()
     const duration = 10000  // millisecond
+    const every = 250  // millisecond
     if (now - start > duration) {
       sock.close()
       return
@@ -22,11 +23,12 @@ onmessage = function (ev) {
       data = new Uint8Array(data.length * 2) // TODO(bassosimone): fill this message
     }
     const underbuffered = 7 * data.length
-    while (sock.bufferedAmount < underbuffered) {
+    while ((sock.bufferedAmount < underbuffered) &&
+	   (performance.now() - previous < every)) {
       sock.send(data)
       total += data.length
     }
-    const every = 250  // millisecond
+    now = performance.now()
     if (now - previous > every) {
       postMessage({
         'AppInfo': {
@@ -46,7 +48,7 @@ onmessage = function (ev) {
     const initialMessageSize = 8192 /* (1<<13) */
     const data = new Uint8Array(initialMessageSize) // TODO(bassosimone): fill this message
     sock.binarytype = 'arraybuffer'
-    const start = new Date().getTime()
+    const start = performance.now()
     uploader(sock, data, start, start, 0)
   }
 }
