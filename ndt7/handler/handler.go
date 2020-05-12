@@ -56,8 +56,9 @@ func (h Handler) getProtocol(conn *websocket.Conn) string {
 // testerFunc is the function implementing a subtest. The first argument
 // is the subtest context. The second argument is the connected websocket. The
 // third argument is the open file where to write results. This function does
-// not own the second or the third argument.
-type testerFunc = func(context.Context, *websocket.Conn, *results.File)
+// not own the second or the third argument. The fourth argument is the base
+// start time of the test.
+type testerFunc = func(context.Context, *websocket.Conn, *results.File, time.Time)
 
 // downloadOrUpload implements both download and upload. The writer argument
 // is the HTTP response writer. The request argument is the HTTP request
@@ -144,7 +145,7 @@ func (h Handler) downloadOrUpload(writer http.ResponseWriter, request *http.Requ
 		}
 		warnonerror.Close(resultfp, string(kind)+": ignoring resultfp.Close error")
 	}()
-	tester(request.Context(), conn, resultfp)
+	tester(request.Context(), conn, resultfp, result.StartTime)
 }
 
 // Download handles the download subtest.

@@ -20,15 +20,17 @@ import (
 
 // Measurer performs measurements
 type Measurer struct {
-	conn *websocket.Conn
-	uuid string
+	conn  *websocket.Conn
+	start time.Time
+	uuid  string
 }
 
 // New creates a new measurer instance
-func New(conn *websocket.Conn, UUID string) *Measurer {
+func New(conn *websocket.Conn, UUID string, start time.Time) *Measurer {
 	return &Measurer{
-		conn: conn,
-		uuid: UUID,
+		conn:  conn,
+		start: start,
+		uuid:  UUID,
 	}
 }
 
@@ -80,7 +82,6 @@ func (m *Measurer) loop(ctx context.Context, dst chan<- model.Measurement) {
 		return
 	}
 	defer sockfp.Close()
-	start := time.Now()
 	connectionInfo := &model.ConnectionInfo{
 		Client: m.conn.RemoteAddr().String(),
 		Server: m.conn.LocalAddr().String(),
@@ -104,7 +105,7 @@ func (m *Measurer) loop(ctx context.Context, dst chan<- model.Measurement) {
 			return
 		}
 		var measurement model.Measurement
-		measure(&measurement, sockfp, now.Sub(start))
+		measure(&measurement, sockfp, now.Sub(m.start))
 		measurement.ConnectionInfo = connectionInfo
 		dst <- measurement // Liveness: this is blocking
 	}

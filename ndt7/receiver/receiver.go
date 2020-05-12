@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
-	"github.com/m-lab/ndt-server/ndt7/ping"
+	"github.com/m-lab/ndt-server/ndt7/ping/message"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
@@ -23,7 +23,7 @@ const (
 
 func loop(
 	ctx context.Context, conn *websocket.Conn, kind receiverKind,
-	dst chan<- model.Measurement,
+	dst chan<- model.Measurement, start time.Time,
 ) {
 	logging.Logger.Debug("receiver: start")
 	defer logging.Logger.Debug("receiver: stop")
@@ -31,16 +31,17 @@ func loop(
 	conn.SetReadLimit(spec.MaxMessageSize)
 	receiverctx, cancel := context.WithTimeout(ctx, spec.MaxRuntime)
 	defer cancel()
-	err := conn.SetReadDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
+	err := conn.SetReadDeadline(start.Add(spec.MaxRuntime)) // Liveness!
 	if err != nil {
 		logging.Logger.WithError(err).Warn("receiver: conn.SetReadDeadline failed")
 		return
 	}
 	conn.SetPongHandler(func(s string) error {
-		rtt, err := ping.ParseTicks(s)
+		_, rtt, err := message.ParseTicks(s, start)
 		if err == nil {
-			rtt /= int64(time.Millisecond)
-			logging.Logger.Debugf("receiver: ApplicationLevel RTT: %d ms", rtt)
+			// Writing rtt to |dst| will write the Measurement to `ClientMeasurements` object.
+			// That goes against data format, so the value is just logged.
+			logging.Logger.Debugf("receiver: ApplicationLevel RTT: %d ms", int64(rtt / time.Millisecond))
 		}
 		return err
 	})
@@ -72,9 +73,9 @@ func loop(
 	}
 }
 
-func start(ctx context.Context, conn *websocket.Conn, kind receiverKind) <-chan model.Measurement {
+func startReceiver(ctx context.Context, conn *websocket.Conn, kind receiverKind, start time.Time) (<-chan model.Measurement) {
 	dst := make(chan model.Measurement)
-	go loop(ctx, conn, kind, dst)
+	go loop(ctx, conn, kind, dst, start)
 	return dst
 }
 
@@ -87,13 +88,13 @@ func start(ctx context.Context, conn *websocket.Conn, kind receiverKind) <-chan 
 // Liveness guarantee: the goroutine will always terminate after a
 // MaxRuntime timeout, provided that the consumer will keep reading
 // from the returned channel.
-func StartDownloadReceiver(ctx context.Context, conn *websocket.Conn) <-chan model.Measurement {
-	return start(ctx, conn, downloadReceiver)
+func StartDownloadReceiver(ctx context.Context, conn *websocket.Conn, start time.Time) (<-chan model.Measurement) {
+	return startReceiver(ctx, conn, downloadReceiver, start)
 }
 
 // StartUploadReceiver is like StartDownloadReceiver except that it
 // tolerates incoming binary messages, which are sent to cause
 // network load, and therefore must not be rejected.
-func StartUploadReceiver(ctx context.Context, conn *websocket.Conn) <-chan model.Measurement {
-	return start(ctx, conn, uploadReceiver)
+func StartUploadReceiver(ctx context.Context, conn *websocket.Conn, start time.Time) (<-chan model.Measurement) {
+	return startReceiver(ctx, conn, uploadReceiver, start)
 }
