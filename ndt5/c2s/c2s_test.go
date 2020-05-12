@@ -48,12 +48,12 @@ func Test_DrainForeverButMeasureFor_NormalOperation(t *testing.T) {
 		}
 		cConn.Close()
 	}()
-	count, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(100*time.Millisecond))
+	metrics, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(100*time.Millisecond))
 	if err != nil {
 		t.Error("Should not have gotten error:", err)
 	}
-	if count <= 0 {
-		t.Errorf("Expected positive byte count but got %d", count)
+	if metrics.TCPInfo.BytesReceived <= 0 {
+		t.Errorf("Expected positive byte count but got %d", metrics.TCPInfo.BytesReceived)
 	}
 }
 
@@ -69,12 +69,12 @@ func Test_DrainForeverButMeasureFor_EarlyClientQuit(t *testing.T) {
 		time.Sleep(100 * time.Millisecond) // Give the drainForever process time to get going
 		cConn.Close()
 	}()
-	count, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(1*time.Second))
+	metrics, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(1*time.Second))
 	if err == nil {
 		t.Error("Should have gotten an error")
 	}
-	if count <= 0 {
-		t.Errorf("Expected positive byte count but got %d", count)
+	if metrics.TCPInfo.BytesReceived <= 0 {
+		t.Errorf("Expected positive byte count but got %d", metrics.TCPInfo.BytesReceived)
 	}
 }
 
@@ -112,11 +112,11 @@ func Test_DrainForeverButMeasureFor_CountsAllBytesNotJustWsGoodput(t *testing.T)
 		<-ctx2.Done()
 		cConn.Close()
 	}()
-	count, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(1*time.Millisecond))
+	metrics, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(1*time.Millisecond))
 	if err != nil {
 		t.Error("Should not have gotten error:", err)
 	}
-	if count <= 0 {
-		t.Errorf("Expected positive byte count but got %d", count)
+	if metrics.TCPInfo.BytesReceived <= 0 {
+		t.Errorf("Expected positive byte count but got %d", metrics.TCPInfo.BytesReceived)
 	}
 }

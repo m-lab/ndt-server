@@ -11,6 +11,7 @@ import (
 	"github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
+	"github.com/m-lab/tcp-info/tcp"
 )
 
 // ArchivalData is the data saved by the S2C test. If a researcher wants deeper
@@ -34,10 +35,14 @@ type ArchivalData struct {
 	EndTime            time.Time
 	MeanThroughputMbps float64
 	MinRTT             time.Duration
+	MaxRTT             time.Duration
+	SumRTT             time.Duration
+	CountRTT           uint32
 	ClientReportedMbps float64
 	// TODO: Add TCPEngine (bbr, cubic, reno, etc.), MaxThroughputKbps, and Jitter
 
-	Error string `json:",omitempty"`
+	TCPInfo *tcp.LinuxTCPInfo `json:",omitempty"`
+	Error   string            `json:",omitempty"`
 }
 
 // ManageTest manages the s2c test lifecycle
@@ -120,7 +125,11 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	bps := 8 * float64(web100metrics.TCPInfo.BytesAcked) / record.EndTime.Sub(record.StartTime).Seconds()
 	kbps := bps / 1000
 	record.MinRTT = time.Duration(web100metrics.MinRTT) * time.Millisecond
+	record.MaxRTT = time.Duration(web100metrics.MaxRTT) * time.Millisecond
+	record.SumRTT = time.Duration(web100metrics.SumRTT) * time.Millisecond
+	record.CountRTT = web100metrics.CountRTT
 	record.MeanThroughputMbps = kbps / 1000 // Convert Kbps to Mbps
+	record.TCPInfo = &web100metrics.TCPInfo
 
 	// Send download results to the client.
 	err = m.SendS2CResults(int64(kbps), 0, web100metrics.TCPInfo.BytesAcked)
