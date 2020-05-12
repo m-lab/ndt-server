@@ -171,7 +171,6 @@ func drainForeverButMeasureFor(ctx context.Context, conn protocol.MeasuredConnec
 	if socketStats == nil {
 		return nil, err
 	}
-	// The TCPInfo element of socketstats is a value not a pointer, so this is safe
-	// if socketStats is not nil.
+	// socketStats is guaranteed to be non-nil and the TCPInfo element is a value not a pointer.
 	return socketStats, err
 }
