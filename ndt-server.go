@@ -151,6 +151,7 @@ func main() {
 	ndt5WsMux := http.NewServeMux()
 	ndt5WsMux.HandleFunc("/", defaultHandler)
 	ndt5WsMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
+	ndt5WsMux.Handle("/static/js", http.StripPrefix("/static/js", http.FileServer(http.Dir("js"))))
 	ndt5WsMux.Handle("/ndt_protocol", ndt5handler.NewWS(*dataDir+"/ndt5"))
 	ndt5WsServer := &http.Server{
 		Addr: *ndt5WsAddr,
@@ -166,6 +167,7 @@ func main() {
 	ndt7Mux := http.NewServeMux()
 	ndt7Mux.HandleFunc("/", defaultHandler)
 	ndt7Mux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
+	ndt7Mux.Handle("/static/js", http.StripPrefix("/static/js", http.FileServer(http.Dir("js"))))
 	ndt7Handler := &handler.Handler{
 		DataDir:      *dataDir,
 		SecurePort:   *ndt7Addr,
@@ -187,6 +189,7 @@ func main() {
 		ndt5WssMux := http.NewServeMux()
 		ndt5WssMux.HandleFunc("/", defaultHandler)
 		ndt5WssMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
+		ndt5WssMux.Handle("/static/js", http.StripPrefix("/static/js", http.FileServer(http.Dir("js"))))
 		ndt5WssMux.Handle("/ndt_protocol", ndt5handler.NewWSS(*dataDir+"/ndt5", *certFile, *keyFile))
 		ndt5WssServer := &http.Server{
 			Addr:    *ndt5WssAddr,
