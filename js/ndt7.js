@@ -1,6 +1,14 @@
 /* jshint esversion: 6, asi: true */
 // ndt7 is a simple ndt7 client API.
 
+// Install workalikes for APIs that are defined in browsers but not in node.js
+if ('undefined' === typeof fetch) {
+  global.fetch = require('node-fetch');
+}
+if ('undefined' === typeof Worker) {
+  global.Worker = require('workerjs');
+}
+
 const ndt7 = (function() {
 
   // cb creates a default-empty callback function, allowing library users to only need to specify callback functions for the events they care about.
@@ -49,34 +57,50 @@ const ndt7 = (function() {
 
       // Starts the asynchronous process of server discovery, allowing other stuff to proceed in the background.
       const urlPromise = discoverServerURLs(callbacks, config);
+      var clientMeasurement, serverMeasurement;
 
-      // Set up the webworker to run.
+
       const downloadWorker = new Worker('./ndt7-download-worker.js');
-      downloadWorker.terminated = false;
+      const downloadWorkerPromise = new Promise(resolve => { downloadWorker.resolve = resolve; });
+      setTimeout(_ => {downloadWorker.terminate(); downloadWorker.resolve()}, 20000) // 20 seconds
       downloadWorker.onmessage = function (ev) {
         if (ev.data == null || ev.data.MsgType == 'error') {
-          downloadWorker.terminated = true;
           downloadWorker.terminate();
-          const errMsg = (ev.data == null) ? 'There was a download error' : ev.data.Error; 
+          downloadWorker.resolve();
+          const errMsg = (ev.data == null) ? 'There was a download error' : ev.data.Error;
           callbacks.error(errMsg);
         } else if (ev.data.MsgType == 'measurement') {
-          callbacks.downloadMeasurement({
-            Source: ev.data.Source, 
-            Data: ev.data.Data
-          });
+          if (ev.data.Source == 'server') {
+            serverMeasurement = JSON.parse(ev.data.ServerMessage);
+            callbacks.downloadMeasurement({
+              Source: ev.data.Source,
+              Data: serverMeasurement,
+            });
+          } else {
+            clientMeasurement = ev.data.ClientData;
+            callbacks.downloadMeasurement({
+              Source: ev.data.Source,
+              Data: ev.data.ClientData,
+            });
+          }
         } else if (ev.data.MsgType == 'complete') {
+          downloadWorker.terminate()
+          downloadWorker.resolve()
           callbacks.downloadComplete({
-            Data: ev.data.Data
+            LastClientMeasurement: clientMeasurement,
+            LastServerMeasurement: serverMeasurement,
           });
         };
       };
-
-      // TODO: Make sure the worker times out in 13 seconds no matter what.
 
       const urls = await urlPromise;
       downloadWorker.postMessage(urls);
 
       // TODO: await the termination of the downloadWorker.
+      await downloadWorkerPromise;
+      // Liveness guarantee - once the promise is resolved, .terminate() has
+      // been called.
+      return 0;
     }
     /*,
     // run runs the specified test with the specified base URL and calls

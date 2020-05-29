@@ -5,9 +5,20 @@
 
 'use strict';
 
-global.fetch = require('node-fetch');
-global.Worker = require('webworker-threads').Worker;
-global.WebSocket = require('isomorphic-ws');
-
 const ndt7 = require('./ndt7');
-ndt7.test();
+
+ndt7.test({
+  downloadMeasurement: function() {},
+  serverDiscovery: function() {},
+  serverChosen: function(server) {
+    console.log("Testing to:", {
+      machine: server.machine,
+      locations: server.location,
+    });
+  },
+  downloadComplete: function(data) {
+    console.log("Download test is complete:\n\tInstantaneous server bandwidth: ", data.LastServerMeasurement.BBRInfo.BW * 8 / 1000000, "\n\tMean client bandwidth: ", data.LastClientMeasurement.MeanClientMbps)
+  }
+}).then(code => {
+  process.exit(code);
+})
