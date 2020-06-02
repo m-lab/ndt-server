@@ -48,7 +48,7 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 	for {
 		select {
 		case m, ok := <-src:
-			if !ok { // This means that the previous step has terminated
+			if !ok { // This means that the measurer has terminated
 				closer.StartClosing(conn)
 				return
 			}
