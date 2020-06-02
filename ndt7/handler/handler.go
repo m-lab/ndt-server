@@ -74,6 +74,7 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	appendClientMetadata(data, req.URL.Query())
 	// Create ultimate result.
 	result := setupResult(conn)
+	result.StartTime = time.Now().UTC()
 
 	// Guarantee results are written even if function panics.
 	defer func() {
@@ -157,7 +158,6 @@ func setupResult(conn *websocket.Conn) *data.NDT7Result {
 		ClientPort:     clientAddr.Port,
 		ServerIP:       serverAddr.IP.String(),
 		ServerPort:     serverAddr.Port,
-		StartTime:      time.Now(),
 	}
 	return result
 }
@@ -177,7 +177,6 @@ func (h Handler) writeResult(uuid string, kind spec.SubtestKind, result *data.ND
 		logging.Logger.WithError(err).Warn("results.NewFile failed")
 		return
 	}
-	result.EndTime = time.Now().UTC()
 	if err := fp.WriteResult(result); err != nil {
 		logging.Logger.WithError(err).Warn("failed to write result")
 	}
