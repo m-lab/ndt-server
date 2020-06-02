@@ -3,6 +3,7 @@ package upload
 
 import (
 	"context"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/ndt7/measurer"
@@ -21,6 +22,10 @@ func Do(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
 	// results in the loop below, we terminate the goroutines early
 	wholectx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	data.StartTime = time.Now().UTC()
+	defer func() {
+		data.EndTime = time.Now().UTC()
+	}()
 	measurer := measurer.New(conn, data.UUID)
 	senderch := sender.Start(conn, measurer.Start(ctx))
 	receiverch := receiver.StartUploadReceiver(wholectx, conn)
