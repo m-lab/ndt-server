@@ -64,8 +64,6 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 		// TODO: test failure.
 		return
 	}
-	// Create ultimate result. Note: the result start time should come before data start time.
-	result := setupResult(conn)
 	// Create measurement archival data.
 	data, err := getData(conn)
 	if err != nil {
@@ -74,6 +72,8 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	}
 	// Collect most client metadata from request parameters.
 	appendClientMetadata(data, req.URL.Query())
+	// Create ultimate result.
+	result := setupResult(conn)
 
 	// Guarantee results are written even if function panics.
 	defer func() {
