@@ -3,15 +3,11 @@ package results
 import (
 	"compress/gzip"
 	"encoding/json"
-	"net/http"
 	"os"
 	"path"
 	"time"
 
-	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/logging"
-	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
@@ -25,9 +21,6 @@ type File struct {
 
 	// UUID is the UUID of this subtest
 	UUID string
-
-	// Data contains metadata about the complete measurement.
-	Data *model.ArchivalData
 }
 
 // newFile opens a measurements file in the current working
@@ -54,37 +47,21 @@ func newFile(datadir, what, uuid string) (*File, error) {
 	return &File{
 		Writer: writer,
 		Fp:     fp,
-		Data: &model.ArchivalData{
-			UUID: uuid,
-		},
 	}, nil
 }
 
-// OpenFor opens the results file and writes into it the results metadata based
-// on the query string. Returns the results file on success. Returns an error in
-// case of failure. The request argument is used to get the query string
-// containing the metadata. The conn argument is used to retrieve the local and
-// the remote endpoints addresses. The "datadir" argument specifies the
-// directory on disk to write the data into and the what argument should
-// indicate whether this is a spec.SubtestDownload or a spec.SubtestUpload
-// ndt7 measurement.
-func OpenFor(request *http.Request, conn *websocket.Conn, datadir string, what spec.SubtestKind) (*File, error) {
-	meta := make(metadata, 0)
-	netConn := conn.UnderlyingConn()
-	id, err := fdcache.GetUUID(netConn)
-	if err != nil {
-		logging.Logger.WithError(err).Warn("fdcache.GetUUID failed")
-		return nil, err
-	}
-	initMetadata(&meta, request.URL.Query())
-	resultfp, err := newFile(datadir, string(what), id)
+// NewFile creates a file for saving results in datadir named after the uuid and
+// kind. Returns the results file on success. Returns an error in case of
+// failure. The "datadir" argument specifies the directory on disk to write the
+// data into and the what argument should indicate whether this is a
+// spec.SubtestDownload or a spec.SubtestUpload ndt7 measurement.
+func NewFile(uuid string, datadir string, what spec.SubtestKind) (*File, error) {
+	fp, err := newFile(datadir, string(what), uuid)
 	if err != nil {
 		logging.Logger.WithError(err).Warn("newFile failed")
 		return nil, err
 	}
-	// Save client metadata.
-	resultfp.SetMetadata(meta)
-	return resultfp, nil
+	return fp, nil
 }
 
 // Close closes the measurement file.
@@ -95,31 +72,6 @@ func (fp *File) Close() error {
 		return err
 	}
 	return fp.Fp.Close()
-}
-
-// AppendClientMeasurement saves the |measurement| for archival data.
-func (fp *File) AppendClientMeasurement(measurement model.Measurement) {
-	fp.Data.ClientMeasurements = append(fp.Data.ClientMeasurements, measurement)
-}
-
-// AppendServerMeasurement saves the |measurement| for archival data.
-func (fp *File) AppendServerMeasurement(measurement model.Measurement) {
-	fp.Data.ServerMeasurements = append(fp.Data.ServerMeasurements, measurement)
-}
-
-// SetMetadata writes |metadata| on the measurements file.
-func (fp *File) SetMetadata(metadata metadata) {
-	fp.Data.ClientMetadata = metadata
-}
-
-// StartTest records the test start time.
-func (fp *File) StartTest() {
-	fp.Data.StartTime = time.Now()
-}
-
-// EndTest records the test end time.
-func (fp *File) EndTest() {
-	fp.Data.EndTime = time.Now()
 }
 
 // WriteResult serializes |result| as JSON.

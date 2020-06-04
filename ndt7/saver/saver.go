@@ -23,7 +23,6 @@ import (
 
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
-	"github.com/m-lab/ndt-server/ndt7/results"
 )
 
 // ismg is an internal message.
@@ -76,7 +75,7 @@ func zip(serverch, clientch <-chan model.Measurement) <-chan imsg {
 // SaveAll saves all the measurements coming from the channel where server
 // performed measurements are posted (serverch) and from the channel where
 // client performed measurements are posted (clientch). Measurements will
-// be saved in the results file (resultfp).
+// be saved as archival data (data).
 //
 // In any case, the input channels will be drained by this function. The input
 // channels must have the following properties:
@@ -86,7 +85,7 @@ func zip(serverch, clientch <-chan model.Measurement) <-chan imsg {
 // 2. they MUST eventually terminate
 //
 // If these two properties are satisfied, SaveAll will eventually terminate.
-func SaveAll(resultfp *results.File, serverch, clientch <-chan model.Measurement) {
+func SaveAll(data *model.ArchivalData, serverch, clientch <-chan model.Measurement) {
 	zipch := zip(serverch, clientch)
 	defer func() {
 		logging.Logger.Debug("saver: start draining zipch")
@@ -104,9 +103,9 @@ func SaveAll(resultfp *results.File, serverch, clientch <-chan model.Measurement
 		// duplicated into the "header" that we add as first line of a results file.
 		imsg.m.ConnectionInfo = nil
 		if imsg.o == "client" {
-			resultfp.AppendClientMeasurement(imsg.m)
+			data.ClientMeasurements = append(data.ClientMeasurements, imsg.m)
 		} else if imsg.o == "server" {
-			resultfp.AppendServerMeasurement(imsg.m)
+			data.ServerMeasurements = append(data.ServerMeasurements, imsg.m)
 		} else {
 			logging.Logger.Warn("saver: cannot save measurement from unknown origin: " + imsg.o)
 		}
