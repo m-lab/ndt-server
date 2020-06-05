@@ -3,7 +3,6 @@ package download
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/ndt7/download/sender"
@@ -19,18 +18,15 @@ import (
 func Do(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
 	// Implementation note: use child contexts so that, if we cannot save the
 	// results in the loop below, we terminate the goroutines early
-	fmt.Println("download start")
 
 	// Receive and save client-provided measurements in data.
-	rcvctx, rcvCancel := context.WithCancel(ctx)
-	defer rcvCancel()
-	recv := receiver.StartDownloadReceiverAsync(rcvctx, conn, data)
+	recv := receiver.StartDownloadReceiverAsync(ctx, conn, data)
 
 	// Perform download and save server-measurements in data.
 	dlctx, dlCancel := context.WithTimeout(ctx, spec.DefaultRuntime)
 	defer dlCancel()
 	// TODO: move sender.Start logic to this file.
 	sender.Start(dlctx, conn, data)
+
 	<-recv.Done()
-	fmt.Println("download done")
 }
