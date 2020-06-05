@@ -2,12 +2,14 @@
 package sender
 
 import (
+	"context"
 	"math/rand"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/closer"
+	"github.com/m-lab/ndt-server/ndt7/measurer"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/ping"
 	"github.com/m-lab/ndt-server/ndt7/spec"
@@ -22,15 +24,23 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 }
 
-func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.Measurement) {
+// Start starts the sender in a background goroutine. The sender will send
+// binary messages and measurement messages coming from |src|. Such messages
+// will also be emitted to the returned channel.
+//
+// Liveness guarantee: the sender will not be stuck sending for more then
+// the MaxRuntime of the subtest, provided that the consumer will
+// continue reading from the returned channel. This is enforced by
+// setting the write deadline to Time.Now() + MaxRuntime.
+func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
 	logging.Logger.Debug("sender: start")
+
+	// Start collecting connection measurements.
+	mr := measurer.New(conn, data.UUID)
+	src := mr.Start(ctx)
 	defer logging.Logger.Debug("sender: stop")
-	defer close(dst)
-	defer func() {
-		for range src {
-			// make sure we drain the channel
-		}
-	}()
+	defer mr.Stop(src)
+
 	logging.Logger.Debug("sender: generating random buffer")
 	bulkMessageSize := 1 << 13
 	preparedMessage, err := makePreparedMessage(bulkMessageSize)
@@ -44,6 +54,12 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
 		return
 	}
+
+	// Record measurement start time, and prepare recording of the endtime on return.
+	data.StartTime = time.Now().UTC()
+	defer func() {
+		data.EndTime = time.Now().UTC()
+	}()
 	var totalSent int64
 	for {
 		select {
@@ -56,7 +72,8 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
 				return
 			}
-			dst <- m // Liveness: this is blocking
+			// Only save measurements sent to the client.
+			data.ServerMeasurements = append(data.ServerMeasurements, m)
 			if err := ping.SendTicks(conn, deadline); err != nil {
 				logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
 				return
@@ -90,18 +107,4 @@ func loop(conn *websocket.Conn, src <-chan model.Measurement, dst chan<- model.M
 			}
 		}
 	}
-}
-
-// Start starts the sender in a background goroutine. The sender will send
-// binary messages and measurement messages coming from |src|. Such messages
-// will also be emitted to the returned channel.
-//
-// Liveness guarantee: the sender will not be stuck sending for more then
-// the MaxRuntime of the subtest, provided that the consumer will
-// continue reading from the returned channel. This is enforced by
-// setting the write deadline to Time.Now() + MaxRuntime.
-func Start(conn *websocket.Conn, src <-chan model.Measurement) <-chan model.Measurement {
-	dst := make(chan model.Measurement)
-	go loop(conn, src, dst)
-	return dst
 }

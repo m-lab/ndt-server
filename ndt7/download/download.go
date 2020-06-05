@@ -3,14 +3,13 @@ package download
 
 import (
 	"context"
-	"time"
+	"fmt"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/ndt7/download/sender"
-	"github.com/m-lab/ndt-server/ndt7/measurer"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/receiver"
-	"github.com/m-lab/ndt-server/ndt7/saver"
+	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
 // Do implements the download subtest. The ctx argument is the parent context
@@ -18,16 +17,24 @@ import (
 // argument is the archival data where results are saved. Both arguments are
 // owned by the caller of this function.
 func Do(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
-	// Implementation note: use child context so that, if we cannot save the
+	// Implementation note: use child contexts so that, if we cannot save the
 	// results in the loop below, we terminate the goroutines early
-	wholectx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	data.StartTime = time.Now().UTC()
-	defer func() {
-		data.EndTime = time.Now().UTC()
+	fmt.Println("download start")
+
+	// Receive and save client-provided measurements in data.
+	rcvctx, rcvCancel := context.WithCancel(ctx)
+	defer rcvCancel()
+	recvDone := make(chan bool)
+	go func() {
+		receiver.StartDownloadReceiver(rcvctx, conn, data)
+		close(recvDone)
 	}()
-	measurer := measurer.New(conn, data.UUID)
-	senderch := sender.Start(conn, measurer.Start(ctx))
-	receiverch := receiver.StartDownloadReceiver(wholectx, conn)
-	saver.SaveAll(data, senderch, receiverch)
+
+	// Perform download and save server-measurements in data.
+	dlctx, dlCancel := context.WithTimeout(ctx, spec.DefaultRuntime)
+	defer dlCancel()
+	// TODO: move sender.Start logic to this file.
+	sender.Start(dlctx, conn, data)
+	<-recvDone
+	fmt.Println("download done")
 }
