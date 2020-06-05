@@ -69,14 +69,14 @@ func start(
 }
 
 // StartDownloadReceiver starts the receiver in a background goroutine and
-// returns the messages received from the client in the returned channel.
+// saves messages received from the client in the given archival data. The
+// returned context may be used to detect when the receiver has completed.
 //
-// This receiver will not tolerate receiving binary messages. It will
-// terminate early if such a message is received.
+// This receiver will not tolerate receiving binary messages. It will terminate
+// early if such a message is received.
 //
-// Liveness guarantee: the goroutine will always terminate after a
-// MaxRuntime timeout, provided that the consumer will keep reading
-// from the returned channel.
+// Liveness guarantee: the goroutine will always terminate after a MaxRuntime
+// timeout.
 func StartDownloadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) context.Context {
 	ctx2, cancel2 := context.WithCancel(ctx)
 	go func() {
@@ -87,8 +87,8 @@ func StartDownloadReceiverAsync(ctx context.Context, conn *websocket.Conn, data 
 }
 
 // StartUploadReceiver is like StartDownloadReceiver except that it
-// tolerates incoming binary messages, which are sent to cause
-// network load, and therefore must not be rejected.
+// tolerates incoming binary messages, sent by "upload" measurement clients to
+// create network load, and therefore must be allowed.
 func StartUploadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) context.Context {
 	ctx2, cancel2 := context.WithCancel(ctx)
 	go func() {

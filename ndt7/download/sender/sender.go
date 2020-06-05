@@ -24,20 +24,20 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 }
 
-// Start starts the sender in a background goroutine. The sender will send
-// binary messages and measurement messages coming from |src|. Such messages
-// will also be emitted to the returned channel.
+// Start sends binary messages (bulk download) and measurement messages (status
+// messages) to the client conn. Each measurement message will also be saved to
+// data.
 //
-// Liveness guarantee: the sender will not be stuck sending for more then
-// the MaxRuntime of the subtest, provided that the consumer will
-// continue reading from the returned channel. This is enforced by
-// setting the write deadline to Time.Now() + MaxRuntime.
+// Liveness guarantee: the sender will not be stuck sending for more than the
+// MaxRuntime of the subtest. This is enforced by setting the write deadline to
+// Time.Now() + MaxRuntime.
 func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
 	logging.Logger.Debug("sender: start")
 
-	// Start collecting connection measurements.
+	// Start collecting connection measurements. Measurements will be sent to
+	// src until DefaultRuntime, when the src channel is closed.
 	mr := measurer.New(conn, data.UUID)
-	src := mr.Start(ctx)
+	src := mr.Start(ctx, spec.DefaultRuntime)
 	defer logging.Logger.Debug("sender: stop")
 	defer mr.Stop(src)
 

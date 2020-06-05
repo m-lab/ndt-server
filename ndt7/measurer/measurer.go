@@ -69,10 +69,12 @@ func measure(measurement *model.Measurement, sockfp *os.File, elapsed time.Durat
 	}
 }
 
-func (m *Measurer) loop(ctx context.Context, dst chan<- model.Measurement) {
+func (m *Measurer) loop(ctx context.Context, timeout time.Duration, dst chan<- model.Measurement) {
 	logging.Logger.Debug("measurer: start")
 	defer logging.Logger.Debug("measurer: stop")
 	defer close(dst)
+	measurerctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	sockfp, err := m.getSocketAndPossiblyEnableBBR()
 	if err != nil {
 		logging.Logger.WithError(err).Warn("getSocketAndPossiblyEnableBBR failed")
@@ -87,7 +89,7 @@ func (m *Measurer) loop(ctx context.Context, dst chan<- model.Measurement) {
 	}
 	// Implementation note: the ticker will close its output channel
 	// after the controlling context is expired.
-	ticker, err := memoryless.NewTicker(ctx, memoryless.Config{
+	ticker, err := memoryless.NewTicker(measurerctx, memoryless.Config{
 		Min:      spec.MinPoissonSamplingInterval,
 		Expected: spec.AveragePoissonSamplingInterval,
 		Max:      spec.MaxPoissonSamplingInterval,
@@ -113,19 +115,18 @@ func (m *Measurer) loop(ctx context.Context, dst chan<- model.Measurement) {
 // the measurements on the returned channel.
 //
 // Liveness guarantee: the measurer will always terminate after
-// a timeout of DefaultRuntime seconds, provided that the consumer
-// continues reading from the returned channel.
-//
-// Measurer will run until ctx is canceled or Stop is called.
-func (m *Measurer) Start(ctx context.Context) <-chan model.Measurement {
+// the given timeout, provided that the consumer continues reading from the
+// returned channel. Measurer may be stopped early by canceling ctx, or by
+// calling Stop.
+func (m *Measurer) Start(ctx context.Context, timeout time.Duration) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
-	go m.loop(ctx, dst)
+	go m.loop(ctx, timeout, dst)
 	return dst
 }
 
-// Stop ends the measurements and drains the measurement channel. Callers should
-// call Stop to drain the measurement channel and prevent deadlock in the
-// measurement goroutine.
+// Stop ends the measurements and drains the measurement channel. Stop
+// guarantees that the measurement goroutine completes by draining the
+// measurement channel. Users that call Start should also call Stop.
 func (m *Measurer) Stop(src <-chan model.Measurement) {
 	if m.ticker != nil {
 		m.ticker.Stop()

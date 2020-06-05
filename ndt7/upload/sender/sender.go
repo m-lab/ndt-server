@@ -14,20 +14,19 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
-// Start starts the sender in a background goroutine. The sender will send
-// to the client the measurement messages coming from |src|. These messages
-// will also be emitted to the returned channel.
+// Start sends measurement messages (status messages) to the client conn. Each
+// measurement message will also be saved to data.
 //
-// Liveness guarantee: the sender will not be stuck sending for more then
-// the MaxRuntime of the subtest, provided that the consumer will
-// continue reading from the returned channel. This is enforced by
-// setting the write deadline to MaxRuntime + time.Now.
+// Liveness guarantee: the sender will not be stuck sending for more than the
+// MaxRuntime of the subtest. This is enforced by setting the write deadline to
+// Time.Now() + MaxRuntime.
 func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
 	logging.Logger.Debug("sender: start")
 
-	// Start collecting connection measurements.
+	// Start collecting connection measurements. Measurements will be sent to
+	// src until DefaultRuntime, when the src channel is closed.
 	mr := measurer.New(conn, data.UUID)
-	src := mr.Start(ctx)
+	src := mr.Start(ctx, spec.DefaultRuntime)
 	defer logging.Logger.Debug("sender: stop")
 	defer mr.Stop(src)
 
