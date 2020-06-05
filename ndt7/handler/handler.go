@@ -64,6 +64,14 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 		// TODO: test failure.
 		return
 	}
+	// TODO(bassosimone): an error before this point means that the *os.File
+	// will stay in cache until the cache pruning mechanism is triggered. This
+	// should be a small amount of seconds. If Golang does not call shutdown(2)
+	// and close(2), we'll end up keeping sockets that caused an error in the
+	// code above (e.g. because the handshake was not okay) alive for the time
+	// in which the corresponding *os.File is kept in cache.
+	defer warnonerror.Close(conn, "runMeasurement: ignoring conn.Close result")
+
 	// Create measurement archival data.
 	data, err := getData(conn)
 	if err != nil {
@@ -108,10 +116,10 @@ func (h Handler) getProtocol(conn *websocket.Conn) string {
 // setupConn negotiates a websocket connection. The writer argument is the HTTP
 // response writer. The request argument is the HTTP request that we received.
 func setupConn(writer http.ResponseWriter, request *http.Request) *websocket.Conn {
-	logging.Logger.Debug("downloadOrUpload: upgrading to WebSockets")
+	logging.Logger.Debug("setupConn: upgrading to WebSockets")
 	if request.Header.Get("Sec-WebSocket-Protocol") != spec.SecWebSocketProtocol {
 		warnAndClose(
-			writer, "downloadOrUpload: missing Sec-WebSocket-Protocol in request")
+			writer, "setupConn: missing Sec-WebSocket-Protocol in request")
 		return nil
 	}
 	headers := http.Header{}
@@ -127,14 +135,7 @@ func setupConn(writer http.ResponseWriter, request *http.Request) *websocket.Con
 	if err != nil {
 		return nil
 	}
-	// TODO(bassosimone): an error before this point means that the *os.File
-	// will stay in cache until the cache pruning mechanism is triggered. This
-	// should be a small amount of seconds. If Golang does not call shutdown(2)
-	// and close(2), we'll end up keeping sockets that caused an error in the
-	// code above (e.g. because the handshake was not okay) alive for the time
-	// in which the corresponding *os.File is kept in cache.
-	defer warnonerror.Close(conn, "downloadOrUpload: ignoring conn.Close result")
-	logging.Logger.Debug("downloadOrUpload: opening results file")
+	logging.Logger.Debug("setupConn: opening results file")
 
 	return conn
 }
