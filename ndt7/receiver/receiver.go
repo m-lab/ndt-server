@@ -23,11 +23,10 @@ const (
 
 func loop(
 	ctx context.Context, conn *websocket.Conn, kind receiverKind,
-	dst chan<- model.Measurement,
+	data *model.ArchivalData,
 ) {
 	logging.Logger.Debug("receiver: start")
 	defer logging.Logger.Debug("receiver: stop")
-	defer close(dst)
 	conn.SetReadLimit(spec.MaxMessageSize)
 	receiverctx, cancel := context.WithTimeout(ctx, spec.MaxRuntime)
 	defer cancel()
@@ -59,6 +58,7 @@ func loop(
 				logging.Logger.Warn("receiver: got non-Text message")
 				return // Unexpected message type
 			default:
+				// NOTE: this is the bulk upload path. In this case, the mdata is not used.
 				continue // No further processing required
 			}
 		}
@@ -68,14 +68,12 @@ func loop(
 			logging.Logger.WithError(err).Warn("receiver: json.Unmarshal failed")
 			return
 		}
-		dst <- measurement // Liveness: this is blocking
+		data.ClientMeasurements = append(data.ClientMeasurements, measurement)
 	}
 }
 
-func start(ctx context.Context, conn *websocket.Conn, kind receiverKind) <-chan model.Measurement {
-	dst := make(chan model.Measurement)
-	go loop(ctx, conn, kind, dst)
-	return dst
+func start(ctx context.Context, conn *websocket.Conn, kind receiverKind, data *model.ArchivalData) {
+	loop(ctx, conn, kind, data)
 }
 
 // StartDownloadReceiver starts the receiver in a background goroutine and
@@ -87,13 +85,13 @@ func start(ctx context.Context, conn *websocket.Conn, kind receiverKind) <-chan 
 // Liveness guarantee: the goroutine will always terminate after a
 // MaxRuntime timeout, provided that the consumer will keep reading
 // from the returned channel.
-func StartDownloadReceiver(ctx context.Context, conn *websocket.Conn) <-chan model.Measurement {
-	return start(ctx, conn, downloadReceiver)
+func StartDownloadReceiver(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
+	start(ctx, conn, downloadReceiver, data)
 }
 
 // StartUploadReceiver is like StartDownloadReceiver except that it
 // tolerates incoming binary messages, which are sent to cause
 // network load, and therefore must not be rejected.
-func StartUploadReceiver(ctx context.Context, conn *websocket.Conn) <-chan model.Measurement {
-	return start(ctx, conn, uploadReceiver)
+func StartUploadReceiver(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
+	start(ctx, conn, uploadReceiver, data)
 }
