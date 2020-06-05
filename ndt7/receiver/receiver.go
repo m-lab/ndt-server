@@ -46,10 +46,6 @@ func loop(
 	for receiverctx.Err() == nil { // Liveness!
 		mtype, mdata, err := conn.ReadMessage()
 		if err != nil {
-			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-				return
-			}
-			logging.Logger.WithError(err).Warn("receiver: conn.ReadMessage failed")
 			return
 		}
 		if mtype != websocket.TextMessage {
