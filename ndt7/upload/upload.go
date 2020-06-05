@@ -3,13 +3,12 @@ package upload
 
 import (
 	"context"
-	"time"
+	"fmt"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-server/ndt7/measurer"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/receiver"
-	"github.com/m-lab/ndt-server/ndt7/saver"
+	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/ndt7/upload/sender"
 )
 
@@ -20,14 +19,22 @@ import (
 func Do(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
 	// Implementation note: use child context so that, if we cannot save the
 	// results in the loop below, we terminate the goroutines early
-	wholectx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	data.StartTime = time.Now().UTC()
-	defer func() {
-		data.EndTime = time.Now().UTC()
+	fmt.Println("upload start")
+
+	// Receive and save client-provided measurements in data.
+	rcvctx, rcvCancel := context.WithCancel(ctx)
+	defer rcvCancel()
+	recvDone := make(chan bool)
+	go func() {
+		receiver.StartUploadReceiver(rcvctx, conn, data)
+		close(recvDone)
 	}()
-	measurer := measurer.New(conn, data.UUID)
-	senderch := sender.Start(conn, measurer.Start(ctx))
-	receiverch := receiver.StartUploadReceiver(wholectx, conn)
-	saver.SaveAll(data, senderch, receiverch)
+
+	// Perform upload and save server-measurements in data.
+	ulctx, ulCancel := context.WithTimeout(ctx, spec.DefaultRuntime)
+	defer ulCancel()
+	// TODO: move sender.Start logic to this file.
+	sender.Start(ulctx, conn, data)
+	<-recvDone
+	fmt.Println("upload done")
 }
