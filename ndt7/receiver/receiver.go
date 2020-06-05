@@ -72,10 +72,6 @@ func loop(
 	}
 }
 
-func start(ctx context.Context, conn *websocket.Conn, kind receiverKind, data *model.ArchivalData) {
-	loop(ctx, conn, kind, data)
-}
-
 // StartDownloadReceiver starts the receiver in a background goroutine and
 // returns the messages received from the client in the returned channel.
 //
@@ -85,13 +81,23 @@ func start(ctx context.Context, conn *websocket.Conn, kind receiverKind, data *m
 // Liveness guarantee: the goroutine will always terminate after a
 // MaxRuntime timeout, provided that the consumer will keep reading
 // from the returned channel.
-func StartDownloadReceiver(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
-	start(ctx, conn, downloadReceiver, data)
+func StartDownloadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) context.Context {
+	ctx2, cancel2 := context.WithCancel(ctx)
+	go func() {
+		loop(ctx2, conn, downloadReceiver, data)
+		cancel2()
+	}()
+	return ctx2
 }
 
 // StartUploadReceiver is like StartDownloadReceiver except that it
 // tolerates incoming binary messages, which are sent to cause
 // network load, and therefore must not be rejected.
-func StartUploadReceiver(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
-	start(ctx, conn, uploadReceiver, data)
+func StartUploadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) context.Context {
+	ctx2, cancel2 := context.WithCancel(ctx)
+	go func() {
+		loop(ctx2, conn, uploadReceiver, data)
+		cancel2()
+	}()
+	return ctx2
 }

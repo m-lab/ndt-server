@@ -24,17 +24,13 @@ func Do(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
 	// Receive and save client-provided measurements in data.
 	rcvctx, rcvCancel := context.WithCancel(ctx)
 	defer rcvCancel()
-	recvDone := make(chan bool)
-	go func() {
-		receiver.StartDownloadReceiver(rcvctx, conn, data)
-		close(recvDone)
-	}()
+	recv := receiver.StartDownloadReceiverAsync(rcvctx, conn, data)
 
 	// Perform download and save server-measurements in data.
 	dlctx, dlCancel := context.WithTimeout(ctx, spec.DefaultRuntime)
 	defer dlCancel()
 	// TODO: move sender.Start logic to this file.
 	sender.Start(dlctx, conn, data)
-	<-recvDone
+	<-recv.Done()
 	fmt.Println("download done")
 }

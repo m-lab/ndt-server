@@ -24,17 +24,13 @@ func Do(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
 	// Receive and save client-provided measurements in data.
 	rcvctx, rcvCancel := context.WithCancel(ctx)
 	defer rcvCancel()
-	recvDone := make(chan bool)
-	go func() {
-		receiver.StartUploadReceiver(rcvctx, conn, data)
-		close(recvDone)
-	}()
+	recv := receiver.StartUploadReceiverAsync(rcvctx, conn, data)
 
 	// Perform upload and save server-measurements in data.
 	ulctx, ulCancel := context.WithTimeout(ctx, spec.DefaultRuntime)
 	defer ulCancel()
 	// TODO: move sender.Start logic to this file.
 	sender.Start(ulctx, conn, data)
-	<-recvDone
+	<-recv.Done()
 	fmt.Println("upload done")
 }
