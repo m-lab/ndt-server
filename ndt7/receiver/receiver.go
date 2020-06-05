@@ -21,7 +21,7 @@ const (
 	uploadReceiver
 )
 
-func loop(
+func start(
 	ctx context.Context, conn *websocket.Conn, kind receiverKind,
 	data *model.ArchivalData,
 ) {
@@ -80,7 +80,7 @@ func loop(
 func StartDownloadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) context.Context {
 	ctx2, cancel2 := context.WithCancel(ctx)
 	go func() {
-		loop(ctx2, conn, downloadReceiver, data)
+		start(ctx2, conn, downloadReceiver, data)
 		cancel2()
 	}()
 	return ctx2
@@ -92,7 +92,7 @@ func StartDownloadReceiverAsync(ctx context.Context, conn *websocket.Conn, data 
 func StartUploadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) context.Context {
 	ctx2, cancel2 := context.WithCancel(ctx)
 	go func() {
-		loop(ctx2, conn, uploadReceiver, data)
+		start(ctx2, conn, uploadReceiver, data)
 		cancel2()
 	}()
 	return ctx2
