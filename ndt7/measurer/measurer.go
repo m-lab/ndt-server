@@ -20,8 +20,9 @@ import (
 
 // Measurer performs measurements
 type Measurer struct {
-	conn *websocket.Conn
-	uuid string
+	conn   *websocket.Conn
+	uuid   string
+	ticker *memoryless.Ticker
 }
 
 // New creates a new measurer instance
@@ -72,8 +73,6 @@ func (m *Measurer) loop(ctx context.Context, dst chan<- model.Measurement) {
 	logging.Logger.Debug("measurer: start")
 	defer logging.Logger.Debug("measurer: stop")
 	defer close(dst)
-	measurerctx, cancel := context.WithTimeout(ctx, spec.DefaultRuntime)
-	defer cancel()
 	sockfp, err := m.getSocketAndPossiblyEnableBBR()
 	if err != nil {
 		logging.Logger.WithError(err).Warn("getSocketAndPossiblyEnableBBR failed")
@@ -88,7 +87,7 @@ func (m *Measurer) loop(ctx context.Context, dst chan<- model.Measurement) {
 	}
 	// Implementation note: the ticker will close its output channel
 	// after the controlling context is expired.
-	ticker, err := memoryless.NewTicker(measurerctx, memoryless.Config{
+	ticker, err := memoryless.NewTicker(ctx, memoryless.Config{
 		Min:      spec.MinPoissonSamplingInterval,
 		Expected: spec.AveragePoissonSamplingInterval,
 		Max:      spec.MaxPoissonSamplingInterval,
@@ -97,7 +96,7 @@ func (m *Measurer) loop(ctx context.Context, dst chan<- model.Measurement) {
 		logging.Logger.WithError(err).Warn("memoryless.NewTicker failed")
 		return
 	}
-	defer ticker.Stop()
+	m.ticker = ticker
 	for {
 		now, active := <-ticker.C
 		if !active {
@@ -116,8 +115,22 @@ func (m *Measurer) loop(ctx context.Context, dst chan<- model.Measurement) {
 // Liveness guarantee: the measurer will always terminate after
 // a timeout of DefaultRuntime seconds, provided that the consumer
 // continues reading from the returned channel.
+//
+// Measurer will run until ctx is canceled or Stop is called.
 func (m *Measurer) Start(ctx context.Context) <-chan model.Measurement {
 	dst := make(chan model.Measurement)
 	go m.loop(ctx, dst)
 	return dst
+}
+
+// Stop ends the measurements and drains the measurement channel. Callers should
+// call Stop to drain the measurement channel and prevent deadlock in the
+// measurement goroutine.
+func (m *Measurer) Stop(src <-chan model.Measurement) {
+	if m.ticker != nil {
+		m.ticker.Stop()
+	}
+	for range src {
+		// make sure we drain the channel, so the measurement loop can exit.
+	}
 }
