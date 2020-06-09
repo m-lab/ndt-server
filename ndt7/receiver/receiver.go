@@ -68,7 +68,7 @@ func start(
 	}
 }
 
-// StartDownloadReceiver starts the receiver in a background goroutine and
+// StartDownloadReceiverAsync starts the receiver in a background goroutine and
 // saves messages received from the client in the given archival data. The
 // returned context may be used to detect when the receiver has completed.
 //
@@ -86,7 +86,7 @@ func StartDownloadReceiverAsync(ctx context.Context, conn *websocket.Conn, data 
 	return ctx2
 }
 
-// StartUploadReceiver is like StartDownloadReceiver except that it
+// StartUploadReceiverAsync is like StartDownloadReceiverAsync except that it
 // tolerates incoming binary messages, sent by "upload" measurement clients to
 // create network load, and therefore must be allowed.
 func StartUploadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) context.Context {
