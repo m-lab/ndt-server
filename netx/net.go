@@ -1,4 +1,4 @@
-package magic
+package netx
 
 import (
 	"crypto/tls"
@@ -10,7 +10,7 @@ import (
 	guuid "github.com/google/uuid"
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/ndt-server/bbr"
-	"github.com/m-lab/ndt-server/magic/iface"
+	"github.com/m-lab/ndt-server/netx/iface"
 	"github.com/m-lab/tcp-info/inetdiag"
 	"github.com/m-lab/tcp-info/tcp"
 )

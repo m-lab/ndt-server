@@ -1,4 +1,4 @@
-package magic
+package netx
 
 import (
 	"fmt"
@@ -199,8 +199,8 @@ func TestToTCPAddr(t *testing.T) {
 
 func TestToConnInfo(t *testing.T) {
 	// NOTE: because we cannot synthetically create a tls.Conn that wraps a
-	// magic.Conn, we must setup an httptest server with TLS enabled. While we
-	// do that, we use it to validate the regular HTTP server magic.Conn as
+	// netx.Conn, we must setup an httptest server with TLS enabled. While we
+	// do that, we use it to validate the regular HTTP server netx.Conn as
 	// well.
 
 	fakeHTTPReply := "HTTP/1.0 200 OK\n\ntest"
