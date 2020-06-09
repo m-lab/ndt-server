@@ -16,7 +16,6 @@ import (
 
 	"github.com/m-lab/ndt-server/ndt5/web100"
 	"github.com/m-lab/ndt-server/netx"
-	"github.com/m-lab/uuid"
 
 	"github.com/gorilla/websocket"
 )
@@ -286,17 +285,17 @@ func (nc *netConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int6
 }
 
 func (nc *netConnection) StartMeasuring(ctx context.Context) {
-	ci := netx.ToConnInfo(nc)
+	ci := netx.ToConnInfo(nc.Conn)
 	nc.measurer.StartMeasuring(ctx, ci)
 }
 
 func (nc *netConnection) UUID() string {
-	tcpc, ok := nc.Conn.(*net.TCPConn)
-	if !ok {
+	ci := netx.ToConnInfo(nc.Conn)
+	if ci == nil {
 		log.Println("Connection is not a TCPConn")
 		return badUUID
 	}
-	id, err := uuid.FromTCPConn(tcpc)
+	id, err := ci.GetUUID()
 	if err != nil {
 		log.Println("Could not discover UUID")
 		// TODO: increment a metric
