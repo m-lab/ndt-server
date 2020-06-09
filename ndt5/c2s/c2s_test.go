@@ -10,21 +10,20 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/ndt5/singleserving"
-
-	"github.com/m-lab/ndt-server/ndt5/tcplistener"
+	"github.com/m-lab/ndt-server/netx"
 
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
 )
 
 func MustMakeNetConnection(ctx context.Context) (protocol.MeasuredConnection, net.Conn) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	tcpl, err := net.Listen("tcp", "127.0.0.1:0")
 	rtx.Must(err, "Could not listen")
-	tl := &tcplistener.RawListener{TCPListener: listener.(*net.TCPListener)}
+	tl := netx.NewListener(tcpl.(*net.TCPListener))
 	conns := make(chan net.Conn)
 	defer close(conns)
 	go func() {
-		clientConn, err := net.Dial("tcp", listener.Addr().String())
+		clientConn, err := net.Dial("tcp", tcpl.Addr().String())
 		rtx.Must(err, "Could not dial temp conn")
 		conns <- clientConn
 	}()

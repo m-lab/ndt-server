@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m-lab/ndt-server/netx"
+
 	"github.com/m-lab/ndt-server/ndt5"
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
@@ -25,7 +27,7 @@ import (
 type plainServer struct {
 	wsAddr   string
 	dialer   *net.Dialer
-	listener *net.TCPListener
+	listener *netx.Listener
 	datadir  string
 	timeout  time.Duration
 }
@@ -132,7 +134,7 @@ func (ps *plainServer) ListenAndServe(ctx context.Context, addr string, tx Accep
 	if err != nil {
 		return err
 	}
-	ps.listener = ln.(*net.TCPListener)
+	ps.listener = netx.NewListener(ln.(*net.TCPListener))
 	// Close the listener when the context is canceled. We do this in a separate
 	// goroutine to ensure that context cancellation interrupts the Accept() call.
 	go func() {
@@ -142,7 +144,7 @@ func (ps *plainServer) ListenAndServe(ctx context.Context, addr string, tx Accep
 	// Serve requests until the context is canceled.
 	go func() {
 		for ctx.Err() == nil {
-			conn, err := tx.Accept(ln)
+			conn, err := tx.Accept(ps.listener)
 			if err != nil {
 				log.Println("Failed to accept connection:", err)
 				continue
