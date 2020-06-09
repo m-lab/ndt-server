@@ -1,5 +1,5 @@
-// Package iface provides access to FDInfo. The implementation must be correct
-// by inspection.
+// Package iface provides access to network connection operations via file
+// descriptor. The implementation MUST be correct by inspection.
 package iface
 
 import (
@@ -15,7 +15,7 @@ import (
 
 // ConnFile provides access to underlying network file.
 type ConnFile interface {
-	TCPConnToFile(tc *net.TCPConn) (*os.File, error)
+	DupFile(tc *net.TCPConn) (*os.File, error)
 }
 
 // NetInfo provides access to network connection metadata.
@@ -25,13 +25,13 @@ type NetInfo interface {
 	GetTCPInfo(fp *os.File) (*tcp.LinuxTCPInfo, error)
 }
 
-// RealConnInfo implements the FDInfo interface.
+// RealConnInfo implements both the ConnFile and NetInfo interfaces.
 type RealConnInfo struct{}
 
-// TCPConnToFile returns the corresponding *os.File. Note that the
+// DupFile returns the corresponding *os.File. Note that the
 // returned *os.File is a dup() of the original, hence you now have ownership
 // of two objects that you need to remember to defer Close() of.
-func (f *RealConnInfo) TCPConnToFile(tc *net.TCPConn) (*os.File, error) {
+func (f *RealConnInfo) DupFile(tc *net.TCPConn) (*os.File, error) {
 	// Implementation note: according to a 2013 message on golang-nuts [1], the
 	// code that follows is broken on Unix because calling File() makes the socket
 	// blocking so causing Go to use more threads and, additionally, "timer wheel
