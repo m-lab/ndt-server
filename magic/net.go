@@ -79,7 +79,7 @@ func (ln *Listener) Accept() (net.Conn, error) {
 	}
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
-	fp, err := ln.connfile.TCPConnToFile(tc)
+	fp, err := ln.connfile.DupFile(tc)
 	if err != nil {
 		tc.Close()
 		return nil, err
