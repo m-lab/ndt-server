@@ -1,7 +1,6 @@
 package magic
 
 import (
-	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -22,11 +21,11 @@ func init() {
 
 type errorCI struct{}
 
-func (f *errorCI) TCPConnToFile(tc *net.TCPConn) (*os.File, error) {
+func (f *errorCI) DupFile(tc *net.TCPConn) (*os.File, error) {
 	return nil, fmt.Errorf("fake file from conn error")
 }
 
-func dialAsyncUntilCanceled(t *testing.T, addr string) {
+func dialAsync(t *testing.T, addr string) {
 	go func() {
 		// Because the socket already exists, Dial will block until Accept is
 		// called below.
@@ -49,7 +48,7 @@ func TestListener_Accept(t *testing.T) {
 	rtx.Must(err, "failed to listen during unit test")
 	ln := NewListener(tcpl)
 	defer ln.Close()
-	dialAsyncUntilCanceled(t, tcpl.Addr().String())
+	dialAsync(t, tcpl.Addr().String())
 
 	got, err := ln.Accept()
 	if err != nil {
@@ -82,7 +81,7 @@ func TestListener_Accept(t *testing.T) {
 	rtx.Must(err, "failed to listen during unit test")
 	ln = NewListener(tcpl)
 	defer ln.Close()
-	dialAsyncUntilCanceled(t, tcpl.Addr().String())
+	dialAsync(t, tcpl.Addr().String())
 
 	// Force accept to receive an error when reading fd from conn.
 	ln.connfile = &errorCI{}
@@ -114,20 +113,7 @@ func TestConn(t *testing.T) {
 	ln := NewListener(tcpl)
 	defer ln.Close()
 
-	client, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		// Because the socket already exists, Dial will block until Accept is
-		// called below.
-		c, err := net.Dial("tcp", tcpl.Addr().String())
-		if err != nil {
-			t.Fatalf("failed to dial local conn: %v", err)
-		}
-		// Wait until primary test routine closes conn and returns.
-		<-client.Done()
-		c.Close()
-	}()
-
+	dialAsync(t, tcpl.Addr().String())
 	conn, err := ln.Accept()
 	if err != nil {
 		t.Errorf("Conn.Accept() unexpected error = %v", err)
