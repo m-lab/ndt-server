@@ -4,18 +4,14 @@ package measurer
 
 import (
 	"context"
-	"errors"
-	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/go/memoryless"
-	"github.com/m-lab/ndt-server/bbr"
-	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/spec"
-	"github.com/m-lab/ndt-server/tcpinfox"
+	"github.com/m-lab/ndt-server/netx"
 )
 
 // Measurer performs measurements
@@ -33,39 +29,28 @@ func New(conn *websocket.Conn, UUID string) *Measurer {
 	}
 }
 
-func (m *Measurer) getSocketAndPossiblyEnableBBR() (*os.File, error) {
-	fp := fdcache.GetAndForgetFile(m.conn.UnderlyingConn())
-	// Implementation note: in theory fp SHOULD always be non-nil because
-	// now we always register the fp bound to a net.TCPConn. However, in
-	// some weird cases it MAY happen that the cache pruning mechanism will
-	// remove the fp BEFORE we can steal it. In case we cannot get a file
-	// we just abort the test, as this should not happen (TM).
-	if fp == nil {
-		return nil, errors.New("cannot get file bound to websocket conn")
-	}
-	err := bbr.Enable(fp)
+func (m *Measurer) getSocketAndPossiblyEnableBBR() (netx.ConnInfo, error) {
+	ci := netx.ToConnInfo(m.conn.UnderlyingConn())
+	err := ci.EnableBBR()
 	if err != nil {
 		logging.Logger.WithError(err).Warn("Cannot enable BBR")
 		// FALLTHROUGH
 	}
-	return fp, nil
+	return ci, nil
 }
 
-func measure(measurement *model.Measurement, sockfp *os.File, elapsed time.Duration) {
+func measure(measurement *model.Measurement, ci netx.ConnInfo, elapsed time.Duration) {
 	// Implementation note: we always want to sample BBR before TCPInfo so we
 	// will know from TCPInfo if the connection has been closed.
 	t := int64(elapsed / time.Microsecond)
-	bbrinfo, err := bbr.GetBBRInfo(sockfp)
+	bbrinfo, tcpInfo, err := ci.ReadInfo()
 	if err == nil {
 		measurement.BBRInfo = &model.BBRInfo{
 			BBRInfo:     bbrinfo,
 			ElapsedTime: t,
 		}
-	}
-	tcpInfo, err := tcpinfox.GetTCPInfo(sockfp)
-	if err == nil {
 		measurement.TCPInfo = &model.TCPInfo{
-			LinuxTCPInfo: *tcpInfo,
+			LinuxTCPInfo: tcpInfo,
 			ElapsedTime:  t,
 		}
 	}
@@ -77,12 +62,11 @@ func (m *Measurer) loop(ctx context.Context, timeout time.Duration, dst chan<- m
 	defer close(dst)
 	measurerctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	sockfp, err := m.getSocketAndPossiblyEnableBBR()
+	ci, err := m.getSocketAndPossiblyEnableBBR()
 	if err != nil {
 		logging.Logger.WithError(err).Warn("getSocketAndPossiblyEnableBBR failed")
 		return
 	}
-	defer sockfp.Close()
 	start := time.Now()
 	connectionInfo := &model.ConnectionInfo{
 		Client: m.conn.RemoteAddr().String(),
@@ -103,7 +87,7 @@ func (m *Measurer) loop(ctx context.Context, timeout time.Duration, dst chan<- m
 	m.ticker = ticker
 	for now := range ticker.C {
 		var measurement model.Measurement
-		measure(&measurement, sockfp, now.Sub(start))
+		measure(&measurement, ci, now.Sub(start))
 		measurement.ConnectionInfo = connectionInfo
 		dst <- measurement // Liveness: this is blocking
 	}
