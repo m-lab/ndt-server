@@ -99,11 +99,7 @@ func (m *Measurer) loop(ctx context.Context, timeout time.Duration, dst chan<- m
 		return
 	}
 	m.ticker = ticker
-	for {
-		now, active := <-ticker.C
-		if !active {
-			return
-		}
+	for now := range ticker.C {
 		var measurement model.Measurement
 		measure(&measurement, sockfp, now.Sub(start))
 		measurement.ConnectionInfo = connectionInfo
