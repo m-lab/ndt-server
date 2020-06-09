@@ -55,10 +55,12 @@ func measure(measurement *model.Measurement, sockfp *os.File, elapsed time.Durat
 	// Implementation note: we always want to sample BBR before TCPInfo so we
 	// will know from TCPInfo if the connection has been closed.
 	t := int64(elapsed / time.Microsecond)
-	bbrinfo, err := bbr.GetMaxBandwidthAndMinRTT(sockfp)
+	bbrinfo, err := bbr.GetBBRInfo(sockfp)
 	if err == nil {
-		bbrinfo.ElapsedTime = t
-		measurement.BBRInfo = &bbrinfo
+		measurement.BBRInfo = &model.BBRInfo{
+			BBRInfo:     bbrinfo,
+			ElapsedTime: t,
+		}
 	}
 	tcpInfo, err := tcpinfox.GetTCPInfo(sockfp)
 	if err == nil {

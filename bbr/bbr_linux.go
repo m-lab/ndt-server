@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/m-lab/ndt-server/ndt7/model"
+	"github.com/m-lab/tcp-info/inetdiag"
 )
 
 func enableBBR(fp *os.File) error {
@@ -20,7 +20,7 @@ func enableBBR(fp *os.File) error {
 		syscall.TCP_CONGESTION, "bbr")
 }
 
-func getMaxBandwidthAndMinRTT(fp *os.File) (model.BBRInfo, error) {
+func getMaxBandwidthAndMinRTT(fp *os.File) (inetdiag.BBRInfo, error) {
 	cci := C.union_tcp_cc_info{}
 	size := uint32(C.sizeof_union_tcp_cc_info)
 	// Note: Fd() returns uintptr but on Unix we can safely use int for sockets.
@@ -32,7 +32,7 @@ func getMaxBandwidthAndMinRTT(fp *os.File) (model.BBRInfo, error) {
 		uintptr(unsafe.Pointer(&cci)),
 		uintptr(unsafe.Pointer(&size)),
 		uintptr(0))
-	metrics := model.BBRInfo{}
+	metrics := inetdiag.BBRInfo{}
 	if err != 0 {
 		// C.get_bbr_info returns ENOSYS when the system does not support BBR. In
 		// such case let us map the error to ErrNoSupport, such that this Linux
