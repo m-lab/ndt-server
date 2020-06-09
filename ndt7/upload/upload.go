@@ -3,31 +3,29 @@ package upload
 
 import (
 	"context"
-	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-server/ndt7/measurer"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/receiver"
-	"github.com/m-lab/ndt-server/ndt7/saver"
 	"github.com/m-lab/ndt-server/ndt7/upload/sender"
 )
 
-// Do implements the upload subtest. The ctx argument is the parent context
-// for the subtest. The conn argument is the open WebSocket connection. The
-// resultfp argument is the file where to save results. Both arguments are
+// Do implements the upload subtest. The ctx argument is the parent context for
+// the subtest. The conn argument is the open WebSocket connection. The data
+// argument is the archival data where results are saved. All arguments are
 // owned by the caller of this function.
 func Do(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
-	// Implementation note: use child context so that, if we cannot save the
-	// results in the loop below, we terminate the goroutines early
-	wholectx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	data.StartTime = time.Now().UTC()
-	defer func() {
-		data.EndTime = time.Now().UTC()
-	}()
-	measurer := measurer.New(conn, data.UUID)
-	senderch := sender.Start(conn, measurer.Start(ctx))
-	receiverch := receiver.StartUploadReceiver(wholectx, conn)
-	saver.SaveAll(data, senderch, receiverch)
+	// Implementation note: use child contexts so the sender is strictly time
+	// bounded. After timeout, the sender closes the conn, which results in the
+	// receiver completing.
+
+	// Receive and save client-provided measurements in data.
+	recv := receiver.StartUploadReceiverAsync(ctx, conn, data)
+
+	// Perform upload and save server-measurements in data.
+	// TODO: move sender.Start logic to this file.
+	sender.Start(ctx, conn, data)
+
+	// Block on the receiver completing to guarantee that access to data is synchronous.
+	<-recv.Done()
 }
