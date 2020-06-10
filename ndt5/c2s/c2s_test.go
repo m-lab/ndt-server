@@ -49,8 +49,7 @@ func Test_DrainForeverButMeasureFor_NormalOperation(t *testing.T) {
 	}()
 	metrics, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(500*time.Millisecond))
 	if err != nil {
-		t.Error("Should not have gotten error:", err)
-		return
+		t.Fatal("Should not have gotten error:", err)
 	}
 	if metrics.TCPInfo.BytesReceived <= 0 {
 		t.Errorf("Expected positive byte count but got %d", metrics.TCPInfo.BytesReceived)
@@ -73,8 +72,7 @@ func Test_DrainForeverButMeasureFor_EarlyClientQuit(t *testing.T) {
 	}()
 	metrics, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(4*time.Second))
 	if err == nil {
-		t.Error("Should have gotten an error")
-		return
+		t.Fatal("Should have gotten an error")
 	}
 	if metrics.TCPInfo.BytesReceived <= 0 {
 		t.Errorf("Expected positive byte count but got %d", metrics.TCPInfo.BytesReceived)
@@ -117,8 +115,7 @@ func Test_DrainForeverButMeasureFor_CountsAllBytesNotJustWsGoodput(t *testing.T)
 	}()
 	metrics, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(100*time.Millisecond))
 	if err != nil {
-		t.Error("Should not have gotten error:", err)
-		return
+		t.Fatal("Should not have gotten error:", err)
 	}
 	if metrics.TCPInfo.BytesReceived <= 0 {
 		t.Errorf("Expected positive byte count but got %d", metrics.TCPInfo.BytesReceived)
