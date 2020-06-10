@@ -10,9 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m-lab/ndt-server/netx"
-
 	"github.com/gorilla/websocket"
+
 	"github.com/m-lab/access/controller"
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/warnonerror"
@@ -25,6 +24,7 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/ndt7/upload"
+	"github.com/m-lab/ndt-server/netx"
 	"github.com/m-lab/ndt-server/version"
 )
 

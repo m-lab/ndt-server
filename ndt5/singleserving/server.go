@@ -8,14 +8,11 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/m-lab/ndt-server/netx"
-
-	"github.com/m-lab/ndt-server/ndt5/ndt"
-
-	"github.com/m-lab/ndt-server/ndt5/ws"
-
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
+	"github.com/m-lab/ndt-server/ndt5/ndt"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
+	"github.com/m-lab/ndt-server/ndt5/ws"
+	"github.com/m-lab/ndt-server/netx"
 )
 
 // wsServer is a single-serving server for unencrypted websockets.
