@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-server/ndt5/singleserving"
-	"github.com/m-lab/ndt-server/netx"
 
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
+	"github.com/m-lab/ndt-server/ndt5/singleserving"
+	"github.com/m-lab/ndt-server/netx"
 )
 
 func MustMakeNetConnection(ctx context.Context) (protocol.MeasuredConnection, net.Conn) {

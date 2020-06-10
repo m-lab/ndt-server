@@ -12,13 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m-lab/ndt-server/netx"
-
 	"github.com/m-lab/ndt-server/ndt5"
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
 	"github.com/m-lab/ndt-server/ndt5/singleserving"
+	"github.com/m-lab/ndt-server/netx"
 )
 
 // plainServer handles requests that are TCP-based but not HTTP(S) based. If it

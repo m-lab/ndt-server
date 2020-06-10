@@ -14,10 +14,10 @@ import (
 	"path"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/m-lab/ndt-server/ndt5/web100"
 	"github.com/m-lab/ndt-server/netx"
-
-	"github.com/gorilla/websocket"
 )
 
 var verbose = flag.Bool("ndt5.protocol.verbose", false, "Print the contents of every message to the log")
