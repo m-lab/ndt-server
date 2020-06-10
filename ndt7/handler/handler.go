@@ -189,7 +189,7 @@ func getData(conn *websocket.Conn) (*model.ArchivalData, error) {
 	ci := netx.ToConnInfo(conn.UnderlyingConn())
 	uuid, err := ci.GetUUID()
 	if err != nil {
-		logging.Logger.WithError(err).Warn("fdcache.GetUUID failed")
+		logging.Logger.WithError(err).Warn("conninfo.GetUUID failed")
 		return nil, err
 	}
 	data := &model.ArchivalData{
