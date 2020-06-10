@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
 	"github.com/m-lab/access/controller"
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/data"
-	"github.com/m-lab/ndt-server/fdcache"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/metadata"
 	"github.com/m-lab/ndt-server/metrics"
@@ -24,6 +24,7 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/ndt7/upload"
+	"github.com/m-lab/ndt-server/netx"
 	"github.com/m-lab/ndt-server/version"
 )
 
@@ -144,12 +145,12 @@ func setupConn(writer http.ResponseWriter, request *http.Request) *websocket.Con
 func setupResult(conn *websocket.Conn) *data.NDT7Result {
 	// NOTE: unless we plan to run the NDT server over different protocols than TCP,
 	// then we expect RemoteAddr and LocalAddr to always return net.TCPAddr types.
-	clientAddr, ok := conn.RemoteAddr().(*net.TCPAddr)
-	if !ok {
+	clientAddr := netx.ToTCPAddr(conn.RemoteAddr())
+	if clientAddr == nil {
 		clientAddr = &net.TCPAddr{IP: net.ParseIP("::1"), Port: 1}
 	}
-	serverAddr, ok := conn.LocalAddr().(*net.TCPAddr)
-	if !ok {
+	serverAddr := netx.ToTCPAddr(conn.LocalAddr())
+	if serverAddr == nil {
 		serverAddr = &net.TCPAddr{IP: net.ParseIP("::1"), Port: 1}
 	}
 	result := &data.NDT7Result{
@@ -185,11 +186,10 @@ func (h Handler) writeResult(uuid string, kind spec.SubtestKind, result *data.ND
 }
 
 func getData(conn *websocket.Conn) (*model.ArchivalData, error) {
-	// TODO(m-lab/ndt-server/issues/235): delete the fdcache.
-	netConn := conn.UnderlyingConn()
-	uuid, err := fdcache.GetUUID(netConn)
+	ci := netx.ToConnInfo(conn.UnderlyingConn())
+	uuid, err := ci.GetUUID()
 	if err != nil {
-		logging.Logger.WithError(err).Warn("fdcache.GetUUID failed")
+		logging.Logger.WithError(err).Warn("conninfo.GetUUID failed")
 		return nil, err
 	}
 	data := &model.ArchivalData{
