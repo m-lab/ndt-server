@@ -87,18 +87,6 @@ func panicMsgToErrType(msg string) string {
 	return "panic"
 }
 
-func getResultLabel(err error, rate float64) string {
-	withErr := "okay"
-	if err != nil {
-		withErr = "error"
-	}
-	withResult := "-with-rate"
-	if rate == 0 {
-		withResult = "-without-rate"
-	}
-	return withErr + withResult
-}
-
 // HandleControlChannel is the "business logic" of an NDT test. It is designed
 // to run every test, and to never need to know whether the underlying
 // connection is just a TCP socket, a WS connection, or a WSS connection. It
@@ -235,7 +223,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server, isMon string) 
 			c2sRate = record.C2S.MeanThroughputMbps
 			metrics.TestRate.WithLabelValues(connToProtocol(connType), "c2s", isMon).Observe(c2sRate)
 		}
-		r := getResultLabel(err, record.C2S.MeanThroughputMbps)
+		r := metrics.GetResultLabel(err, record.C2S.MeanThroughputMbps)
 		ndt5metrics.ClientTestResults.WithLabelValues(connType, "c2s", r).Inc()
 		rtx.PanicOnError(err, "C2S - Could not run c2s test (uuid: %s)", record.Control.UUID)
 	}
@@ -245,7 +233,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server, isMon string) 
 			s2cRate = record.S2C.MeanThroughputMbps
 			metrics.TestRate.WithLabelValues(connToProtocol(connType), "s2c", isMon).Observe(s2cRate)
 		}
-		r := getResultLabel(err, record.S2C.MeanThroughputMbps)
+		r := metrics.GetResultLabel(err, record.S2C.MeanThroughputMbps)
 		ndt5metrics.ClientTestResults.WithLabelValues(connType, "s2c", r).Inc()
 		rtx.PanicOnError(err, "S2C - Could not run s2c test (uuid: %s)", record.Control.UUID)
 	}
