@@ -74,7 +74,8 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 		ndt7metrics.ClientConnections.WithLabelValues(string(kind), "uuid-error").Inc()
 		return
 	}
-	ndt7metrics.ClientConnections.WithLabelValues(string(kind), "setup-success").Inc()
+	// We are guaranteed to collect a result at this point (even if it's with an error)
+	ndt7metrics.ClientConnections.WithLabelValues(string(kind), "result").Inc()
 
 	// Collect most client metadata from request parameters.
 	appendClientMetadata(data, req.URL.Query())

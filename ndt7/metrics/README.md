@@ -8,9 +8,10 @@ successes, and error rates for the sender and receiver.
   connection that reaches `handler.Upload` or `handler.Download`.
 
   * The "direction=" label indicates an "upload" or "download" measurement.
-  * The "status=" label is either "setup-success" or a specific error that
+  * The "status=" label is either "result" or a specific error that
     prevented setup before the connection was aborted.
-  * All status="setup-succes" results are counted in `ndt7_client_test_results_total`.
+  * All status="result" clients are counted in `ndt7_client_test_results_total`.
+  * All status="result" clients should also equal the number of files written.
 
 * `ndt7_client_test_results_total{protocol, direction, result}` counts the
   test results of clients that successfully setup the websocket connection.
@@ -34,6 +35,6 @@ successes, and error rates for the sender and receiver.
 
 Expected invariants:
 
-* `ndt7_client_connections_total{status="setup-success"} == sum(ndt7_client_test_results_total)`
+* `ndt7_client_connections_total{status="result"} == sum(ndt7_client_test_results_total)`
 * `sum(ndt7_client_test_results_total) == sum(ndt7_client_sender_errors_total)`
 * `sum(ndt7_client_test_results_total) == sum(ndt7_client_receiver_errors_total)`
