@@ -3,7 +3,6 @@
 Summary of ndt7 metrics useful for monitoring client requests, measurement
 successes, and error rates for the sender and receiver.
 
-
 * `ndt7_client_connections_total{direction, status}` counts every client
   connection that reaches `handler.Upload` or `handler.Download`.
 
