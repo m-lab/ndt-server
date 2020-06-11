@@ -8,11 +8,24 @@ import (
 	"time"
 
 	guuid "github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/ndt-server/bbr"
 	"github.com/m-lab/ndt-server/netx/iface"
 	"github.com/m-lab/tcp-info/inetdiag"
 	"github.com/m-lab/tcp-info/tcp"
+)
+
+// Metrics for resource accounting in the netx package.
+var (
+	CurrentOpenConns = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "netx_current_open_conns",
+			Help: "A gauge of currently open netx.Conns with open file pointers.",
+		},
+	)
 )
 
 // Listener is a TCPListener that is suitable for raw TCP servers, HTTP servers,
@@ -84,6 +97,7 @@ func (ln *Listener) Accept() (net.Conn, error) {
 		tc.Close()
 		return nil, err
 	}
+	CurrentOpenConns.Inc()
 	mc := &Conn{
 		Conn:    tc,
 		fp:      fp,
@@ -96,6 +110,7 @@ func (ln *Listener) Accept() (net.Conn, error) {
 // returned by LocalAddr and RemoteAddr should be released before calling Close.
 func (mc *Conn) Close() error {
 	mc.fp.Close()
+	CurrentOpenConns.Dec()
 	return mc.Conn.Close()
 }
 
