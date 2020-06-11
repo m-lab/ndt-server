@@ -10,6 +10,7 @@ import (
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/closer"
 	"github.com/m-lab/ndt-server/ndt7/measurer"
+	ndt7metrics "github.com/m-lab/ndt-server/ndt7/metrics"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/ping"
 	"github.com/m-lab/ndt-server/ndt7/spec"
@@ -31,8 +32,9 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 // Liveness guarantee: the sender will not be stuck sending for more than the
 // MaxRuntime of the subtest. This is enforced by setting the write deadline to
 // Time.Now() + MaxRuntime.
-func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
+func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) error {
 	logging.Logger.Debug("sender: start")
+	proto := ndt7metrics.ConnLabel(conn)
 
 	// Start collecting connection measurements. Measurements will be sent to
 	// src until DefaultRuntime, when the src channel is closed.
@@ -46,13 +48,17 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 	preparedMessage, err := makePreparedMessage(bulkMessageSize)
 	if err != nil {
 		logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
-		return
+		ndt7metrics.ClientSenderErrors.WithLabelValues(
+			proto, string(spec.SubtestDownload), "make-prepared-message")
+		return err
 	}
 	deadline := time.Now().Add(spec.MaxRuntime)
 	err = conn.SetWriteDeadline(deadline) // Liveness!
 	if err != nil {
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
-		return
+		ndt7metrics.ClientSenderErrors.WithLabelValues(
+			proto, string(spec.SubtestDownload), "set-write-deadline")
+		return err
 	}
 
 	// Record measurement start time, and prepare recording of the endtime on return.
@@ -66,24 +72,31 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 		case m, ok := <-src:
 			if !ok { // This means that the measurer has terminated
 				closer.StartClosing(conn)
-				return
+				ndt7metrics.ClientSenderErrors.WithLabelValues(
+					proto, string(spec.SubtestDownload), "measurer-closed")
+				return nil
 			}
 			if err := conn.WriteJSON(m); err != nil {
 				logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
-				return
+				ndt7metrics.ClientSenderErrors.WithLabelValues(
+					proto, string(spec.SubtestDownload), "write-json")
+				return err
 			}
 			// Only save measurements sent to the client.
 			data.ServerMeasurements = append(data.ServerMeasurements, m)
 			if err := ping.SendTicks(conn, deadline); err != nil {
 				logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
-				return
+				ndt7metrics.ClientSenderErrors.WithLabelValues(
+					proto, string(spec.SubtestDownload), "ping-send-ticks")
+				return err
 			}
 		default:
 			if err := conn.WritePreparedMessage(preparedMessage); err != nil {
 				logging.Logger.WithError(err).Warn(
-					"sender: conn.WritePreparedMessage failed",
-				)
-				return
+					"sender: conn.WritePreparedMessage failed")
+				ndt7metrics.ClientSenderErrors.WithLabelValues(
+					proto, string(spec.SubtestDownload), "write-prepared-message")
+				return err
 			}
 			// The following block of code implements the scaling of message size
 			// as recommended in the spec's appendix. We're not accounting for the
@@ -103,7 +116,9 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 			preparedMessage, err = makePreparedMessage(bulkMessageSize)
 			if err != nil {
 				logging.Logger.WithError(err).Warn("sender: makePreparedMessage failed")
-				return
+				ndt7metrics.ClientSenderErrors.WithLabelValues(
+					proto, string(spec.SubtestDownload), "make-prepared-message")
+				return err
 			}
 		}
 	}

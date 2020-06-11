@@ -9,6 +9,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/logging"
+	ndt7metrics "github.com/m-lab/ndt-server/ndt7/metrics"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/ping"
 	"github.com/m-lab/ndt-server/ndt7/spec"
@@ -26,6 +27,7 @@ func start(
 	data *model.ArchivalData,
 ) {
 	logging.Logger.Debug("receiver: start")
+	proto := ndt7metrics.ConnLabel(conn)
 	defer logging.Logger.Debug("receiver: stop")
 	conn.SetReadLimit(spec.MaxMessageSize)
 	receiverctx, cancel := context.WithTimeout(ctx, spec.MaxRuntime)
@@ -33,6 +35,8 @@ func start(
 	err := conn.SetReadDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
 	if err != nil {
 		logging.Logger.WithError(err).Warn("receiver: conn.SetReadDeadline failed")
+		ndt7metrics.ClientReceiverErrors.WithLabelValues(
+			proto, string(kind), "set-read-deadline")
 		return
 	}
 	conn.SetPongHandler(func(s string) error {
@@ -40,18 +44,25 @@ func start(
 		if err == nil {
 			rtt /= int64(time.Millisecond)
 			logging.Logger.Debugf("receiver: ApplicationLevel RTT: %d ms", rtt)
+		} else {
+			ndt7metrics.ClientReceiverErrors.WithLabelValues(
+				proto, string(kind), "ping-parse-ticks")
 		}
 		return err
 	})
 	for receiverctx.Err() == nil { // Liveness!
 		mtype, mdata, err := conn.ReadMessage()
 		if err != nil {
+			ndt7metrics.ClientReceiverErrors.WithLabelValues(
+				proto, string(kind), "read-message")
 			return
 		}
 		if mtype != websocket.TextMessage {
 			switch kind {
 			case downloadReceiver:
 				logging.Logger.Warn("receiver: got non-Text message")
+				ndt7metrics.ClientReceiverErrors.WithLabelValues(
+					proto, string(kind), "wrong-message-type")
 				return // Unexpected message type
 			default:
 				// NOTE: this is the bulk upload path. In this case, the mdata is not used.
@@ -62,10 +73,14 @@ func start(
 		err = json.Unmarshal(mdata, &measurement)
 		if err != nil {
 			logging.Logger.WithError(err).Warn("receiver: json.Unmarshal failed")
+			ndt7metrics.ClientReceiverErrors.WithLabelValues(
+				proto, string(kind), "unmarshal-client-message")
 			return
 		}
 		data.ClientMeasurements = append(data.ClientMeasurements, measurement)
 	}
+	ndt7metrics.ClientReceiverErrors.WithLabelValues(
+		proto, string(kind), "receiver-context-expired")
 }
 
 // StartDownloadReceiverAsync starts the receiver in a background goroutine and
