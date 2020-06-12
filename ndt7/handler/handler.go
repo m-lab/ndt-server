@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -20,6 +19,7 @@ import (
 	"github.com/m-lab/ndt-server/metadata"
 	"github.com/m-lab/ndt-server/metrics"
 	"github.com/m-lab/ndt-server/ndt7/download"
+	ndt7metrics "github.com/m-lab/ndt-server/ndt7/metrics"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/results"
 	"github.com/m-lab/ndt-server/ndt7/spec"
@@ -63,22 +63,20 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	conn := setupConn(rw, req)
 	if conn == nil {
 		// TODO: test failure.
+		ndt7metrics.ClientConnections.WithLabelValues(string(kind), "websocket-error").Inc()
 		return
 	}
-	// TODO(bassosimone): an error before this point means that the *os.File
-	// will stay in cache until the cache pruning mechanism is triggered. This
-	// should be a small amount of seconds. If Golang does not call shutdown(2)
-	// and close(2), we'll end up keeping sockets that caused an error in the
-	// code above (e.g. because the handshake was not okay) alive for the time
-	// in which the corresponding *os.File is kept in cache.
 	defer warnonerror.Close(conn, "runMeasurement: ignoring conn.Close result")
-
 	// Create measurement archival data.
 	data, err := getData(conn)
 	if err != nil {
 		// TODO: test failure.
+		ndt7metrics.ClientConnections.WithLabelValues(string(kind), "uuid-error").Inc()
 		return
 	}
+	// We are guaranteed to collect a result at this point (even if it's with an error)
+	ndt7metrics.ClientConnections.WithLabelValues(string(kind), "result").Inc()
+
 	// Collect most client metadata from request parameters.
 	appendClientMetadata(data, req.URL.Query())
 	// Create ultimate result.
@@ -92,26 +90,25 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	}()
 
 	// Run measurement.
+	var rate float64
 	if kind == spec.SubtestDownload {
 		result.Download = data
-		download.Do(req.Context(), conn, data)
-		h.observe(conn, req, string(kind), downRate(data.ServerMeasurements))
+		err = download.Do(req.Context(), conn, data)
+		rate = downRate(data.ServerMeasurements)
 	} else if kind == spec.SubtestUpload {
 		result.Upload = data
-		upload.Do(req.Context(), conn, data)
-		h.observe(conn, req, string(kind), upRate(data.ServerMeasurements))
+		err = upload.Do(req.Context(), conn, data)
+		rate = upRate(data.ServerMeasurements)
 	}
-}
 
-// getProtocol infers an appropriate label for the websocket protocol.
-func (h Handler) getProtocol(conn *websocket.Conn) string {
-	if strings.HasSuffix(conn.LocalAddr().String(), h.SecurePort) {
-		return "ndt7+wss"
+	proto := ndt7metrics.ConnLabel(conn)
+	ndt7metrics.ClientTestResults.WithLabelValues(
+		proto, string(kind), metrics.GetResultLabel(err, rate)).Inc()
+	if rate > 0 {
+		isMon := fmt.Sprintf("%t", controller.IsMonitoring(controller.GetClaim(req.Context())))
+		// Update the common (ndt5+ndt7) measurement rates histogram.
+		metrics.TestRate.WithLabelValues(proto, string(kind), isMon).Observe(rate)
 	}
-	if strings.HasSuffix(conn.LocalAddr().String(), h.InsecurePort) {
-		return "ndt7+ws"
-	}
-	return "ndt7+unknown"
 }
 
 // setupConn negotiates a websocket connection. The writer argument is the HTTP
@@ -162,15 +159,6 @@ func setupResult(conn *websocket.Conn) *data.NDT7Result {
 		ServerPort:     serverAddr.Port,
 	}
 	return result
-}
-
-func (h Handler) observe(conn *websocket.Conn, request *http.Request, direction string, val float64) {
-	if val > 0 {
-		isMon := fmt.Sprintf("%t", controller.IsMonitoring(controller.GetClaim(request.Context())))
-		proto := h.getProtocol(conn)
-		// Update the download rates histogram.
-		metrics.TestRate.WithLabelValues(proto, direction, isMon).Observe(val)
-	}
 }
 
 func (h Handler) writeResult(uuid string, kind spec.SubtestKind, result *data.NDT7Result) {

@@ -9,6 +9,7 @@ import (
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/closer"
 	"github.com/m-lab/ndt-server/ndt7/measurer"
+	ndt7metrics "github.com/m-lab/ndt-server/ndt7/metrics"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/ping"
 	"github.com/m-lab/ndt-server/ndt7/spec"
@@ -20,8 +21,9 @@ import (
 // Liveness guarantee: the sender will not be stuck sending for more than the
 // MaxRuntime of the subtest. This is enforced by setting the write deadline to
 // Time.Now() + MaxRuntime.
-func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) {
+func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) error {
 	logging.Logger.Debug("sender: start")
+	proto := ndt7metrics.ConnLabel(conn)
 
 	// Start collecting connection measurements. Measurements will be sent to
 	// src until DefaultRuntime, when the src channel is closed.
@@ -34,7 +36,9 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 	err := conn.SetWriteDeadline(deadline) // Liveness!
 	if err != nil {
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
-		return
+		ndt7metrics.ClientSenderErrors.WithLabelValues(
+			proto, string(spec.SubtestUpload), "set-write-deadline")
+		return err
 	}
 
 	// Record measurement start time, and prepare recording of the endtime on return.
@@ -46,17 +50,23 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 		m, ok := <-src
 		if !ok { // This means that the previous step has terminated
 			closer.StartClosing(conn)
-			return
+			ndt7metrics.ClientSenderErrors.WithLabelValues(
+				proto, string(spec.SubtestUpload), "measurer-closed")
+			return nil
 		}
 		if err := conn.WriteJSON(m); err != nil {
 			logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
-			return
+			ndt7metrics.ClientSenderErrors.WithLabelValues(
+				proto, string(spec.SubtestUpload), "write-json")
+			return err
 		}
 		// Only save measurements sent to the client.
 		data.ServerMeasurements = append(data.ServerMeasurements, m)
 		if err := ping.SendTicks(conn, deadline); err != nil {
 			logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
-			return
+			ndt7metrics.ClientSenderErrors.WithLabelValues(
+				proto, string(spec.SubtestUpload), "ping-send-ticks")
+			return err
 		}
 	}
 }
