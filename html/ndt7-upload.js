@@ -27,6 +27,9 @@ onmessage = function (ev) {
 	   (performance.now() - previous < every)) {
       sock.send(data)
       total += data.length
+      if (data.length < maxMessageSize && data.length < (total - sock.bufferedAmount)/16) {
+        break
+      }
     }
     now = performance.now()
     if (now - previous > every) {
