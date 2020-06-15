@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	guuid "github.com/google/uuid"
@@ -51,6 +52,7 @@ type Conn struct {
 	net.Conn
 	fp      *os.File
 	netinfo iface.NetInfo
+	once    sync.Once
 }
 
 // Addr supports the net.Addr interface and allows mediated access to operations
@@ -110,7 +112,7 @@ func (ln *Listener) Accept() (net.Conn, error) {
 // returned by LocalAddr and RemoteAddr should be released before calling Close.
 func (mc *Conn) Close() error {
 	mc.fp.Close()
-	CurrentOpenConns.Dec()
+	mc.once.Do(CurrentOpenConns.Dec)
 	return mc.Conn.Close()
 }
 
