@@ -10,12 +10,12 @@ onmessage = function (ev) {
     postMessage(null)
   }
   sock.onopen = function () {
-    const start = new Date().getTime()
+    const start = performance.now()
     let previous = start
     let total = 0
     sock.onmessage = function (ev) {
       total += (ev.data instanceof Blob) ? ev.data.size : ev.data.length
-      let now = new Date().getTime()
+      let now = performance.now()
       const every = 250  // ms
       if (now - previous > every) {
         postMessage({
