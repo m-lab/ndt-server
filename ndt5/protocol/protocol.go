@@ -14,11 +14,10 @@ import (
 	"path"
 	"time"
 
-	"github.com/m-lab/ndt-server/fdcache"
-	"github.com/m-lab/ndt-server/ndt5/web100"
-	"github.com/m-lab/uuid"
-
 	"github.com/gorilla/websocket"
+
+	"github.com/m-lab/ndt-server/ndt5/web100"
+	"github.com/m-lab/ndt-server/netx"
 )
 
 var verbose = flag.Bool("ndt5.protocol.verbose", false, "Print the contents of every message to the log")
@@ -147,12 +146,12 @@ func newMeasurer() *measurer {
 	}
 }
 
-// StartMeasuring starts a polling measurement goroutine that runs until the ctx
-// expires. After measurement is complete, the given `fd` is closed.
-func (m *measurer) StartMeasuring(ctx context.Context, fd *os.File) {
+// StartMeasuring starts a polling measurement goroutine using ci and runs until
+// the ctx expires.
+func (m *measurer) StartMeasuring(ctx context.Context, ci netx.ConnInfo) {
 	var newctx context.Context
 	newctx, m.cancelMeasurementContext = context.WithCancel(ctx)
-	m.summaryC = web100.MeasureViaPolling(newctx, fd)
+	m.summaryC = web100.MeasureViaPolling(newctx, ci)
 }
 
 // StopMeasuring stops the measurement process and returns the collected
@@ -196,12 +195,13 @@ func (ws *wsConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int64
 }
 
 func (ws *wsConnection) StartMeasuring(ctx context.Context) {
-	// Measurer closes the fd returned by GetAndForgetFile.
-	ws.measurer.StartMeasuring(ctx, fdcache.GetAndForgetFile(ws.UnderlyingConn()))
+	ci := netx.ToConnInfo(ws.UnderlyingConn())
+	ws.measurer.StartMeasuring(ctx, ci)
 }
 
 func (ws *wsConnection) UUID() string {
-	id, err := fdcache.GetUUID(ws.UnderlyingConn())
+	ci := netx.ToConnInfo(ws.UnderlyingConn())
+	id, err := ci.GetUUID()
 	if err != nil {
 		log.Println("Could not discover UUID:", err)
 		// TODO: increment a metric
@@ -211,12 +211,12 @@ func (ws *wsConnection) UUID() string {
 }
 
 func (ws *wsConnection) ServerIPAndPort() (string, int) {
-	localAddr := ws.UnderlyingConn().LocalAddr().(*net.TCPAddr)
+	localAddr := netx.ToTCPAddr(ws.UnderlyingConn().LocalAddr())
 	return localAddr.IP.String(), localAddr.Port
 }
 
 func (ws *wsConnection) ClientIPAndPort() (string, int) {
-	remoteAddr := ws.UnderlyingConn().RemoteAddr().(*net.TCPAddr)
+	remoteAddr := netx.ToTCPAddr(ws.UnderlyingConn().RemoteAddr())
 	return remoteAddr.IP.String(), remoteAddr.Port
 }
 
@@ -285,17 +285,17 @@ func (nc *netConnection) FillUntil(t time.Time, bytes []byte) (bytesWritten int6
 }
 
 func (nc *netConnection) StartMeasuring(ctx context.Context) {
-	// Measurer closes the fd returned by GetAndForgetFile.
-	nc.measurer.StartMeasuring(ctx, fdcache.GetAndForgetFile(nc))
+	ci := netx.ToConnInfo(nc.Conn)
+	nc.measurer.StartMeasuring(ctx, ci)
 }
 
 func (nc *netConnection) UUID() string {
-	tcpc, ok := nc.Conn.(*net.TCPConn)
-	if !ok {
+	ci := netx.ToConnInfo(nc.Conn)
+	if ci == nil {
 		log.Println("Connection is not a TCPConn")
 		return badUUID
 	}
-	id, err := uuid.FromTCPConn(tcpc)
+	id, err := ci.GetUUID()
 	if err != nil {
 		log.Println("Could not discover UUID")
 		// TODO: increment a metric
@@ -305,12 +305,12 @@ func (nc *netConnection) UUID() string {
 }
 
 func (nc *netConnection) ServerIPAndPort() (string, int) {
-	localAddr := nc.LocalAddr().(*net.TCPAddr)
+	localAddr := netx.ToTCPAddr(nc.LocalAddr())
 	return localAddr.IP.String(), localAddr.Port
 }
 
 func (nc *netConnection) ClientIPAndPort() (string, int) {
-	remoteAddr := nc.RemoteAddr().(*net.TCPAddr)
+	remoteAddr := netx.ToTCPAddr(nc.RemoteAddr())
 	return remoteAddr.IP.String(), remoteAddr.Port
 }
 

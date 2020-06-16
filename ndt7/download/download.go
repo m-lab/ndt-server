@@ -6,23 +6,27 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/ndt-server/ndt7/download/sender"
-	"github.com/m-lab/ndt-server/ndt7/measurer"
+	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/receiver"
-	"github.com/m-lab/ndt-server/ndt7/results"
-	"github.com/m-lab/ndt-server/ndt7/saver"
 )
 
-// Do implements the download subtest. The ctx argument is the parent
-// context for the subtest. The conn argument is the open WebSocket
-// connection. The resultfp argument is the file where to save results. Both
-// arguments are owned by the caller of this function.
-func Do(ctx context.Context, conn *websocket.Conn, resultfp *results.File) {
-	// Implementation note: use child context so that, if we cannot save the
-	// results in the loop below, we terminate the goroutines early
-	wholectx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	measurer := measurer.New(conn, resultfp.Data.UUID)
-	senderch := sender.Start(conn, measurer.Start(ctx))
-	receiverch := receiver.StartDownloadReceiver(wholectx, conn)
-	saver.SaveAll(resultfp, senderch, receiverch)
+// Do implements the download subtest. The ctx argument is the parent context
+// for the subtest. The conn argument is the open WebSocket connection. The data
+// argument is the archival data where results are saved. All arguments are
+// owned by the caller of this function.
+func Do(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) error {
+	// Implementation note: use child contexts so the sender is strictly time
+	// bounded. After timeout, the sender closes the conn, which results in the
+	// receiver completing.
+
+	// Receive and save client-provided measurements in data.
+	recv := receiver.StartDownloadReceiverAsync(ctx, conn, data)
+
+	// Perform download and save server-measurements in data.
+	// TODO: move sender.Start logic to this file.
+	err := sender.Start(ctx, conn, data)
+
+	// Block on the receiver completing to guarantee that access to data is synchronous.
+	<-recv.Done()
+	return err
 }

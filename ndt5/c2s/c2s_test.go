@@ -9,22 +9,21 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/m-lab/ndt-server/ndt5/singleserving"
-
-	"github.com/m-lab/ndt-server/ndt5/tcplistener"
 
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
+	"github.com/m-lab/ndt-server/ndt5/singleserving"
+	"github.com/m-lab/ndt-server/netx"
 )
 
 func MustMakeNetConnection(ctx context.Context) (protocol.MeasuredConnection, net.Conn) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	tcpl, err := net.Listen("tcp", "127.0.0.1:0")
 	rtx.Must(err, "Could not listen")
-	tl := &tcplistener.RawListener{TCPListener: listener.(*net.TCPListener)}
+	tl := netx.NewListener(tcpl.(*net.TCPListener))
 	conns := make(chan net.Conn)
 	defer close(conns)
 	go func() {
-		clientConn, err := net.Dial("tcp", listener.Addr().String())
+		clientConn, err := net.Dial("tcp", tcpl.Addr().String())
 		rtx.Must(err, "Could not dial temp conn")
 		conns <- clientConn
 	}()
@@ -48,9 +47,9 @@ func Test_DrainForeverButMeasureFor_NormalOperation(t *testing.T) {
 		}
 		cConn.Close()
 	}()
-	metrics, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(100*time.Millisecond))
+	metrics, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(500*time.Millisecond))
 	if err != nil {
-		t.Error("Should not have gotten error:", err)
+		t.Fatal("Should not have gotten error:", err)
 	}
 	if metrics.TCPInfo.BytesReceived <= 0 {
 		t.Errorf("Expected positive byte count but got %d", metrics.TCPInfo.BytesReceived)
@@ -65,13 +64,15 @@ func Test_DrainForeverButMeasureFor_EarlyClientQuit(t *testing.T) {
 	defer cConn.Close()
 	// Measure longer than we send.
 	go func() {
-		cConn.Write([]byte("hello"))
-		time.Sleep(100 * time.Millisecond) // Give the drainForever process time to get going
+		for i := 0; i < 10; i++ {
+			cConn.Write([]byte("hello"))
+		}
+		time.Sleep(150 * time.Millisecond) // Give the drainForever process time to get going
 		cConn.Close()
 	}()
-	metrics, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(1*time.Second))
+	metrics, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(4*time.Second))
 	if err == nil {
-		t.Error("Should have gotten an error")
+		t.Fatal("Should have gotten an error")
 	}
 	if metrics.TCPInfo.BytesReceived <= 0 {
 		t.Errorf("Expected positive byte count but got %d", metrics.TCPInfo.BytesReceived)
@@ -107,14 +108,14 @@ func Test_DrainForeverButMeasureFor_CountsAllBytesNotJustWsGoodput(t *testing.T)
 	// Send for longer than we measure.
 	go func() {
 		// Send nothing. But the websocket handshake used some bytes, so the underlying socket should not measure zero.
-		ctx2, cancel2 := context.WithTimeout(ctx, 1*time.Second)
+		ctx2, cancel2 := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel2() // Useless, but makes the linter happpy.
 		<-ctx2.Done()
 		cConn.Close()
 	}()
-	metrics, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(1*time.Millisecond))
+	metrics, err := drainForeverButMeasureFor(ctx, sConn, time.Duration(100*time.Millisecond))
 	if err != nil {
-		t.Error("Should not have gotten error:", err)
+		t.Fatal("Should not have gotten error:", err)
 	}
 	if metrics.TCPInfo.BytesReceived <= 0 {
 		t.Errorf("Expected positive byte count but got %d", metrics.TCPInfo.BytesReceived)

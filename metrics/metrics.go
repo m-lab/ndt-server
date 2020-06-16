@@ -27,3 +27,18 @@ var (
 		[]string{"protocol", "direction", "monitoring"},
 	)
 )
+
+// GetResultLabel returns one of four strings based on the combination of
+// whether the error ("okay" or "error") and the rate ("with-rate" (non-zero) or
+// "without-rate" (zero)).
+func GetResultLabel(err error, rate float64) string {
+	withErr := "okay"
+	if err != nil {
+		withErr = "error"
+	}
+	withResult := "-with-rate"
+	if rate == 0 {
+		withResult = "-without-rate"
+	}
+	return withErr + withResult
+}

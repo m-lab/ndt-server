@@ -14,52 +14,13 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/m-lab/ndt-server/fdcache"
+	"github.com/m-lab/ndt-server/netx"
 )
 
 var logFatalf = log.Fatalf
 
 // The code here is adapted from https://golang.org/src/net/http/server.go?s=85391:85432#L2742
-
-// CachingTCPKeepAliveListener sets TCP keep-alive timeouts on accepted
-// connections. It's used by ListenAndServe and ListenAndServeTLS so
-// dead TCP connections (e.g. closing laptop mid-download) eventually
-// go away.
-type CachingTCPKeepAliveListener struct {
-	*net.TCPListener
-}
-
-// Accept a connection, set its keepalive time, and cache its associated file
-// descriptor for subsequent usage for measurement purposes.
-func (ln *CachingTCPKeepAliveListener) Accept() (net.Conn, error) {
-	tc, err := ln.AcceptTCP()
-	if err != nil {
-		return nil, err
-	}
-	tc.SetKeepAlive(true)
-	tc.SetKeepAlivePeriod(3 * time.Minute)
-	fp, err := fdcache.TCPConnToFile(tc)
-	if err != nil {
-		var dest net.Addr
-		if tc != nil {
-			dest = tc.RemoteAddr()
-		}
-		log.Println("Could not save TCPConnection to fdcache, connection was to", dest)
-		tc.Close()
-		return nil, err
-	}
-	// Transfer ownership of |fp| to fdcache so that later we can retrieve
-	// it from the generic net.Conn object bound to a websocket.Conn. We will
-	// enable BBR at a later time and only if we really need it.
-	//
-	// Note: enabling BBR before performing the WebSocket handshake lead
-	// to the connection being stuck. See m-lab/ndt-server#37
-	// <https://github.com/m-lab/ndt-server/issues/37>.
-	fdcache.OwnFile(tc, fp)
-	return tc, nil
-}
 
 func serve(server *http.Server, listener net.Listener) {
 	err := server.Serve(listener)
@@ -90,7 +51,7 @@ func ListenAndServeAsync(server *http.Server) error {
 		server.Addr = listener.Addr().String()
 	}
 	// Serve asynchronously.
-	go serve(server, &CachingTCPKeepAliveListener{listener.(*net.TCPListener)})
+	go serve(server, netx.NewListener(listener.(*net.TCPListener)))
 	return nil
 }
 
@@ -126,6 +87,6 @@ func ListenAndServeTLSAsync(server *http.Server, certFile, keyFile string) error
 	// do nothing in an attempt to avoid making a bad situation worse.
 
 	// Serve asynchronously.
-	go serveTLS(server, &CachingTCPKeepAliveListener{listener.(*net.TCPListener)}, certFile, keyFile)
+	go serveTLS(server, netx.NewListener(listener.(*net.TCPListener)), certFile, keyFile)
 	return nil
 }
