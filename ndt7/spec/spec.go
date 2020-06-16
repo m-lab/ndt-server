@@ -26,7 +26,7 @@ const MaxScaledMessageSize = 1 << 20
 // creating a websocket connection. This size is independent of the websocket
 // message sizes defined above (which may be larger) and used to optimize read
 // and write operations. However, larger buffers will practically limit the
-// total number of concurrent connections possible.
+// total number of concurrent connections possible. We use 1MB as a balance.
 const DefaultWebsocketBufferSize = 1 << 20
 
 // ScalingFraction sets the threshold for scaling binary messages. When
