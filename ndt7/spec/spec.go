@@ -22,6 +22,13 @@ const MaxMessageSize = 1 << 24
 // a good compromise between Go and JavaScript as seen in cloud based tests.
 const MaxScaledMessageSize = 1 << 20
 
+// DefaultWebsocketBufferSize is the read and write buffer sizes used when
+// creating a websocket connection. This size is independent of the websocket
+// message sizes defined above (which may be larger) and used to optimize read
+// and write operations. However, larger buffers will practically limit the
+// total number of concurrent connections possible. We use 1MB as a balance.
+const DefaultWebsocketBufferSize = 1 << 20
+
 // ScalingFraction sets the threshold for scaling binary messages. When
 // the current binary message size is <= than 1/scalingFactor of the
 // amount of bytes sent so far, we scale the message. This is documented

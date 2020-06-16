@@ -126,8 +126,8 @@ func setupConn(writer http.ResponseWriter, request *http.Request) *websocket.Con
 		CheckOrigin: func(r *http.Request) bool {
 			return true // Allow cross origin resource sharing
 		},
-		ReadBufferSize:  spec.MaxMessageSize,
-		WriteBufferSize: spec.MaxMessageSize,
+		ReadBufferSize:  spec.DefaultWebsocketBufferSize,
+		WriteBufferSize: spec.DefaultWebsocketBufferSize,
 	}
 	conn, err := upgrader.Upgrade(writer, request, headers)
 	if err != nil {
