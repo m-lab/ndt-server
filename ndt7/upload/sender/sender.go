@@ -37,7 +37,7 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 	if err != nil {
 		logging.Logger.WithError(err).Warn("sender: conn.SetWriteDeadline failed")
 		ndt7metrics.ClientSenderErrors.WithLabelValues(
-			proto, string(spec.SubtestUpload), "set-write-deadline")
+			proto, string(spec.SubtestUpload), "set-write-deadline").Inc()
 		return err
 	}
 
@@ -51,13 +51,13 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 		if !ok { // This means that the previous step has terminated
 			closer.StartClosing(conn)
 			ndt7metrics.ClientSenderErrors.WithLabelValues(
-				proto, string(spec.SubtestUpload), "measurer-closed")
+				proto, string(spec.SubtestUpload), "measurer-closed").Inc()
 			return nil
 		}
 		if err := conn.WriteJSON(m); err != nil {
 			logging.Logger.WithError(err).Warn("sender: conn.WriteJSON failed")
 			ndt7metrics.ClientSenderErrors.WithLabelValues(
-				proto, string(spec.SubtestUpload), "write-json")
+				proto, string(spec.SubtestUpload), "write-json").Inc()
 			return err
 		}
 		// Only save measurements sent to the client.
@@ -65,7 +65,7 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 		if err := ping.SendTicks(conn, deadline); err != nil {
 			logging.Logger.WithError(err).Warn("sender: ping.SendTicks failed")
 			ndt7metrics.ClientSenderErrors.WithLabelValues(
-				proto, string(spec.SubtestUpload), "ping-send-ticks")
+				proto, string(spec.SubtestUpload), "ping-send-ticks").Inc()
 			return err
 		}
 	}
