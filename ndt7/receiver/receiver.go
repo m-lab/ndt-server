@@ -36,7 +36,7 @@ func start(
 	if err != nil {
 		logging.Logger.WithError(err).Warn("receiver: conn.SetReadDeadline failed")
 		ndt7metrics.ClientReceiverErrors.WithLabelValues(
-			proto, string(kind), "set-read-deadline")
+			proto, string(kind), "set-read-deadline").Inc()
 		return
 	}
 	conn.SetPongHandler(func(s string) error {
@@ -46,7 +46,7 @@ func start(
 			logging.Logger.Debugf("receiver: ApplicationLevel RTT: %d ms", rtt)
 		} else {
 			ndt7metrics.ClientReceiverErrors.WithLabelValues(
-				proto, string(kind), "ping-parse-ticks")
+				proto, string(kind), "ping-parse-ticks").Inc()
 		}
 		return err
 	})
@@ -54,7 +54,7 @@ func start(
 		mtype, mdata, err := conn.ReadMessage()
 		if err != nil {
 			ndt7metrics.ClientReceiverErrors.WithLabelValues(
-				proto, string(kind), "read-message")
+				proto, string(kind), "read-message").Inc()
 			return
 		}
 		if mtype != websocket.TextMessage {
@@ -62,7 +62,7 @@ func start(
 			case downloadReceiver:
 				logging.Logger.Warn("receiver: got non-Text message")
 				ndt7metrics.ClientReceiverErrors.WithLabelValues(
-					proto, string(kind), "wrong-message-type")
+					proto, string(kind), "wrong-message-type").Inc()
 				return // Unexpected message type
 			default:
 				// NOTE: this is the bulk upload path. In this case, the mdata is not used.
@@ -74,13 +74,13 @@ func start(
 		if err != nil {
 			logging.Logger.WithError(err).Warn("receiver: json.Unmarshal failed")
 			ndt7metrics.ClientReceiverErrors.WithLabelValues(
-				proto, string(kind), "unmarshal-client-message")
+				proto, string(kind), "unmarshal-client-message").Inc()
 			return
 		}
 		data.ClientMeasurements = append(data.ClientMeasurements, measurement)
 	}
 	ndt7metrics.ClientReceiverErrors.WithLabelValues(
-		proto, string(kind), "receiver-context-expired")
+		proto, string(kind), "receiver-context-expired").Inc()
 }
 
 // StartDownloadReceiverAsync starts the receiver in a background goroutine and
