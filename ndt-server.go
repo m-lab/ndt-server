@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -60,26 +61,24 @@ func init() {
 }
 
 func defaultHandler(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(fmt.Sprintf(`
-This is an NDT server.
+<html>
+<head>
+<title>NDT (Network Diagnostic Tool) Server from Measurement Lab</title>
+</head>
+<body>
+<div style="width:100%; background:#81addd; padding-botton: 1em; padding-top: 1em;">
+<h1 style="font-size:3em; margin-top:.5em; margin-bottom:.5em; color:#ffffff;">NDT (Network Diagnostic Tool) Server from Measurement Lab</h1>
+</div>
+<p><img src="https://www.measurementlab.net/images/mlab-logo.png" alt="Measurement Lab logo" style="float:left; padding: 1.5em;" />This is an NDT server, provided by Measurement Lab (M-Lab).</p>
 
-You can run an NDT7 test (recommended) by going here:
-   %s/static/ndt7.html
+<p>More information about <a href="https://measurementlab.net/tests/ndt/">NDT</a>, other M-Lab hosted <a href="https://measurementlab.net/tests/">tests</a>, the M-Lab platform, and the open data we publish can be found on our <a href="https://measurementlab.net">website</a>.</p>
 
-You can run an NDT5 test here:
-   %s/static/widget.html (over http and websockets)
-   %s/static/widget.html (over https and secure websockets)
-or just by pointing an older NDT client at the addresses and ports serving those URLs.
-
-NDT7 is recommended for all new clients. NDT5 is for existing clients
-(including all versions before 5) that have not yet been ported to NDT7. The
-version "NDT6" was skipped entirely. (IPv6 has been supported by NDT for many
-years, and the name NDT6 risked confusion with the naming scheme used by
-ping6 and the like).
-
-You can monitor its status on port :9090/metrics.
-`, *ndt7Addr, *ndt5Addr, *ndt5WssAddr)))
+<p>Please visit https://measurementlab.net</a> for complete information about the M-Lab platform, tests, and data.</p>
+</body>
+</html>
+`)))
 }
 
 func catchSigterm() {
