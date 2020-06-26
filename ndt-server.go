@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -39,7 +38,7 @@ var (
 	certFile          = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
 	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
-	staticWebDir      = flag.String("htmldir", "html", "The directory from which to serve static web content.")
+	htmlDir           = flag.String("htmldir", "html", "The directory from which to serve static web content.")
 	tokenVerifyKey    = flagx.FileBytesArray{}
 	tokenRequired5    bool
 	tokenRequired7    bool
@@ -143,7 +142,7 @@ func main() {
 	// The ndt5 protocol serving Ws-based tests. Most clients are hard-coded to
 	// connect to the raw server, which will forward things along.
 	ndt5WsMux := http.NewServeMux()
-	ndt5WsMux.Handle("/", http.FileServer(http.Dir(*staticWebDir)))
+	ndt5WsMux.Handle("/", http.FileServer(http.Dir(*htmlDir)))
 	ndt5WsMux.Handle("/ndt_protocol", ndt5handler.NewWS(*dataDir+"/ndt5"))
 	ndt5WsServer := httpServer(
 		*ndt5WsAddr,
@@ -157,7 +156,7 @@ func main() {
 
 	// The ndt7 listener serving up NDT7 tests, likely on standard ports.
 	ndt7Mux := http.NewServeMux()
-	ndt7Mux.Handle("/", http.FileServer(http.Dir(*staticWebDir)))
+	ndt7Mux.Handle("/", http.FileServer(http.Dir(*htmlDir)))
 	ndt7Handler := &handler.Handler{
 		DataDir:      *dataDir,
 		SecurePort:   *ndt7Addr,
@@ -177,7 +176,7 @@ func main() {
 	if *certFile != "" && *keyFile != "" {
 		// The ndt5 protocol serving WsS-based tests.
 		ndt5WssMux := http.NewServeMux()
-		ndt5WssMux.Handle("/", http.FileServer(http.Dir(*staticWebDir)))
+		ndt5WssMux.Handle("/", http.FileServer(http.Dir(*htmlDir)))
 		ndt5WssMux.Handle("/ndt_protocol", ndt5handler.NewWSS(*dataDir+"/ndt5", *certFile, *keyFile))
 		ndt5WssServer := httpServer(
 			*ndt5WssAddr,
