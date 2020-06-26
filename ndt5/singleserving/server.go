@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
@@ -103,6 +104,12 @@ func listenWS(direction string) (*wsServer, error) {
 	s := &wsServer{
 		srv: &http.Server{
 			Handler: mux,
+			// NOTE: set absolute read and write timeouts for server connections.
+			// This prevents clients, or middleboxes, from opening a connection and
+			// holding it open indefinitely. This applies equally to TLS and non-TLS
+			// servers.
+			ReadTimeout:  time.Minute,
+			WriteTimeout: time.Minute,
 		},
 		direction: direction,
 		kind:      ndt.WS,
@@ -169,7 +176,8 @@ func (ps *plainServer) Port() int {
 }
 
 func (ps *plainServer) ServeOnce(ctx context.Context) (protocol.MeasuredConnection, error) {
-	derivedCtx, derivedCancel := context.WithCancel(ctx)
+	// NOTE: set an absolute timeouts for single serving servers.
+	derivedCtx, derivedCancel := context.WithTimeout(ctx, time.Minute)
 	defer ps.Close()
 
 	var conn net.Conn
