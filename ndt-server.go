@@ -75,7 +75,7 @@ func defaultHandler(w http.ResponseWriter, req *http.Request) {
 
 <p>More information about <a href="https://measurementlab.net/tests/ndt/">NDT</a>, other M-Lab hosted <a href="https://measurementlab.net/tests/">tests</a>, the M-Lab platform, and the open data we publish can be found on our <a href="https://measurementlab.net">website</a>.</p>
 
-<p>If you need assistance, please email support@measurementlab.net, or visit <a href="https://measurementlab.net">our website</a> for complete information about the M-Lab platform, tests, and data.</p>
+<p>If you need assistance, please email support&#64;measurementlab.net, or visit <a href="https://measurementlab.net">our website</a> for complete information about the M-Lab platform, tests, and data.</p>
 </body>
 </html>
 `)))
