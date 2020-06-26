@@ -38,6 +38,7 @@ var (
 	certFile          = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
 	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
+	staticWebDir      = flag.String("htmldir", "html", "The directory from which to serve static web content.")
 	tokenVerifyKey    = flagx.FileBytesArray{}
 	tokenRequired5    bool
 	tokenRequired7    bool
@@ -58,27 +59,6 @@ func init() {
 	flag.BoolVar(&tokenRequired5, "ndt5.token.required", false, "Require access token in NDT5 requests")
 	flag.BoolVar(&tokenRequired7, "ndt7.token.required", false, "Require access token in NDT7 requests")
 	flag.StringVar(&tokenMachine, "token.machine", "", "Use given machine name to verify token claims")
-}
-
-func defaultHandler(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(fmt.Sprintf(`
-<html>
-<head>
-<title>NDT (Network Diagnostic Tool) Server from Measurement Lab</title>
-</head>
-<body>
-<div style="width:100%; background:#81addd; padding-botton: 1em; padding-top: 1em;">
-<h1 style="font-size:3em; margin-top:.5em; margin-bottom:.5em; color:#ffffff;">NDT (Network Diagnostic Tool) Server from Measurement Lab</h1>
-</div>
-<p><img src="https://www.measurementlab.net/images/mlab-logo.png" alt="Measurement Lab logo" style="float:left; padding: 1.5em;" />This is an NDT server, provided by Measurement Lab (M-Lab).</p>
-
-<p>More information about <a href="https://measurementlab.net/tests/ndt/">NDT</a>, other M-Lab hosted <a href="https://measurementlab.net/tests/">tests</a>, the M-Lab platform, and the open data we publish can be found on our <a href="https://measurementlab.net">website</a>.</p>
-
-<p>Please visit https://measurementlab.net</a> for complete information about the M-Lab platform, tests, and data.</p>
-</body>
-</html>
-`)))
 }
 
 func catchSigterm() {
@@ -148,8 +128,7 @@ func main() {
 	// The ndt5 protocol serving Ws-based tests. Most clients are hard-coded to
 	// connect to the raw server, which will forward things along.
 	ndt5WsMux := http.NewServeMux()
-	ndt5WsMux.HandleFunc("/", defaultHandler)
-	ndt5WsMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
+	ndt5WsMux.Handle("/", http.FileServer(http.Dir(*staticWebDir)))
 	ndt5WsMux.Handle("/ndt_protocol", ndt5handler.NewWS(*dataDir+"/ndt5"))
 	ndt5WsServer := &http.Server{
 		Addr: *ndt5WsAddr,
@@ -163,8 +142,7 @@ func main() {
 
 	// The ndt7 listener serving up NDT7 tests, likely on standard ports.
 	ndt7Mux := http.NewServeMux()
-	ndt7Mux.HandleFunc("/", defaultHandler)
-	ndt7Mux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
+	ndt7Mux.Handle("/", http.FileServer(http.Dir(*staticWebDir)))
 	ndt7Handler := &handler.Handler{
 		DataDir:      *dataDir,
 		SecurePort:   *ndt7Addr,
@@ -184,8 +162,7 @@ func main() {
 	if *certFile != "" && *keyFile != "" {
 		// The ndt5 protocol serving WsS-based tests.
 		ndt5WssMux := http.NewServeMux()
-		ndt5WssMux.HandleFunc("/", defaultHandler)
-		ndt5WssMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
+		ndt5WssMux.Handle("/", http.FileServer(http.Dir(*staticWebDir)))
 		ndt5WssMux.Handle("/ndt_protocol", ndt5handler.NewWSS(*dataDir+"/ndt5", *certFile, *keyFile))
 		ndt5WssServer := &http.Server{
 			Addr:    *ndt5WssAddr,
