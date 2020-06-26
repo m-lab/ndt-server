@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/m-lab/access/controller"
 	"github.com/m-lab/access/token"
@@ -115,6 +116,20 @@ func init() {
 	log.SetFlags(log.LUTC | log.LstdFlags | log.Lshortfile)
 }
 
+// httpServer creates a new *http.Server with explicit Read and Write timeouts.
+func httpServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:    addr,
+		Handler: handler,
+		// NOTE: set absolute read and write timeouts for server connections.
+		// This prevents clients, or middleboxes, from opening a connection and
+		// holding it open indefinitely. This applies equally to TLS and non-TLS
+		// servers.
+		ReadTimeout:  time.Minute,
+		WriteTimeout: time.Minute,
+	}
+}
+
 func main() {
 	flag.Parse()
 	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse env args")
@@ -152,12 +167,12 @@ func main() {
 	ndt5WsMux.HandleFunc("/", defaultHandler)
 	ndt5WsMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
 	ndt5WsMux.Handle("/ndt_protocol", ndt5handler.NewWS(*dataDir+"/ndt5"))
-	ndt5WsServer := &http.Server{
-		Addr: *ndt5WsAddr,
+	ndt5WsServer := httpServer(
+		*ndt5WsAddr,
 		// NOTE: do not use `ac.Then()` to prevent 'double jeopardy' for
 		// forwarded clients when txcontroller is enabled.
-		Handler: logging.MakeAccessLogHandler(ndt5WsMux),
-	}
+		logging.MakeAccessLogHandler(ndt5WsMux),
+	)
 	log.Println("About to listen for unencrypted ndt5 NDT tests on " + *ndt5WsAddr)
 	rtx.Must(listener.ListenAndServeAsync(ndt5WsServer), "Could not start unencrypted ndt5 NDT server")
 	defer ndt5WsServer.Close()
@@ -173,10 +188,10 @@ func main() {
 	}
 	ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
 	ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
-	ndt7ServerCleartext := &http.Server{
-		Addr:    *ndt7AddrCleartext,
-		Handler: ac7.Then(logging.MakeAccessLogHandler(ndt7Mux)),
-	}
+	ndt7ServerCleartext := httpServer(
+		*ndt7AddrCleartext,
+		ac7.Then(logging.MakeAccessLogHandler(ndt7Mux)),
+	)
 	log.Println("About to listen for ndt7 cleartext tests on " + *ndt7AddrCleartext)
 	rtx.Must(listener.ListenAndServeAsync(ndt7ServerCleartext), "Could not start ndt7 cleartext server")
 	defer ndt7ServerCleartext.Close()
@@ -188,19 +203,19 @@ func main() {
 		ndt5WssMux.HandleFunc("/", defaultHandler)
 		ndt5WssMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
 		ndt5WssMux.Handle("/ndt_protocol", ndt5handler.NewWSS(*dataDir+"/ndt5", *certFile, *keyFile))
-		ndt5WssServer := &http.Server{
-			Addr:    *ndt5WssAddr,
-			Handler: ac5.Then(logging.MakeAccessLogHandler(ndt5WssMux)),
-		}
+		ndt5WssServer := httpServer(
+			*ndt5WssAddr,
+			ac5.Then(logging.MakeAccessLogHandler(ndt5WssMux)),
+		)
 		log.Println("About to listen for ndt5 WsS tests on " + *ndt5WssAddr)
 		rtx.Must(listener.ListenAndServeTLSAsync(ndt5WssServer, *certFile, *keyFile), "Could not start ndt5 WsS server")
 		defer ndt5WssServer.Close()
 
 		// The ndt7 listener serving up WSS based tests
-		ndt7Server := &http.Server{
-			Addr:    *ndt7Addr,
-			Handler: ac7.Then(logging.MakeAccessLogHandler(ndt7Mux)),
-		}
+		ndt7Server := httpServer(
+			*ndt7Addr,
+			ac7.Then(logging.MakeAccessLogHandler(ndt7Mux)),
+		)
 		log.Println("About to listen for ndt7 tests on " + *ndt7Addr)
 		rtx.Must(listener.ListenAndServeTLSAsync(ndt7Server, *certFile, *keyFile), "Could not start ndt7 server")
 		defer ndt7Server.Close()
