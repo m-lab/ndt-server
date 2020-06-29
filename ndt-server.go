@@ -38,6 +38,7 @@ var (
 	certFile          = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
 	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
+	htmlDir           = flag.String("htmldir", "html", "The directory from which to serve static web content.")
 	tokenVerifyKey    = flagx.FileBytesArray{}
 	tokenRequired5    bool
 	tokenRequired7    bool
@@ -58,29 +59,6 @@ func init() {
 	flag.BoolVar(&tokenRequired5, "ndt5.token.required", false, "Require access token in NDT5 requests")
 	flag.BoolVar(&tokenRequired7, "ndt7.token.required", false, "Require access token in NDT7 requests")
 	flag.StringVar(&tokenMachine, "token.machine", "", "Use given machine name to verify token claims")
-}
-
-func defaultHandler(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(fmt.Sprintf(`
-This is an NDT server.
-
-You can run an NDT7 test (recommended) by going here:
-   %s/static/ndt7.html
-
-You can run an NDT5 test here:
-   %s/static/widget.html (over http and websockets)
-   %s/static/widget.html (over https and secure websockets)
-or just by pointing an older NDT client at the addresses and ports serving those URLs.
-
-NDT7 is recommended for all new clients. NDT5 is for existing clients
-(including all versions before 5) that have not yet been ported to NDT7. The
-version "NDT6" was skipped entirely. (IPv6 has been supported by NDT for many
-years, and the name NDT6 risked confusion with the naming scheme used by
-ping6 and the like).
-
-You can monitor its status on port :9090/metrics.
-`, *ndt7Addr, *ndt5Addr, *ndt5WssAddr)))
 }
 
 func catchSigterm() {
@@ -164,8 +142,7 @@ func main() {
 	// The ndt5 protocol serving Ws-based tests. Most clients are hard-coded to
 	// connect to the raw server, which will forward things along.
 	ndt5WsMux := http.NewServeMux()
-	ndt5WsMux.HandleFunc("/", defaultHandler)
-	ndt5WsMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
+	ndt5WsMux.Handle("/", http.FileServer(http.Dir(*htmlDir)))
 	ndt5WsMux.Handle("/ndt_protocol", ndt5handler.NewWS(*dataDir+"/ndt5"))
 	ndt5WsServer := httpServer(
 		*ndt5WsAddr,
@@ -179,8 +156,7 @@ func main() {
 
 	// The ndt7 listener serving up NDT7 tests, likely on standard ports.
 	ndt7Mux := http.NewServeMux()
-	ndt7Mux.HandleFunc("/", defaultHandler)
-	ndt7Mux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
+	ndt7Mux.Handle("/", http.FileServer(http.Dir(*htmlDir)))
 	ndt7Handler := &handler.Handler{
 		DataDir:      *dataDir,
 		SecurePort:   *ndt7Addr,
@@ -200,8 +176,7 @@ func main() {
 	if *certFile != "" && *keyFile != "" {
 		// The ndt5 protocol serving WsS-based tests.
 		ndt5WssMux := http.NewServeMux()
-		ndt5WssMux.HandleFunc("/", defaultHandler)
-		ndt5WssMux.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("html"))))
+		ndt5WssMux.Handle("/", http.FileServer(http.Dir(*htmlDir)))
 		ndt5WssMux.Handle("/ndt_protocol", ndt5handler.NewWSS(*dataDir+"/ndt5", *certFile, *keyFile))
 		ndt5WssServer := httpServer(
 			*ndt5WssAddr,
