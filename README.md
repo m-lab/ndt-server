@@ -82,8 +82,8 @@ Try accessing these URLs in your browser (for URLs using HTTPS, certs will
 appear invalid to your browser, but everything is safe because this is a test
 deployment, hence you should ignore this warning and continue):
 
-* ndt5+wss: https://localhost:3010/static/widget.html
-* ndt7: https://localhost/static/ndt7.html
+* ndt7: http://localhost/ndt7.html or https://localhost/ndt7.html
+* ndt5+wss: https://localhost:3010/widget.html
 * prometheus: http://localhost:9090/metrics
 
 Replace `localhost` with the IP of the server to access them externally.
