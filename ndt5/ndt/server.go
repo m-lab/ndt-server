@@ -10,8 +10,23 @@ import (
 // websockets, or secure websockets.
 type ConnectionType string
 
+// String returns the connection type named used in archival data.
 func (c ConnectionType) String() string {
 	return string(c)
+}
+
+// Label returns the connection type name used in monitoring metrics.
+func (c ConnectionType) Label() string {
+	switch c {
+	case WSS:
+		return "ndt5+wss"
+	case WS:
+		return "ndt5+ws"
+	case Plain:
+		return "ndt5+plain"
+	default:
+		return "ndt5+unknown"
+	}
 }
 
 // The types of connections we support.

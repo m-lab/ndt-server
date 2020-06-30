@@ -26,7 +26,7 @@ func ManageTest(ctx context.Context, m protocol.Messager, s ndt.Server) ([]metad
 	var err error
 	var message []byte
 	results := []metadata.NameValue{}
-	connType := s.ConnectionType().String()
+	connType := s.ConnectionType().Label()
 
 	err = m.SendMessage(protocol.TestPrepare, []byte{})
 	if err != nil {

@@ -56,7 +56,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 		}
 	}()
 
-	connType := s.ConnectionType().String()
+	connType := s.ConnectionType().Label()
 
 	srv, err := s.SingleServingServer("s2c")
 	if err != nil {
