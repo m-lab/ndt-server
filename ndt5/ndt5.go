@@ -93,7 +93,7 @@ func panicMsgToErrType(msg string) string {
 // only needs a connection, and a factory for making single-use servers for
 // connections of that same type.
 func HandleControlChannel(conn protocol.Connection, s ndt.Server, isMon string) {
-	connType := s.ConnectionType().String()
+	connType := s.ConnectionType().Label()
 	metrics.ActiveTests.WithLabelValues(connType).Inc()
 	defer metrics.ActiveTests.WithLabelValues(connType).Dec()
 	defer func(start time.Time) {
@@ -115,21 +115,6 @@ func HandleControlChannel(conn protocol.Connection, s ndt.Server, isMon string) 
 	handleControlChannel(conn, s, isMon)
 }
 
-// connToProtocol accepts a ConnectionType string and returns a suitable label
-// for montitoring metrics.
-func connToProtocol(connType string) string {
-	switch connType {
-	case ndt.WSS.String():
-		return "ndt5+wss"
-	case ndt.WS.String():
-		return "ndt5+ws"
-	case ndt.Plain.String():
-		return "ndt5+plain"
-	default:
-		return "ndt5+unknown"
-	}
-}
-
 func handleControlChannel(conn protocol.Connection, s ndt.Server, isMon string) {
 	// Nothing should take more than 45 seconds, and exiting this method should
 	// cause all resources used by the test to be reclaimed.
@@ -138,7 +123,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server, isMon string) 
 
 	log.Println("Handling connection", conn)
 	defer warnonerror.Close(conn, "Could not close "+conn.String())
-	connType := s.ConnectionType().String()
+	connType := s.ConnectionType().Label()
 	sIP, sPort := conn.ServerIPAndPort()
 	cIP, cPort := conn.ClientIPAndPort()
 	record := &data.NDT5Result{
@@ -221,7 +206,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server, isMon string) 
 		record.C2S, err = c2s.ManageTest(ctx, conn, s)
 		if record.C2S != nil && record.C2S.MeanThroughputMbps != 0 {
 			c2sRate = record.C2S.MeanThroughputMbps
-			metrics.TestRate.WithLabelValues(connToProtocol(connType), "c2s", isMon).Observe(c2sRate)
+			metrics.TestRate.WithLabelValues(connType, "c2s", isMon).Observe(c2sRate)
 		}
 		r := metrics.GetResultLabel(err, record.C2S.MeanThroughputMbps)
 		ndt5metrics.ClientTestResults.WithLabelValues(connType, "c2s", r).Inc()
@@ -231,7 +216,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server, isMon string) 
 		record.S2C, err = s2c.ManageTest(ctx, conn, s)
 		if record.S2C != nil && record.S2C.MeanThroughputMbps != 0 {
 			s2cRate = record.S2C.MeanThroughputMbps
-			metrics.TestRate.WithLabelValues(connToProtocol(connType), "s2c", isMon).Observe(s2cRate)
+			metrics.TestRate.WithLabelValues(connType, "s2c", isMon).Observe(s2cRate)
 		}
 		r := metrics.GetResultLabel(err, record.S2C.MeanThroughputMbps)
 		ndt5metrics.ClientTestResults.WithLabelValues(connType, "s2c", r).Inc()

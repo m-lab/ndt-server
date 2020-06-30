@@ -48,7 +48,7 @@ func ManageTest(ctx context.Context, controlConn protocol.Connection, s ndt.Serv
 	record = &ArchivalData{}
 
 	m := controlConn.Messager()
-	connType := s.ConnectionType().String()
+	connType := s.ConnectionType().Label()
 
 	srv, err := s.SingleServingServer("c2s")
 	if err != nil {
