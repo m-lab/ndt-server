@@ -58,7 +58,7 @@ func SaveData(record *data.NDT5Result, datadir string) {
 	enc := json.NewEncoder(file)
 	err = enc.Encode(record)
 	if err != nil {
-		log.Println("Could not encode", record, "to", file.Name())
+		log.Println("ERROR: Could not encode", record, "to", file.Name(), "err:", err)
 		return
 	}
 	log.Println("Wrote", file.Name())
