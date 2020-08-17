@@ -11,11 +11,19 @@ services:
     cap_drop:
       - ALL
     ports:
-      - "443:4443"
+      - target: 4443
+        published: 4443
+        protocol: tcp
+        mode: bridge
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: bridge
     command: [
       "./ndt-server",
       "-cert", "/certs/cert.pem",
       "-key", "/certs/key.pem",
       "-datadir", "/datadir",
-      "-ndt7_addr", ":4443"
+      "-ndt7_addr", ":4443",
+      "-ndt7_addr_cleartext", ":8080"
     ]
