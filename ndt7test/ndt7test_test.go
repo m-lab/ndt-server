@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -29,8 +30,17 @@ func TestNewNDT7Server(t *testing.T) {
 		conn, _, err := dialer.DialContext(ctx, URL.String(), headers)
 		testingx.Must(t, err, "failed to dial websocket ndt7 test")
 		err = simpleDownload(ctx, t, conn)
-		if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
+		if err != nil && !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
 			testingx.Must(t, err, "failed to download")
+		}
+
+		// Allow the server time to save the file, the client may stop before the server does.
+		time.Sleep(1 * time.Second)
+		// Verify a file was saved.
+		m, err := filepath.Glob(h.DataDir + "/ndt7/*/*/*/*")
+		testingx.Must(t, err, "failed to glob datadir: %s", h.DataDir)
+		if len(m) == 0 {
+			t.Errorf("no files found")
 		}
 
 	})
