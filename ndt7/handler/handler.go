@@ -188,7 +188,8 @@ func getData(conn *websocket.Conn) (*model.ArchivalData, error) {
 
 func upRate(m []model.Measurement) float64 {
 	var mbps float64
-	if len(m) > 0 {
+	// NOTE: on non-Linux platforms, TCPInfo will be nil.
+	if len(m) > 0 && m[len(m)-1].TCPInfo != nil {
 		// Convert to Mbps.
 		mbps = 8 * float64(m[len(m)-1].TCPInfo.BytesReceived) / float64(m[len(m)-1].TCPInfo.ElapsedTime)
 	}
@@ -197,7 +198,8 @@ func upRate(m []model.Measurement) float64 {
 
 func downRate(m []model.Measurement) float64 {
 	var mbps float64
-	if len(m) > 0 {
+	// NOTE: on non-Linux platforms, TCPInfo will be nil.
+	if len(m) > 0 && m[len(m)-1].TCPInfo != nil {
 		// Convert to Mbps.
 		mbps = 8 * float64(m[len(m)-1].TCPInfo.BytesAcked) / float64(m[len(m)-1].TCPInfo.ElapsedTime)
 	}
