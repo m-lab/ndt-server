@@ -144,6 +144,7 @@ func main() {
 	ndt5WsMux := http.NewServeMux()
 	ndt5WsMux.Handle("/", http.FileServer(http.Dir(*htmlDir)))
 	ndt5WsMux.Handle("/ndt_protocol", ndt5handler.NewWS(*dataDir+"/ndt5"))
+	controller.AllowPathLabel("/ndt_protocol")
 	ndt5WsServer := httpServer(
 		*ndt5WsAddr,
 		// NOTE: do not use `ac.Then()` to prevent 'double jeopardy' for
@@ -164,6 +165,8 @@ func main() {
 	}
 	ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
 	ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
+	controller.AllowPathLabel(spec.DownloadURLPath)
+	controller.AllowPathLabel(spec.UploadURLPath)
 	ndt7ServerCleartext := httpServer(
 		*ndt7AddrCleartext,
 		ac7.Then(logging.MakeAccessLogHandler(ndt7Mux)),
