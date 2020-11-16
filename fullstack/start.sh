@@ -73,3 +73,7 @@ mkdir -p "${DATA_DIR}"/pcap
  --uuid-prefix-file="${UUID_FILE}" \
  --datadir="${DATA_DIR}" \
  $*
+ &
+
+# Any of the backgrounded processes dying should kill the whole thing.
+wait -n
