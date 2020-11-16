@@ -14,6 +14,7 @@ COPY --from=measurementlab/tcp-info /licences/zstd/ /licences/zstd/
 # packet-headers needs its binary and libpcap.  There's no good way to get both
 # easily from the image, due to C-linking issues and the differences between
 # alpine and ubuntu, so just rebuild it here.
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y libpcap-dev golang-go git
 RUN go get github.com/m-lab/packet-headers
 RUN mv /root/go/bin/packet-headers /packet-headers
