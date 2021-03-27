@@ -13,6 +13,8 @@ versionflags="-X github.com/m-lab/ndt-server/version.Version=$VERSION"
 
 COMMIT=$(git log -1 --format=%h)
 versionflags="${versionflags} -X github.com/m-lab/go/prometheusx.GitShortCommit=${COMMIT}"
+
+go env -w GO111MODULE=auto
 go get -v -t                                                           \
     -tags netgo                                                        \
     -ldflags "$versionflags -extldflags \"-static\""                   \
