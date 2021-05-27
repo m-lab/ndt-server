@@ -20,7 +20,7 @@ const MaxMessageSize = 1 << 24
 // MaxScaledMessageSize is the maximum value of a scaled binary WebSocket
 // message size. This should be <= of MaxMessageSize. The 1<<20 value is
 // a good compromise between Go and JavaScript as seen in cloud based tests.
-const MaxScaledMessageSize = 1 << 23
+const MaxScaledMessageSize = 1 << 20
 
 // DefaultWebsocketBufferSize is the read and write buffer sizes used when
 // creating a websocket connection. This size is independent of the websocket
