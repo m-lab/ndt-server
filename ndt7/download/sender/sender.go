@@ -106,7 +106,7 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 			// scale deployments of this algorithm anyway, so there's no point
 			// in engaging in fine grained calibration before knowing.
 			totalSent += int64(bulkMessageSize)
-			if totalSent >= spec.MaxScaledMessageSize {
+			if int64(bulkMessageSize) >= spec.MaxScaledMessageSize {
 				continue // No further scaling is required
 			}
 			if int64(bulkMessageSize) > totalSent/spec.ScalingFraction {
