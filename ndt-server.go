@@ -38,7 +38,7 @@ var (
 	ndt5WssAddr       = flag.String("ndt5_wss_addr", ":3010", "The address and port to use for the ndt5 WSS test")
 	certFile          = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
-	tlsConfig         = flag.String("tls_config", "old", "TLS configuration: modern, intermediate or old.")
+	tlsVersion        = flag.String("tls.version", "", "Minimum TLS version. Valid values: 1.2 or 1.3")
 	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
 	htmlDir           = flag.String("htmldir", "html", "The directory from which to serve static web content.")
 	tokenVerifyKey    = flagx.FileBytesArray{}
@@ -101,32 +101,14 @@ func httpServer(addr string, handler http.Handler) *http.Server {
 	tlsconf := &tls.Config{}
 	// "modern" and "intermediate" are defined here:
 	// https://wiki.mozilla.org/Security/Server_Side_TLS
-	switch *tlsConfig {
-		case "modern":
+	switch *tlsVersion {
+		case "1.3":
 			tlsconf = &tls.Config{
 				MinVersion: tls.VersionTLS13,
-				CurvePreferences: []tls.CurveID{
-					tls.CurveP256,
-					tls.X25519,
-				},
 			}
-		case "intermediate":
+		case "1.2":
 			tlsconf = &tls.Config{
 				MinVersion: tls.VersionTLS12,
-				CurvePreferences: []tls.CurveID{
-					tls.CurveP256,
-					tls.X25519,
-				},
-				CipherSuites: []uint16{
-					tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-					tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-					tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
-					tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
-					tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-					tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-					tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-					tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-				},
 			}
 		}
 	return &http.Server{
