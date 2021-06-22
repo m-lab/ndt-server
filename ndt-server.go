@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -37,6 +38,7 @@ var (
 	ndt5WssAddr       = flag.String("ndt5_wss_addr", ":3010", "The address and port to use for the ndt5 WSS test")
 	certFile          = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
+	tlsVersion        = flag.String("tls.version", "", "Minimum TLS version. Valid values: 1.2 or 1.3")
 	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
 	htmlDir           = flag.String("htmldir", "html", "The directory from which to serve static web content.")
 	tokenVerifyKey    = flagx.FileBytesArray{}
@@ -96,9 +98,21 @@ func init() {
 
 // httpServer creates a new *http.Server with explicit Read and Write timeouts.
 func httpServer(addr string, handler http.Handler) *http.Server {
+	tlsconf := &tls.Config{}
+	switch *tlsVersion {
+		case "1.3":
+			tlsconf = &tls.Config{
+				MinVersion: tls.VersionTLS13,
+			}
+		case "1.2":
+			tlsconf = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
+		}
 	return &http.Server{
 		Addr:    addr,
 		Handler: handler,
+		TLSConfig: tlsconf,
 		// NOTE: set absolute read and write timeouts for server connections.
 		// This prevents clients, or middleboxes, from opening a connection and
 		// holding it open indefinitely. This applies equally to TLS and non-TLS
