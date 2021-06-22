@@ -99,8 +99,6 @@ func init() {
 // httpServer creates a new *http.Server with explicit Read and Write timeouts.
 func httpServer(addr string, handler http.Handler) *http.Server {
 	tlsconf := &tls.Config{}
-	// "modern" and "intermediate" are defined here:
-	// https://wiki.mozilla.org/Security/Server_Side_TLS
 	switch *tlsVersion {
 		case "1.3":
 			tlsconf = &tls.Config{
