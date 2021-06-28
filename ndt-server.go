@@ -24,6 +24,7 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/listener"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/platformx"
+	"github.com/m-lab/ndt-server/version"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -45,6 +46,7 @@ var (
 	tokenRequired5    bool
 	tokenRequired7    bool
 	tokenMachine      string
+	canaryRelease     bool
 
 	// A metric to use to signal that the server is in lame duck mode.
 	lameDuck = promauto.NewGauge(prometheus.GaugeOpts{
@@ -61,6 +63,7 @@ func init() {
 	flag.BoolVar(&tokenRequired5, "ndt5.token.required", false, "Require access token in NDT5 requests")
 	flag.BoolVar(&tokenRequired7, "ndt7.token.required", false, "Require access token in NDT7 requests")
 	flag.StringVar(&tokenMachine, "token.machine", "", "Use given machine name to verify token claims")
+	flag.BoolVar(&canaryRelease, "canary", false, "Add -canary to server version in saved measurements")
 }
 
 func catchSigterm() {
@@ -100,18 +103,18 @@ func init() {
 func httpServer(addr string, handler http.Handler) *http.Server {
 	tlsconf := &tls.Config{}
 	switch *tlsVersion {
-		case "1.3":
-			tlsconf = &tls.Config{
-				MinVersion: tls.VersionTLS13,
-			}
-		case "1.2":
-			tlsconf = &tls.Config{
-				MinVersion: tls.VersionTLS12,
-			}
+	case "1.3":
+		tlsconf = &tls.Config{
+			MinVersion: tls.VersionTLS13,
 		}
+	case "1.2":
+		tlsconf = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+	}
 	return &http.Server{
-		Addr:    addr,
-		Handler: handler,
+		Addr:      addr,
+		Handler:   handler,
 		TLSConfig: tlsconf,
 		// NOTE: set absolute read and write timeouts for server connections.
 		// This prevents clients, or middleboxes, from opening a connection and
@@ -125,6 +128,10 @@ func httpServer(addr string, handler http.Handler) *http.Server {
 func main() {
 	flag.Parse()
 	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse env args")
+	// Append -canary to version string if needed.
+	if canaryRelease {
+		version.Version += "-canary"
+	}
 	// TODO: Decide if signal handling is the right approach here.
 	go catchSigterm()
 
