@@ -13,7 +13,7 @@
 # A base image for building and the final image.
 # NOTE: use debian based golang image to easily access libraries and development
 # packages that are unavailable or harder to setup in alpine-based images.
-FROM golang:1.13-buster AS ndtbase
+FROM golang:1.16.7-buster as ndtbase
 WORKDIR /
 RUN apt-get update && apt-get install -y git libmaxminddb0 libevent-2.1-6 \
     libevent-core-2.1-6 libevent-extra-2.1-6 \
