@@ -16,6 +16,16 @@ type ArchivalData struct {
 	ServerMeasurements []Measurement
 	ClientMeasurements []Measurement
 	ClientMetadata     []metadata.NameValue `json:",omitempty"`
+	PingMeasurements   []PingMeasurement
+}
+
+// PingMeasurement is a ping measurement.
+type PingMeasurement struct {
+	// RTT is the app-level RTT in millisecond.
+	RTT float64
+
+	// ElapsedTime is the elapsed time in microseconds.
+	ElapsedTime int64
 }
 
 // The Measurement struct contains measurement results. This structure is
