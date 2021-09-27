@@ -22,7 +22,7 @@ type ArchivalData struct {
 // PingMeasurement is a ping measurement.
 type PingMeasurement struct {
 	// RTT is the app-level RTT in millisecond.
-	RTT float64
+	RTT int64
 
 	// ElapsedTime is the elapsed time in microseconds.
 	ElapsedTime int64

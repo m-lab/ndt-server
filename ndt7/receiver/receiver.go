@@ -27,7 +27,7 @@ func start(
 	data *model.ArchivalData,
 ) {
 	// TODO(bassosimone): use a uniform definition of "beginning of time"
-	begin := time.Time()
+	begin := time.Now()
 	logging.Logger.Debug("receiver: start")
 	proto := ndt7metrics.ConnLabel(conn)
 	defer logging.Logger.Debug("receiver: stop")
@@ -46,9 +46,9 @@ func start(
 		if err == nil {
 			rtt /= int64(time.Millisecond)
 			logging.Logger.Debugf("receiver: ApplicationLevel RTT: %d ms", rtt)
-			data.PingMeasurements = append(data.PingMeasurements, &model.PingMeasurement{
+			data.PingMeasurements = append(data.PingMeasurements, model.PingMeasurement{
 				RTT: rtt,
-				ElapsedTime: time.Since(begin) / time.Microsecond,
+				ElapsedTime: int64(time.Since(begin) / time.Microsecond),
 			})
 		} else {
 			ndt7metrics.ClientReceiverErrors.WithLabelValues(
