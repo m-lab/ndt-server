@@ -55,7 +55,8 @@ mkdir -p "${DATA_DIR}"/traceroute
 /traceroute-caller \
   --prometheusx.listen-address=:9992 \
   --uuid-prefix-file="${UUID_FILE}" \
-  --outputPath="${DATA_DIR}"/traceroute \
+  --hopannotation-output="${DATA_DIR}"/hopannotation1 \
+  --traceroute-output="${DATA_DIR}"/scamper1 \
   --tcpinfo.eventsocket=/var/local/tcpeventsocket.sock \
   &
 
