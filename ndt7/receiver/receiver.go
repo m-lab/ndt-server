@@ -5,6 +5,7 @@ package receiver
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -51,10 +52,12 @@ func start(
 		return err
 	})
 	for receiverctx.Err() == nil { // Liveness!
-		mtype, mdata, err := conn.ReadMessage()
+		// By getting a Reader here we avoid allocating memory for the message
+		// when the message type is not websocket.TextMessage.
+		mtype, r, err := conn.NextReader()
 		if err != nil {
 			ndt7metrics.ClientReceiverErrors.WithLabelValues(
-				proto, string(kind), "read-message").Inc()
+				proto, string(kind), "read-message-type").Inc()
 			return
 		}
 		if mtype != websocket.TextMessage {
@@ -68,6 +71,13 @@ func start(
 				// NOTE: this is the bulk upload path. In this case, the mdata is not used.
 				continue // No further processing required
 			}
+		}
+		// This is a TextMessage, so we must read it.
+		mdata, err := ioutil.ReadAll(r)
+		if err != nil {
+			ndt7metrics.ClientReceiverErrors.WithLabelValues(
+				proto, string(kind), "read-message").Inc()
+			return
 		}
 		var measurement model.Measurement
 		err = json.Unmarshal(mdata, &measurement)
