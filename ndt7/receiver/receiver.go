@@ -57,7 +57,7 @@ func start(
 		mtype, r, err := conn.NextReader()
 		if err != nil {
 			ndt7metrics.ClientReceiverErrors.WithLabelValues(
-				proto, string(kind), "read-message").Inc()
+				proto, string(kind), "read-message-type").Inc()
 			return
 		}
 		if mtype != websocket.TextMessage {
