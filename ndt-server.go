@@ -163,8 +163,6 @@ func main() {
 	if labelsMap["deployment"] == "canary" {
 		version.Version += "-canary"
 	}
-	log.Printf("%v", labelsMap)
-	log.Printf("%v", metadata.ServerMetadata)
 
 	// TODO: Decide if signal handling is the right approach here.
 	go catchSigterm()
