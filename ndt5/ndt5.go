@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/m-lab/go/rtx"
+	"github.com/m-lab/ndt-server/metadata"
 	"github.com/m-lab/ndt-server/ndt5/control"
 	"github.com/m-lab/ndt-server/version"
 
@@ -226,6 +227,7 @@ func handleControlChannel(conn protocol.Connection, s ndt.Server, isMon string) 
 		record.Control.ClientMetadata, err = meta.ManageTest(ctx, m, s)
 		rtx.PanicOnError(err, "META - Could not run meta test (uuid: %s)", record.Control.UUID)
 	}
+	record.Control.ServerMetadata = metadata.ServerMetadata
 	speedMsg := fmt.Sprintf("You uploaded at %.4f and downloaded at %.4f", c2sRate*1000, s2cRate*1000)
 	log.Println(speedMsg)
 	// For historical reasons, clients expect results in kbps

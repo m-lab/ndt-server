@@ -16,6 +16,7 @@ type ArchivalData struct {
 	ServerMeasurements []Measurement
 	ClientMeasurements []Measurement
 	ClientMetadata     []metadata.NameValue `json:",omitempty"`
+	ServerMetadata     []metadata.NameValue `json:",omitempty"`
 }
 
 // The Measurement struct contains measurement results. This structure is

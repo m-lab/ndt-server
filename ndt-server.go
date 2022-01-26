@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/ndt-server/logging"
+	"github.com/m-lab/ndt-server/metadata"
 	ndt5handler "github.com/m-lab/ndt-server/ndt5/handler"
 	"github.com/m-lab/ndt-server/ndt5/plain"
 	"github.com/m-lab/ndt-server/ndt7/handler"
@@ -42,11 +44,12 @@ var (
 	tlsVersion        = flag.String("tls.version", "", "Minimum TLS version. Valid values: 1.2 or 1.3")
 	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
 	htmlDir           = flag.String("htmldir", "html", "The directory from which to serve static web content.")
+	deploymentLabels  = flag.String("label", "", "Labels to identify the type of deployment.")
+	labelsMap         = map[string]string{"machine-type": "physical", "deployment": "stable"}
 	tokenVerifyKey    = flagx.FileBytesArray{}
 	tokenRequired5    bool
 	tokenRequired7    bool
 	tokenMachine      string
-	canaryRelease     bool
 
 	// A metric to use to signal that the server is in lame duck mode.
 	lameDuck = promauto.NewGauge(prometheus.GaugeOpts{
@@ -63,7 +66,6 @@ func init() {
 	flag.BoolVar(&tokenRequired5, "ndt5.token.required", false, "Require access token in NDT5 requests")
 	flag.BoolVar(&tokenRequired7, "ndt7.token.required", false, "Require access token in NDT7 requests")
 	flag.StringVar(&tokenMachine, "token.machine", "", "Use given machine name to verify token claims")
-	flag.BoolVar(&canaryRelease, "canary", false, "Add -canary to server version in saved measurements")
 }
 
 func catchSigterm() {
@@ -125,13 +127,45 @@ func httpServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
+// parseDeploymentLabels() parses the content of the "label" flag,
+// which is a comma-separated string of key-value pairs (key=value).
+// `labelsMap` contains the default values for the labels. If any
+// of these are specified in the flag, their value will be overwritten
+// by that passed into the flag.
+func parseDeploymentLabels() {
+	// Parse and save labels flag.
+	splitLabels := strings.Split(*deploymentLabels, ",")
+	for _, l := range splitLabels {
+		keyValue := strings.Split(l, "=")
+		if len(keyValue) == 2 {
+			labelsMap[keyValue[0]] = keyValue[1]
+		}
+	}
+
+	// Update metadata with labels.
+	metadata.ServerMetadata = make([]metadata.NameValue, 0)
+	for k, v := range labelsMap {
+		metadata.ServerMetadata = append(metadata.ServerMetadata,
+			metadata.NameValue{
+				Name:  k,
+				Value: v,
+			},
+		)
+	}
+}
+
 func main() {
 	flag.Parse()
 	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse env args")
+
+	parseDeploymentLabels()
 	// Append -canary to version string if needed.
-	if canaryRelease {
+	if labelsMap["deployment"] == "canary" {
 		version.Version += "-canary"
 	}
+	log.Printf("%v", labelsMap)
+	log.Printf("%v", metadata.ServerMetadata)
+
 	// TODO: Decide if signal handling is the right approach here.
 	go catchSigterm()
 

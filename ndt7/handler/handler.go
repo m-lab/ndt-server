@@ -79,6 +79,7 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 
 	// Collect most client metadata from request parameters.
 	appendClientMetadata(data, req.URL.Query())
+	data.ServerMetadata = metadata.ServerMetadata
 	// Create ultimate result.
 	result := setupResult(conn)
 	result.StartTime = time.Now().UTC()

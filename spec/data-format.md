@@ -41,6 +41,8 @@ Both upload and download data use the same schema. Only "Upload" is shown below.
         ],
         "ClientMetadata": {
         },
+        "ServerMetadata": {
+        },
         "ServerMeasurements": [
         ]
     }
@@ -59,6 +61,20 @@ Valid JSON metadata object in ClientMetadata could look like this:
 {
   "ClientLibraryName": "libndt7.js",
   "ClientLibraryVersion": "0.4"
+}
+```
+
+## Server Metadata
+
+The data contained in the ServerMetadata JSON is the one contained
+in the "-label" flag provided specified in the deployment configuration.
+
+Valid JSON metadata object in ServerMetadata could look like this:
+
+```JSON
+{
+  "machine-type": "virtual",
+  "deployment": "stable"
 }
 ```
 
