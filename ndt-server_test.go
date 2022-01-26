@@ -10,13 +10,16 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/m-lab/go/osx"
 	"github.com/m-lab/go/prometheusx/promtest"
 	"github.com/m-lab/go/rtx"
+	"github.com/m-lab/ndt-server/metadata"
 
 	pipe "gopkg.in/m-lab/pipe.v3"
 )
@@ -309,4 +312,76 @@ func Test_MainIntegrationTest(t *testing.T) {
 		}(c)
 	}
 	wg.Wait()
+}
+
+func Test_ParseDeploymentLabels(t *testing.T) {
+	tests := []struct {
+		name   string
+		labels string
+		want   []metadata.NameValue
+	}{
+		{
+			name:   "all-labels-defined",
+			labels: "machine-type=virtual,deployment=canary",
+			want: []metadata.NameValue{
+				{
+					Name:  "machine-type",
+					Value: "virtual",
+				},
+				{
+					Name:  "deployment",
+					Value: "canary",
+				},
+			},
+		},
+		{
+			name:   "only-one",
+			labels: "deployment=osupgrade",
+			want: []metadata.NameValue{
+				{
+					Name:  "machine-type",
+					Value: "physical",
+				},
+				{
+					Name:  "deployment",
+					Value: "osupgrade",
+				},
+			},
+		},
+		{
+			name:   "none",
+			labels: "",
+			want: []metadata.NameValue{
+				{
+					Name:  "machine-type",
+					Value: "physical",
+				},
+				{
+					Name:  "deployment",
+					Value: "stable",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deploymentLabels = &tt.labels
+			parseDeploymentLabels()
+
+			// Sort slices so we can compare them.
+			sortNameValueSlice(metadata.ServerMetadata)
+			sortNameValueSlice(tt.want)
+
+			if cmp.Diff(metadata.ServerMetadata, tt.want) != "" {
+				t.Errorf("ndt-server.parseDeploymentLabels() got = %v, want %v", metadata.ServerMetadata, tt.want)
+			}
+		})
+	}
+}
+
+func sortNameValueSlice(nv []metadata.NameValue) {
+	sort.Slice(nv, func(i, j int) bool {
+		return nv[i].Name < nv[j].Name
+	})
 }

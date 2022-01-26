@@ -45,11 +45,13 @@ var (
 	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
 	htmlDir           = flag.String("htmldir", "html", "The directory from which to serve static web content.")
 	deploymentLabels  = flag.String("label", "", "Labels to identify the type of deployment.")
-	labelsMap         = map[string]string{"machine-type": "physical", "deployment": "stable"}
 	tokenVerifyKey    = flagx.FileBytesArray{}
 	tokenRequired5    bool
 	tokenRequired7    bool
 	tokenMachine      string
+
+	// Map for deployment label name to value.
+	labelsMap = map[string]string{}
 
 	// A metric to use to signal that the server is in lame duck mode.
 	lameDuck = promauto.NewGauge(prometheus.GaugeOpts{
@@ -133,6 +135,9 @@ func httpServer(addr string, handler http.Handler) *http.Server {
 // of these are specified in the flag, their value will be overwritten
 // by that passed into the flag.
 func parseDeploymentLabels() {
+	// Initially set labels to map to default values.
+	labelsMap = map[string]string{"machine-type": "physical", "deployment": "stable"}
+
 	// Parse and save labels flag.
 	splitLabels := strings.Split(*deploymentLabels, ",")
 	for _, l := range splitLabels {
