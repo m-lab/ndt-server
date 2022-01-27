@@ -5,6 +5,7 @@ go 1.15
 require (
 	github.com/apex/log v1.9.0
 	github.com/gocarina/gocsv v0.0.0-20201208093247-67c824bc04d4 // indirect
+	github.com/google/go-cmp v0.4.0
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/websocket v1.4.2
@@ -14,6 +15,9 @@ require (
 	github.com/m-lab/tcp-info v1.5.3
 	github.com/m-lab/uuid v0.0.0-20191115203855-549727171666
 	github.com/prometheus/client_golang v1.7.1
+	github.com/stretchr/testify v1.7.0 // indirect
+	golang.org/x/sys v0.0.0-20210510120138-977fb7262007 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/m-lab/pipe.v3 v3.0.0-20180108231244-604e84f43ee0
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 )

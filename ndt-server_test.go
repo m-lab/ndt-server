@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"sync"
 	"testing"
@@ -20,6 +19,7 @@ import (
 	"github.com/m-lab/go/prometheusx/promtest"
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/ndt-server/metadata"
+	"go.uber.org/goleak"
 
 	pipe "gopkg.in/m-lab/pipe.v3"
 )
@@ -94,13 +94,15 @@ func setupMain() func() {
 }
 
 func Test_ContextCancelsMain(t *testing.T) {
+	// Verify that there are no unexpected goroutines running at the end of the test.
+	defer goleak.VerifyNone(t)
+
 	// Set up certs and the environment vars for the commandline.
 	cleanup := setupMain()
 	defer cleanup()
 
 	// Set up the global context for main()
 	ctx, cancel = context.WithCancel(context.Background())
-	before := runtime.NumGoroutine()
 
 	// Run main, but cancel it very soon after starting.
 	go func() {
@@ -109,15 +111,6 @@ func Test_ContextCancelsMain(t *testing.T) {
 	}()
 	// If this doesn't run forever, then canceling the context causes main to exit.
 	main()
-
-	// A sleep has been added here to allow all completed goroutines to exit.
-	time.Sleep(100 * time.Millisecond)
-
-	// Make sure main() doesn't leak goroutines.
-	after := runtime.NumGoroutine()
-	if before != after {
-		t.Errorf("After running NumGoroutines changed: %d to %d", before, after)
-	}
 }
 
 func TestMetrics(t *testing.T) {
