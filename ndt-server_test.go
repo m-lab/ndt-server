@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -93,9 +94,19 @@ func setupMain() func() {
 	}
 }
 
+// Define goleak's testing interface.
+type fakeT struct {
+	t *testing.T
+}
+
+// Throw an error when a leak is detected.
+func (ft *fakeT) Error(args ...interface{}) {
+	ft.t.Errorf("Found leaked goroutines: %s", fmt.Sprint(args))
+}
+
 func Test_ContextCancelsMain(t *testing.T) {
 	// Verify that there are no unexpected goroutines running at the end of the test.
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(&fakeT{t})
 
 	// Set up certs and the environment vars for the commandline.
 	cleanup := setupMain()
@@ -355,6 +366,24 @@ func Test_ParseDeploymentLabels(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "no-default",
+			labels: "foo=bar",
+			want: []metadata.NameValue{
+				{
+					Name:  "machine-type",
+					Value: "physical",
+				},
+				{
+					Name:  "deployment",
+					Value: "stable",
+				},
+				{
+					Name: "foo",
+					Value: "bar",
+				},
+			},
+		}
 	}
 
 	for _, tt := range tests {

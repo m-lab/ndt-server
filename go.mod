@@ -16,6 +16,7 @@ require (
 	github.com/m-lab/uuid v0.0.0-20191115203855-549727171666
 	github.com/prometheus/client_golang v1.7.1
 	github.com/stretchr/testify v1.7.0 // indirect
+	go.uber.org/goleak v1.1.12
 	golang.org/x/sys v0.0.0-20210510120138-977fb7262007 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/m-lab/pipe.v3 v3.0.0-20180108231244-604e84f43ee0
