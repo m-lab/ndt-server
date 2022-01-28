@@ -16,6 +16,7 @@ import (
 	"github.com/m-lab/go/osx"
 	"github.com/m-lab/go/prometheusx/promtest"
 	"github.com/m-lab/go/rtx"
+	"go.uber.org/goleak"
 
 	pipe "gopkg.in/m-lab/pipe.v3"
 )
@@ -116,7 +117,7 @@ func Test_ContextCancelsMain(t *testing.T) {
 	main()
 
 	// Verify that there are no unexpected goroutines running at the end of the test.
-	//goleak.VerifyNone(&fakeT{t})
+	goleak.VerifyNone(&fakeT{t})
 }
 
 func TestMetrics(t *testing.T) {
