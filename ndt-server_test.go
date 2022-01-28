@@ -141,7 +141,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 	wsAddr := os.Getenv("NDT5_WS_ADDR")[1:]
 	wssAddr := os.Getenv("NDT5_WSS_ADDR")[1:]
 	ndt7Addr := os.Getenv("NDT7_ADDR")[1:]
-	ndt7AddrCleartext := os.Getenv("NDT7_ADDR_CLEARTEXT")[1:]
+	//ndt7AddrCleartext := os.Getenv("NDT7_ADDR_CLEARTEXT")[1:]
 
 	// Get the datadir
 	dataDir := os.Getenv("DATADIR")
