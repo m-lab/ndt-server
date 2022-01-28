@@ -101,9 +101,6 @@ func (ft *fakeT) Error(args ...interface{}) {
 }
 
 func Test_ContextCancelsMain(t *testing.T) {
-	// Verify that there are no unexpected goroutines running at the end of the test.
-	defer goleak.VerifyNone(&fakeT{t})
-
 	// Set up certs and the environment vars for the commandline.
 	cleanup := setupMain()
 	defer cleanup()
@@ -118,6 +115,9 @@ func Test_ContextCancelsMain(t *testing.T) {
 	}()
 	// If this doesn't run forever, then canceling the context causes main to exit.
 	main()
+
+	// Verify that there are no unexpected goroutines running at the end of the test.
+	goleak.VerifyNone(&fakeT{t})
 }
 
 func TestMetrics(t *testing.T) {
