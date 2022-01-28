@@ -267,12 +267,12 @@ func Test_MainIntegrationTest(t *testing.T) {
 			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
 			ignoreData: true,
 		},
-		{
-			name: "Test the ndt7 protocol in cleartext",
-			cmd:  "timeout 45s ndt7-client -scheme ws -server localhost:" + ndt7AddrCleartext,
-			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
-			ignoreData: true,
-		},
+		// {
+		// 	name: "Test the ndt7 protocol in cleartext",
+		// 	cmd:  "timeout 45s ndt7-client -scheme ws -server localhost:" + ndt7AddrCleartext,
+		// 	// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
+		// 	ignoreData: true,
+		// },
 		// Measurement Kit client
 		{
 			name: "measurement_kit testing ndt5 protocol",
