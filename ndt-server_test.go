@@ -1,126 +1,107 @@
 package main
 
-import (
-	"context"
-	"io/ioutil"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"os"
-	"path/filepath"
-	"testing"
-	"time"
+// // Get a bunch of open ports, and then close them. Hopefully the ports will
+// // remain open for the next few microseconds so that we can use them in unit
+// // tests.
+// func getOpenPorts(n int) []string {
+// 	ports := []string{}
+// 	for i := 0; i < n; i++ {
+// 		ts := httptest.NewServer(http.NewServeMux())
+// 		defer ts.Close()
+// 		u, err := url.Parse(ts.URL)
+// 		rtx.Must(err, "Could not parse url to local server:", ts.URL)
+// 		ports = append(ports, ":"+u.Port())
+// 	}
+// 	return ports
+// }
 
-	"github.com/m-lab/go/osx"
-	"github.com/m-lab/go/prometheusx/promtest"
-	"github.com/m-lab/go/rtx"
-	"go.uber.org/goleak"
+// func countFiles(dir string) int {
+// 	count := 0
+// 	filepath.Walk(dir, func(_path string, info os.FileInfo, _err error) error {
+// 		if !info.IsDir() {
+// 			count++
+// 		}
+// 		return nil
+// 	})
+// 	return count
+// }
 
-	pipe "gopkg.in/m-lab/pipe.v3"
-)
+// func setupMain() func() {
+// 	cleanups := []func(){}
 
-// Get a bunch of open ports, and then close them. Hopefully the ports will
-// remain open for the next few microseconds so that we can use them in unit
-// tests.
-func getOpenPorts(n int) []string {
-	ports := []string{}
-	for i := 0; i < n; i++ {
-		ts := httptest.NewServer(http.NewServeMux())
-		defer ts.Close()
-		u, err := url.Parse(ts.URL)
-		rtx.Must(err, "Could not parse url to local server:", ts.URL)
-		ports = append(ports, ":"+u.Port())
-	}
-	return ports
-}
+// 	// Create self-signed certs in a temp directory.
+// 	dir, err := ioutil.TempDir("", "TestNdtServerMain")
+// 	rtx.Must(err, "Could not create tempdir")
 
-func countFiles(dir string) int {
-	count := 0
-	filepath.Walk(dir, func(_path string, info os.FileInfo, _err error) error {
-		if !info.IsDir() {
-			count++
-		}
-		return nil
-	})
-	return count
-}
+// 	certFile := "cert.pem"
+// 	keyFile := "key.pem"
 
-func setupMain() func() {
-	cleanups := []func(){}
+// 	rtx.Must(
+// 		pipe.Run(
+// 			pipe.Script("Create private key and self-signed certificate",
+// 				pipe.Exec("openssl", "genrsa", "-out", keyFile),
+// 				pipe.Exec("openssl", "req", "-new", "-x509", "-key", keyFile, "-out",
+// 					certFile, "-days", "2", "-subj",
+// 					"/C=XX/ST=State/L=Locality/O=Org/OU=Unit/CN=Name/emailAddress=test@email.address"),
+// 			),
+// 		),
+// 		"Failed to generate server key and certs")
 
-	// Create self-signed certs in a temp directory.
-	dir, err := ioutil.TempDir("", "TestNdtServerMain")
-	rtx.Must(err, "Could not create tempdir")
+// 	// Set up the command-line args via environment variables:
+// 	ports := getOpenPorts(5)
+// 	for _, ev := range []struct{ key, value string }{
+// 		{"NDT7_ADDR", ports[0]},
+// 		{"NDT5_ADDR", ports[1]},
+// 		{"NDT5_WS_ADDR", ports[2]},
+// 		{"NDT5_WSS_ADDR", ports[3]},
+// 		{"NDT7_ADDR_CLEARTEXT", ports[4]},
+// 		{"CERT", certFile},
+// 		{"KEY", keyFile},
+// 		{"DATADIR", dir},
+// 	} {
+// 		cleanups = append(cleanups, osx.MustSetenv(ev.key, ev.value))
+// 	}
+// 	return func() {
+// 		os.RemoveAll(dir)
+// 		for _, f := range cleanups {
+// 			f()
+// 		}
+// 	}
+// }
 
-	certFile := "cert.pem"
-	keyFile := "key.pem"
+// // Define goleak's testing interface.
+// type fakeT struct {
+// 	t *testing.T
+// }
 
-	rtx.Must(
-		pipe.Run(
-			pipe.Script("Create private key and self-signed certificate",
-				pipe.Exec("openssl", "genrsa", "-out", keyFile),
-				pipe.Exec("openssl", "req", "-new", "-x509", "-key", keyFile, "-out",
-					certFile, "-days", "2", "-subj",
-					"/C=XX/ST=State/L=Locality/O=Org/OU=Unit/CN=Name/emailAddress=test@email.address"),
-			),
-		),
-		"Failed to generate server key and certs")
+// // Throw an error when a leak is detected.
+// func (ft *fakeT) Error(args ...interface{}) {
+// 	ft.t.Errorf("Found leaked goroutines: %v", args)
+// }
 
-	// Set up the command-line args via environment variables:
-	ports := getOpenPorts(5)
-	for _, ev := range []struct{ key, value string }{
-		{"NDT7_ADDR", ports[0]},
-		{"NDT5_ADDR", ports[1]},
-		{"NDT5_WS_ADDR", ports[2]},
-		{"NDT5_WSS_ADDR", ports[3]},
-		{"NDT7_ADDR_CLEARTEXT", ports[4]},
-		{"CERT", certFile},
-		{"KEY", keyFile},
-		{"DATADIR", dir},
-	} {
-		cleanups = append(cleanups, osx.MustSetenv(ev.key, ev.value))
-	}
-	return func() {
-		os.RemoveAll(dir)
-		for _, f := range cleanups {
-			f()
-		}
-	}
-}
+// func Test_ContextCancelsMain(t *testing.T) {
+// 	// Set up certs and the environment vars for the commandline.
+// 	cleanup := setupMain()
+// 	defer cleanup()
 
-// Define goleak's testing interface.
-type fakeT struct {
-	t *testing.T
-}
+// 	// Set up the global context for main()
+// 	ctx, cancel = context.WithCancel(context.Background())
 
-// Throw an error when a leak is detected.
-func (ft *fakeT) Error(args ...interface{}) {
-	ft.t.Errorf("Found leaked goroutines: %v", args)
-}
+// 	// Run main, but cancel it very soon after starting.
+// 	go func() {
+// 		time.Sleep(1 * time.Second)
+// 		cancel()
+// 	}()
+// 	// If this doesn't run forever, then canceling the context causes main to exit.
+// 	main()
 
-func Test_ContextCancelsMain(t *testing.T) {
-	// Set up certs and the environment vars for the commandline.
-	cleanup := setupMain()
-	defer cleanup()
+// 	// Verify that there are no unexpected goroutines running at the end of the test.
+// 	goleak.VerifyNone(&fakeT{t})
+// }
 
-	// Set up the global context for main()
-	ctx, cancel = context.WithCancel(context.Background())
-
-	// Run main, but cancel it very soon after starting.
-	go func() {
-		time.Sleep(1 * time.Second)
-		cancel()
-	}()
-	// If this doesn't run forever, then canceling the context causes main to exit.
-	main()
-
-	// Verify that there are no unexpected goroutines running at the end of the test.
-	goleak.VerifyNone(&fakeT{t})
-}
-
-func TestMetrics(t *testing.T) {
-	promtest.LintMetrics(t)
-}
+// func TestMetrics(t *testing.T) {
+// 	promtest.LintMetrics(t)
+// }
 
 // func Test_MainIntegrationTest(t *testing.T) {
 // 	if testing.Short() {
