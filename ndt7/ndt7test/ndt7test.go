@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/m-lab/go/testingx"
 	"github.com/m-lab/ndt-server/ndt7/handler"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/netx"
@@ -16,8 +17,8 @@ import (
 // NewNDT7Server creates a local httptest server capable of running an ndt7
 // measurement in unittests.
 func NewNDT7Server(t *testing.T) (*handler.Handler, *httptest.Server) {
-	dir, _ := ioutil.TempDir("", "ndt7test-*")
-	//testingx.Must(t, err, "failed to create temp dir")
+	dir, err := ioutil.TempDir("", "ndt7test-*")
+	testingx.Must(t, err, "failed to create temp dir")
 
 	// TODO: add support for token verifiers.
 	// TODO: add support for TLS server.
@@ -28,8 +29,8 @@ func NewNDT7Server(t *testing.T) (*handler.Handler, *httptest.Server) {
 
 	// Create unstarted so we can setup a custom netx.Listener.
 	ts := httptest.NewUnstartedServer(ndt7Mux)
-	listener, _ := net.Listen("tcp", ":0")
-	//testingx.Must(t, err, "failed to allocate a listening tcp socket")
+	listener, err := net.Listen("tcp", ":0")
+	testingx.Must(t, err, "failed to allocate a listening tcp socket")
 	addr := (listener.(*net.TCPListener)).Addr().(*net.TCPAddr)
 	// Populate insecure port value with dynamic port.
 	ndt7Handler.InsecurePort = fmt.Sprintf(":%d", addr.Port)
