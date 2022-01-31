@@ -50,7 +50,7 @@ var (
 	tokenRequired7    bool
 	tokenMachine      string
 
-	// Map for deployment label name to value.
+	// Map for deployment-label-name to value.
 	labelsMap = map[string]string{}
 
 	// A metric to use to signal that the server is in lame duck mode.
@@ -141,7 +141,7 @@ func parseDeploymentLabels() {
 	// Parse and save labels flag.
 	splitLabels := strings.Split(*deploymentLabels, ",")
 	for _, l := range splitLabels {
-		keyValue := strings.Split(l, "=")
+		keyValue := strings.Split(l, ":")
 		if len(keyValue) == 2 {
 			labelsMap[keyValue[0]] = keyValue[1]
 		}

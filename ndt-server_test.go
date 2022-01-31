@@ -9,13 +9,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/m-lab/go/osx"
 	"github.com/m-lab/go/prometheusx/promtest"
 	"github.com/m-lab/go/rtx"
@@ -322,7 +322,7 @@ func Test_ParseDeploymentLabels(t *testing.T) {
 	}{
 		{
 			name:   "all-labels-defined",
-			labels: "machine-type=virtual,deployment=canary",
+			labels: "machine-type:virtual,deployment:canary",
 			want: []metadata.NameValue{
 				{
 					Name:  "machine-type",
@@ -336,7 +336,7 @@ func Test_ParseDeploymentLabels(t *testing.T) {
 		},
 		{
 			name:   "only-one",
-			labels: "deployment=osupgrade",
+			labels: "deployment:osupgrade",
 			want: []metadata.NameValue{
 				{
 					Name:  "machine-type",
@@ -362,6 +362,24 @@ func Test_ParseDeploymentLabels(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "no-default",
+			labels: "foo:bar",
+			want: []metadata.NameValue{
+				{
+					Name:  "machine-type",
+					Value: "physical",
+				},
+				{
+					Name:  "deployment",
+					Value: "stable",
+				},
+				{
+					Name:  "foo",
+					Value: "bar",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -373,7 +391,7 @@ func Test_ParseDeploymentLabels(t *testing.T) {
 			sortNameValueSlice(metadata.ServerMetadata)
 			sortNameValueSlice(tt.want)
 
-			if cmp.Diff(metadata.ServerMetadata, tt.want) != "" {
+			if !reflect.DeepEqual(metadata.ServerMetadata, tt.want) {
 				t.Errorf("ndt-server.parseDeploymentLabels() got = %v, want %v", metadata.ServerMetadata, tt.want)
 			}
 		})
