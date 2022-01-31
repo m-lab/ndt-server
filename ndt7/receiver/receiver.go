@@ -28,6 +28,8 @@ func start(
 	ctx context.Context, conn *websocket.Conn, kind receiverKind,
 	data *model.ArchivalData,
 ) {
+	// TODO(bassosimone): use a uniform definition of "beginning of time"
+	begin := time.Now()
 	logging.Logger.Debug("receiver: start")
 	proto := ndt7metrics.ConnLabel(conn)
 	defer logging.Logger.Debug("receiver: stop")
@@ -46,6 +48,10 @@ func start(
 		if err == nil {
 			rtt /= int64(time.Millisecond)
 			logging.Logger.Debugf("receiver: ApplicationLevel RTT: %d ms", rtt)
+			data.PingMeasurements = append(data.PingMeasurements, model.PingMeasurement{
+				RTT: rtt,
+				ElapsedTime: int64(time.Since(begin) / time.Microsecond),
+			})
 		} else {
 			ndt7metrics.ClientReceiverErrors.WithLabelValues(
 				proto, fmt.Sprint(kind), "ping-parse-ticks").Inc()
