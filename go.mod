@@ -14,6 +14,7 @@ require (
 	github.com/m-lab/tcp-info v1.5.3
 	github.com/m-lab/uuid v0.0.0-20191115203855-549727171666
 	github.com/prometheus/client_golang v1.7.1
+	go.uber.org/goleak v1.1.12
 	gopkg.in/m-lab/pipe.v3 v3.0.0-20180108231244-604e84f43ee0
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 )
