@@ -58,10 +58,16 @@ in the query string as specified in the "Query string parameters" section of
 Valid JSON metadata object in ClientMetadata could look like this:
 
 ```JSON
-{
-  "ClientLibraryName": "libndt7.js",
-  "ClientLibraryVersion": "0.4"
-}
+"ClientMetadata":[
+  {
+    "Name":"ClientLibraryName",
+    "Value":"libndt7.js"
+  },
+  {
+    "Name":"ClientLibraryVersion",
+    "Value":0.4"
+  }
+]
 ```
 
 ## Server Metadata
