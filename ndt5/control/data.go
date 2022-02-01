@@ -12,4 +12,5 @@ type ArchivalData struct {
 	Protocol        ndt.ConnectionType
 	MessageProtocol string
 	ClientMetadata  []metadata.NameValue `json:",omitempty"`
+	ServerMetadata  []metadata.NameValue `json:",omitempty"`
 }

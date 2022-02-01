@@ -8,6 +8,7 @@ import (
 
 	"github.com/m-lab/access/controller"
 	"github.com/m-lab/go/warnonerror"
+	"github.com/m-lab/ndt-server/metadata"
 	"github.com/m-lab/ndt-server/ndt5"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
@@ -34,10 +35,12 @@ type httpHandler struct {
 	serverFactory  ndt.SingleMeasurementServerFactory
 	connectionType ndt.ConnectionType
 	datadir        string
+	metadata       []metadata.NameValue
 }
 
 func (s *httpHandler) DataDir() string                    { return s.datadir }
 func (s *httpHandler) ConnectionType() ndt.ConnectionType { return s.connectionType }
+func (s *httpHandler) Metadata() []metadata.NameValue     { return s.metadata }
 
 func (s *httpHandler) LoginCeremony(conn protocol.Connection) (int, error) {
 	// WS and WSS both only support JSON clients and not TLV clients.
@@ -71,11 +74,12 @@ func (s *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // NewWS returns a handler suitable for http-based connections.
-func NewWS(datadir string) WSHandler {
+func NewWS(datadir string, metadata []metadata.NameValue) WSHandler {
 	return &httpHandler{
 		serverFactory:  &httpFactory{},
 		connectionType: ndt.WS,
 		datadir:        datadir,
+		metadata:       metadata,
 	}
 }
 
@@ -89,7 +93,7 @@ func (hf *httpsFactory) SingleServingServer(dir string) (ndt.SingleMeasurementSe
 }
 
 // NewWSS returns a handler suitable for https-based connections.
-func NewWSS(datadir, certFile, keyFile string) WSHandler {
+func NewWSS(datadir, certFile, keyFile string, metadata []metadata.NameValue) WSHandler {
 	return &httpHandler{
 		serverFactory: &httpsFactory{
 			certFile: certFile,
@@ -97,5 +101,6 @@ func NewWSS(datadir, certFile, keyFile string) WSHandler {
 		},
 		connectionType: ndt.WSS,
 		datadir:        datadir,
+		metadata:       metadata,
 	}
 }

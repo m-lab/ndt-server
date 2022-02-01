@@ -39,8 +39,10 @@ Both upload and download data use the same schema. Only "Upload" is shown below.
         "UUID": "soltesz99.nyc.corp.google.com_1563200740_unsafe_00000000000157C6",
         "ClientMeasurements": [
         ],
-        "ClientMetadata": {
-        },
+        "ClientMetadata": [
+        ],
+        "ServerMetadata": [
+        ],
         "ServerMeasurements": [
         ]
     }
@@ -56,10 +58,36 @@ in the query string as specified in the "Query string parameters" section of
 Valid JSON metadata object in ClientMetadata could look like this:
 
 ```JSON
-{
-  "ClientLibraryName": "libndt7.js",
-  "ClientLibraryVersion": "0.4"
-}
+"ClientMetadata":[
+  {
+    "Name":"ClientLibraryName",
+    "Value":"libndt7.js"
+  },
+  {
+    "Name":"ClientLibraryVersion",
+    "Value":"0.4"
+  }
+]
+```
+
+## Server Metadata
+
+The data contained in the ServerMetadata JSON is the one contained
+in the "-label" flag specified in the deployment configuration.
+
+Valid JSON metadata object in ServerMetadata could look like this:
+
+```JSON
+"ServerMetadata":[
+  {
+    "Name":"deployment",
+    "Value":"stable"
+  },
+  {
+    "Name":"machine-type",
+    "Value":"virtual"
+  }
+]
 ```
 
 ## Client and Server Measurements

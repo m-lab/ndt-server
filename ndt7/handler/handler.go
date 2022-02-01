@@ -36,6 +36,8 @@ type Handler struct {
 	SecurePort string
 	// InsecurePort should contain the port used for insecure, WS tests.
 	InsecurePort string
+	// ServerMetadata contains deployment-specific metadata.
+	ServerMetadata []metadata.NameValue
 }
 
 // warnAndClose emits message as a warning and the sends a Bad Request
@@ -79,6 +81,7 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 
 	// Collect most client metadata from request parameters.
 	appendClientMetadata(data, req.URL.Query())
+	data.ServerMetadata = h.ServerMetadata
 	// Create ultimate result.
 	result := setupResult(conn)
 	result.StartTime = time.Now().UTC()

@@ -11,6 +11,7 @@ import (
 
 	"github.com/m-lab/go/httpx"
 	"github.com/m-lab/go/rtx"
+	"github.com/m-lab/ndt-server/metadata"
 )
 
 type fakeAccepter struct{}
@@ -56,7 +57,7 @@ func TestNewPlainServer(t *testing.T) {
 	}
 
 	// Set up the plain server
-	tcpS := NewServer(d, wsSrv.Addr)
+	tcpS := NewServer(d, wsSrv.Addr, []metadata.NameValue{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	fa := &fakeAccepter{}
@@ -111,7 +112,7 @@ func TestNewPlainServerBrokenForwarding(t *testing.T) {
 	rtx.Must(err, "Could not create tempdir")
 	defer os.RemoveAll(d)
 	// Set up the plain server forwarding to a non-open port.
-	tcpS := NewServer(d, "127.0.0.1:1")
+	tcpS := NewServer(d, "127.0.0.1:1", []metadata.NameValue{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	fa := &fakeAccepter{}

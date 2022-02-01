@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m-lab/ndt-server/metadata"
 	"github.com/m-lab/ndt-server/ndt5"
 	ndt5metrics "github.com/m-lab/ndt-server/ndt5/metrics"
 	"github.com/m-lab/ndt-server/ndt5/ndt"
@@ -29,6 +30,7 @@ type plainServer struct {
 	listener *netx.Listener
 	datadir  string
 	timeout  time.Duration
+	metadata []metadata.NameValue
 }
 
 func (ps *plainServer) SingleServingServer(direction string) (ndt.SingleMeasurementServer, error) {
@@ -167,6 +169,7 @@ func (ps *plainServer) ListenAndServe(ctx context.Context, addr string, tx Accep
 
 func (ps *plainServer) ConnectionType() ndt.ConnectionType { return ndt.Plain }
 func (ps *plainServer) DataDir() string                    { return ps.datadir }
+func (ps *plainServer) Metadata() []metadata.NameValue     { return ps.metadata }
 func (ps *plainServer) LoginCeremony(conn protocol.Connection) (int, error) {
 	flex, ok := conn.(protocol.MeasuredFlexibleConnection)
 	if !ok {
@@ -216,7 +219,7 @@ type Server interface {
 // NewServer creates a new TCP listener to serve the client. It forwards all
 // connection requests that look like HTTP to a different address (assumed to be
 // on the same host).
-func NewServer(datadir, wsAddr string) Server {
+func NewServer(datadir, wsAddr string, metadata []metadata.NameValue) Server {
 	return &plainServer{
 		wsAddr: wsAddr,
 		// The dialer is only contacting localhost. The timeout should be set to a
@@ -227,6 +230,7 @@ func NewServer(datadir, wsAddr string) Server {
 		},
 		datadir: datadir,
 		// No client should wait around for more than 2 minutes.
-		timeout: 2 * time.Minute,
+		timeout:  2 * time.Minute,
+		metadata: metadata,
 	}
 }
