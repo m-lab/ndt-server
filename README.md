@@ -8,6 +8,21 @@ spec/ndt7-protocol.md) server written in Go. This code may compile under
 many systems, including macOS and Windows, but is specifically designed
 and tested for running on Linux 4.17+.
 
+## Clients
+
+Depending on your needs, there are several ways to perform a client measurement
+using the NDT7 protocol.
+
+Officially supported by members of M-Lab staff.
+
+* https://github.com/m-lab/ndt7-js (javascript)
+* https://github.com/m-lab/ndt7-client-go (golang)
+
+Unofficially supported by members of the M-Lab community.
+
+* https://github.com/m-lab/ndt7-client-ios (swift)
+* https://github.com/m-lab/ndt7-client-android (kotlin)
+* https://github.com/m-lab/ndt7-client-android-java (java)
 
 ## Setup
 
