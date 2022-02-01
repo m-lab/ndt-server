@@ -65,7 +65,7 @@ Valid JSON metadata object in ClientMetadata could look like this:
   },
   {
     "Name":"ClientLibraryVersion",
-    "Value":0.4"
+    "Value":"0.4"
   }
 ]
 ```
