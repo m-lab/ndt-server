@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -366,10 +367,18 @@ func Test_ParseDeploymentLabels(t *testing.T) {
 			}
 
 			serverMetadata := parseDeploymentLabels()
+			sortNameValueSlice(serverMetadata)
+			sortNameValueSlice(tt.want)
 
 			if !reflect.DeepEqual(serverMetadata, tt.want) {
 				t.Errorf("ndt-server.parseDeploymentLabels() got = %v, want %v", serverMetadata, tt.want)
 			}
 		})
 	}
+}
+
+func sortNameValueSlice(nv []metadata.NameValue) {
+	sort.Slice(nv, func(i, j int) bool {
+		return nv[i].Name < nv[j].Name
+	})
 }
