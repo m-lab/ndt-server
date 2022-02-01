@@ -67,7 +67,7 @@ Valid JSON metadata object in ClientMetadata could look like this:
 ## Server Metadata
 
 The data contained in the ServerMetadata JSON is the one contained
-in the "-label" flag provided specified in the deployment configuration.
+in the "-label" flag specified in the deployment configuration.
 
 Valid JSON metadata object in ServerMetadata could look like this:
 
