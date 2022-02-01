@@ -10,11 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/m-lab/go/flagx"
 	"github.com/m-lab/go/osx"
 	"github.com/m-lab/go/prometheusx/promtest"
 	"github.com/m-lab/go/rtx"
@@ -319,12 +319,15 @@ func Test_MainIntegrationTest(t *testing.T) {
 func Test_ParseDeploymentLabels(t *testing.T) {
 	tests := []struct {
 		name   string
-		labels string
+		labels []string
 		want   []metadata.NameValue
 	}{
 		{
-			name:   "all-labels-defined",
-			labels: "machine-type:virtual,deployment:canary",
+			name: "labels-defined",
+			labels: []string{
+				"machine-type=virtual",
+				"deployment=canary",
+			},
 			want: []metadata.NameValue{
 				{
 					Name:  "machine-type",
@@ -337,13 +340,11 @@ func Test_ParseDeploymentLabels(t *testing.T) {
 			},
 		},
 		{
-			name:   "only-one",
-			labels: "deployment:osupgrade",
+			name: "only-one",
+			labels: []string{
+				"deployment=osupgrade",
+			},
 			want: []metadata.NameValue{
-				{
-					Name:  "machine-type",
-					Value: "physical",
-				},
 				{
 					Name:  "deployment",
 					Value: "osupgrade",
@@ -351,57 +352,24 @@ func Test_ParseDeploymentLabels(t *testing.T) {
 			},
 		},
 		{
-			name:   "none",
-			labels: "",
-			want: []metadata.NameValue{
-				{
-					Name:  "machine-type",
-					Value: "physical",
-				},
-				{
-					Name:  "deployment",
-					Value: "stable",
-				},
-			},
-		},
-		{
-			name:   "no-default",
-			labels: "foo:bar",
-			want: []metadata.NameValue{
-				{
-					Name:  "machine-type",
-					Value: "physical",
-				},
-				{
-					Name:  "deployment",
-					Value: "stable",
-				},
-				{
-					Name:  "foo",
-					Value: "bar",
-				},
-			},
+			name:   "empty",
+			labels: []string{},
+			want:   []metadata.NameValue{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			deploymentLabels = &tt.labels
-			parseDeploymentLabels()
+			deploymentLabels = flagx.KeyValue{}
+			for _, label := range tt.labels {
+				deploymentLabels.Set(label)
+			}
 
-			// Sort slices so we can compare them.
-			sortNameValueSlice(metadata.ServerMetadata)
-			sortNameValueSlice(tt.want)
+			serverMetadata := parseDeploymentLabels()
 
-			if !reflect.DeepEqual(metadata.ServerMetadata, tt.want) {
-				t.Errorf("ndt-server.parseDeploymentLabels() got = %v, want %v", metadata.ServerMetadata, tt.want)
+			if !reflect.DeepEqual(serverMetadata, tt.want) {
+				t.Errorf("ndt-server.parseDeploymentLabels() got = %v, want %v", serverMetadata, tt.want)
 			}
 		})
 	}
-}
-
-func sortNameValueSlice(nv []metadata.NameValue) {
-	sort.Slice(nv, func(i, j int) bool {
-		return nv[i].Name < nv[j].Name
-	})
 }

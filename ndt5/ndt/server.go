@@ -3,6 +3,7 @@ package ndt
 import (
 	"context"
 
+	"github.com/m-lab/ndt-server/metadata"
 	"github.com/m-lab/ndt-server/ndt5/protocol"
 )
 
@@ -42,6 +43,7 @@ type Server interface {
 	SingleMeasurementServerFactory
 	ConnectionType() ConnectionType
 	DataDir() string
+	Metadata() []metadata.NameValue
 	LoginCeremony(protocol.Connection) (int, error)
 }
 

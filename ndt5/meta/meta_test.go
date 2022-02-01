@@ -35,6 +35,9 @@ func (s *fakeServer) ConnectionType() ndt.ConnectionType {
 func (s *fakeServer) DataDir() string {
 	return ""
 }
+func (s *fakeServer) Metadata() []metadata.NameValue {
+	return []metadata.NameValue{}
+}
 func (s *fakeServer) LoginCeremony(protocol.Connection) (int, error) {
 	return 0, nil
 }

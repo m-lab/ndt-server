@@ -39,10 +39,10 @@ Both upload and download data use the same schema. Only "Upload" is shown below.
         "UUID": "soltesz99.nyc.corp.google.com_1563200740_unsafe_00000000000157C6",
         "ClientMeasurements": [
         ],
-        "ClientMetadata": {
-        },
-        "ServerMetadata": {
-        },
+        "ClientMetadata": [
+        ],
+        "ServerMetadata": [
+        ],
         "ServerMeasurements": [
         ]
     }
@@ -72,10 +72,16 @@ in the "-label" flag provided specified in the deployment configuration.
 Valid JSON metadata object in ServerMetadata could look like this:
 
 ```JSON
-{
-  "machine-type": "virtual",
-  "deployment": "stable"
-}
+"ServerMetadata":[
+  {
+    "Name":"deployment",
+    "Value":"stable"
+  },
+  {
+    "Name":"machine-type",
+    "Value":"virtual"
+  }
+]
 ```
 
 ## Client and Server Measurements
