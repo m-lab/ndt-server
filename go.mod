@@ -10,7 +10,7 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/justinas/alice v1.2.0 // indirect
 	github.com/m-lab/access v0.0.9
-	github.com/m-lab/go v0.1.46
+	github.com/m-lab/go v0.1.47
 	github.com/m-lab/tcp-info v1.5.3
 	github.com/m-lab/uuid v0.0.0-20191115203855-549727171666
 	github.com/prometheus/client_golang v1.7.1
