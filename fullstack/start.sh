@@ -46,7 +46,8 @@ mkdir -p "${DATA_DIR}"/tcpinfo
   --tcpinfo.eventsocket=/var/local/tcpeventsocket.sock \
   &
 
-while [[ ! -e /var/local/tcpeventsocket.sock ]]; do
+echo "Waiting for the tcpinfo eventsocket to become available..."
+while ! socat -u OPEN:/dev/null UNIX-CONNECT:/var/local/tcpeventsocket.sock; do
   sleep 1
 done
 
