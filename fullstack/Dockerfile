@@ -15,7 +15,7 @@ COPY --from=measurementlab/tcp-info /licences/zstd/ /licences/zstd/
 # easily from the image, due to C-linking issues and the differences between
 # alpine and ubuntu, so just rebuild it here.
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y libpcap-dev golang-go git
+RUN apt-get update && apt-get install -y libpcap-dev golang-go git socat
 RUN go get github.com/m-lab/packet-headers
 RUN mv /root/go/bin/packet-headers /packet-headers
 
