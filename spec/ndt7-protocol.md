@@ -324,7 +324,7 @@ Where:
 
 Note that the JSON exchanged on the wire, or saved on disk, MAY possibly
 contain more `TCP_INFO` fields. Yet, only the fields described in this
-specification SHOULD BE returned by a compliant, `TCP_INFO` enabled
+specification SHOULD be returned by a compliant, `TCP_INFO` enabled
 implementation of ndt7. A client MAY use other fields, but the absence of
 those other fields in a server response MUST NOT be a fatal client error.
 
