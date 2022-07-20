@@ -24,8 +24,10 @@
 </head>
 <body>
   <div>
-    <div id='download' class='result row'>[Download]</div>
-    <div id='upload' class='result row'>[Upload]</div>
+    <div id='downloadShort' class='result row'>[Download (short)]</div>
+    <div id='downloadLong' class='result row'>[Download (long)]</div>
+    <div id='uploadShort' class='result row'>[Upload (short)]</div>
+    <div id='uploadLong' class='result row'>[Upload (long)]</div>
   </div>
   <script type='text/javascript'>
     /* jshint esversion: 6, asi: true */
@@ -48,8 +50,8 @@
       })
     }
 
-    function runSomething(testName, callback) {
-      ndt7core.run(location.href, testName, function(ev, val) {
+    function runSomething(url, testName, suffix, callback) {
+      ndt7core.run(url, testName, function(ev, val) {
         console.log(ev, val)
         if (ev === 'complete') {
           if (callback !== undefined) {
@@ -59,20 +61,35 @@
         }
         if (ev === 'measurement' && val.AppInfo !== undefined &&
             val.Origin === 'client') {
-          updateView(testName, val.AppInfo)
+          updateView(testName+suffix, val.AppInfo)
         }
       })
     }
 
     function runDownload(callback) {
-      runSomething('download', callback)
+      runSomething(location.href, 'download', 'Short', callback);
     }
 
     function runUpload(callback) {
-      runSomething('upload', callback)
+      runSomething(location.href, 'upload', 'Short', callback);
     }
 
-    runDownload(function() { runUpload(); })
+    function runLongUpload() {
+      const regex = /param_/g; // make parameters unrecognizable to server.
+      runSomething(location.href.replace(regex, ''), 'upload', 'Long');
+    }
+    function runLongDownload(callback) {
+      const regex = /param_/g; // make parameters unrecognizable to server.
+      runSomething(location.href.replace(regex, ''), 'download', 'Long', callback);
+    }
+
+    runDownload(function() {
+      runLongDownload(function() {
+        runUpload(function() {
+          runLongUpload();
+        });
+      });
+    })
   </script>
 </body>
 </html>
