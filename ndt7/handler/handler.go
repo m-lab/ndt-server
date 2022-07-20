@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -80,7 +81,8 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	ndt7metrics.ClientConnections.WithLabelValues(string(kind), "result").Inc()
 
 	// Collect most client metadata from request parameters.
-	appendClientMetadata(data, req.URL.Query())
+	p := appendClientMetadata(data, req.URL.Query())
+	data.Parameters = p
 	data.ServerMetadata = h.ServerMetadata
 	// Create ultimate result.
 	result := setupResult(conn)
@@ -211,13 +213,18 @@ func downRate(m []model.Measurement) float64 {
 
 // excludeKeyRe is a regexp for excluding request parameters from client metadata.
 var excludeKeyRe = regexp.MustCompile("^server_")
+var paramKeyRe = regexp.MustCompile("^param_")
 
 // appendClientMetadata adds |values| to the archival client metadata contained
 // in the request parameter values. Some select key patterns will be excluded.
-func appendClientMetadata(data *model.ArchivalData, values url.Values) {
+func appendClientMetadata(data *model.ArchivalData, values url.Values) *model.Parameters {
+	var p *model.Parameters
 	for name, values := range values {
 		if matches := excludeKeyRe.MatchString(name); matches {
 			continue // Skip variables that should be excluded.
+		}
+		if matches := paramKeyRe.MatchString(name); matches {
+			p = updateParameters(p, name, values[0])
 		}
 		data.ClientMetadata = append(
 			data.ClientMetadata,
@@ -226,4 +233,26 @@ func appendClientMetadata(data *model.ArchivalData, values url.Values) {
 				Value: values[0], // NOTE: this will ignore multi-value parameters.
 			})
 	}
+	return p
+}
+
+func updateParameters(p *model.Parameters, name, value string) *model.Parameters {
+	val, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return p
+	}
+	// We have a valid value that is not zero, so make sure we have someplace to
+	// put this value.
+	if p == nil && val != 0 {
+		p = new(model.Parameters)
+	}
+	switch name {
+	case "param_close_after_download_bytes_acked":
+		p.CloseAfterDownloadBytesAcked = val
+	case "param_close_after_upload_bytes_received":
+		p.CloseAfterUploadBytesReceived = val
+	case "param_cubic_download":
+		p.CubicDownload = val > 0
+	}
+	return p
 }
