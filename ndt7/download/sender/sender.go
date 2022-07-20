@@ -61,6 +61,7 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 		return err
 	}
 
+	p := data.Parameters
 	// Record measurement start time, and prepare recording of the endtime on return.
 	data.StartTime = time.Now().UTC()
 	defer func() {
@@ -90,6 +91,14 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 					proto, string(spec.SubtestDownload), "ping-send-ticks").Inc()
 				return err
 			}
+			// Optional: if requested, check whether we've crossed sent threshold.
+			if p != nil && p.CloseAfterDownloadBytesAcked > 0 && m.TCPInfo.BytesAcked >= p.CloseAfterDownloadBytesAcked {
+				closer.StartClosing(conn)
+				ndt7metrics.ClientSenderErrors.WithLabelValues(
+					proto, string(spec.SubtestDownload), "measurer-closed").Inc()
+				logging.Logger.Infof("closing conn from %q after %0.3f MB", conn.RemoteAddr(), float64(totalSent)/1000/1000)
+				return nil
+			}
 		default:
 			if err := conn.WritePreparedMessage(preparedMessage); err != nil {
 				logging.Logger.WithError(err).Warn(
@@ -105,6 +114,7 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 			// but this is currently fine. We need to gather data from large
 			// scale deployments of this algorithm anyway, so there's no point
 			// in engaging in fine grained calibration before knowing.
+
 			totalSent += int64(bulkMessageSize)
 			if int64(bulkMessageSize) >= spec.MaxScaledMessageSize {
 				continue // No further scaling is required
