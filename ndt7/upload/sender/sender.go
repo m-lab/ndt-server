@@ -41,6 +41,7 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 		return err
 	}
 
+	p := data.Parameters
 	// Record measurement start time, and prepare recording of the endtime on return.
 	data.StartTime = time.Now().UTC()
 	defer func() {
@@ -67,6 +68,15 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 			ndt7metrics.ClientSenderErrors.WithLabelValues(
 				proto, string(spec.SubtestUpload), "ping-send-ticks").Inc()
 			return err
+		}
+		// Optional: if requested, check whether we've crossed received threshold.
+		if p != nil && p.CloseAfterUploadBytesReceived > 0 && m.TCPInfo.BytesReceived >= p.CloseAfterUploadBytesReceived {
+			closer.StartClosing(conn)
+			ndt7metrics.ClientSenderErrors.WithLabelValues(
+				proto, string(spec.SubtestDownload), "measurer-closed").Inc()
+			logging.Logger.Infof("closing conn from %q after %0.3f MB in %0.3f sec",
+				conn.RemoteAddr(), float64(m.TCPInfo.BytesReceived)/1000/1000, time.Since(data.StartTime).Seconds())
+			return nil
 		}
 	}
 }
