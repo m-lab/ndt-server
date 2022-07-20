@@ -13,6 +13,7 @@ type ArchivalData struct {
 	UUID               string
 	StartTime          time.Time
 	EndTime            time.Time
+	Parameters         *Parameters `json:",omitempty"`
 	ServerMeasurements []Measurement
 	ClientMeasurements []Measurement
 	ClientMetadata     []metadata.NameValue `json:",omitempty"`
@@ -57,4 +58,12 @@ type BBRInfo struct {
 type TCPInfo struct {
 	tcp.LinuxTCPInfo
 	ElapsedTime int64
+}
+
+// Parameters contain fields that may alter the default behavior of an ndt7
+// measurement.
+type Parameters struct {
+	CloseAfterDownloadBytesAcked  int64
+	CloseAfterUploadBytesReceived int64
+	CubicDownload                 bool
 }
