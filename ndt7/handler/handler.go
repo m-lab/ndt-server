@@ -81,8 +81,7 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	ndt7metrics.ClientConnections.WithLabelValues(string(kind), "result").Inc()
 
 	// Collect most client metadata from request parameters.
-	p := appendClientMetadata(data, req.URL.Query())
-	data.Parameters = p
+	appendClientMetadata(data, req.URL.Query())
 	data.ServerMetadata = h.ServerMetadata
 	// Create ultimate result.
 	result := setupResult(conn)
@@ -217,7 +216,7 @@ var paramKeyRe = regexp.MustCompile("^param_")
 
 // appendClientMetadata adds |values| to the archival client metadata contained
 // in the request parameter values. Some select key patterns will be excluded.
-func appendClientMetadata(data *model.ArchivalData, values url.Values) *model.Parameters {
+func appendClientMetadata(data *model.ArchivalData, values url.Values) {
 	var p *model.Parameters
 	for name, values := range values {
 		if matches := excludeKeyRe.MatchString(name); matches {
@@ -233,7 +232,7 @@ func appendClientMetadata(data *model.ArchivalData, values url.Values) *model.Pa
 				Value: values[0], // NOTE: this will ignore multi-value parameters.
 			})
 	}
-	return p
+	data.Parameters = p
 }
 
 func updateParameters(p *model.Parameters, name, value string) *model.Parameters {
