@@ -14,7 +14,8 @@ onmessage = function (ev) {
     let now = performance.now()
     const duration = 10000  // millisecond
     const every = 250  // millisecond
-    if (now - start > duration) {
+    // Run for duration or until server closes connection.
+    if (now - start > duration || sock.readyState == sock.CLOSED) {
       sock.close()
       return
     }
