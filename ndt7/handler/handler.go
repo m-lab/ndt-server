@@ -74,7 +74,8 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	// that under particular network conditions the connection can remain open
 	// while the receiver goroutine is blocked on a read syscall, long after
 	// the client is gone. This is a workaround for that.
-	ctx, _ := context.WithTimeout(req.Context(), spec.MaxRuntime)
+	ctx, cancel := context.WithTimeout(req.Context(), spec.MaxRuntime)
+	defer cancel()
 	go func() {
 		<-ctx.Done()
 		warnonerror.Close(conn, "runMeasurement: ignoring conn.Close result")
