@@ -106,11 +106,11 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	var rate float64
 	if kind == spec.SubtestDownload {
 		result.Download = data
-		err = download.Do(req.Context(), conn, data)
+		err = download.Do(ctx, conn, data)
 		rate = downRate(data.ServerMeasurements)
 	} else if kind == spec.SubtestUpload {
 		result.Upload = data
-		err = upload.Do(req.Context(), conn, data)
+		err = upload.Do(ctx, conn, data)
 		rate = upRate(data.ServerMeasurements)
 	}
 
