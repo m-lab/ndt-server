@@ -77,7 +77,7 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	ctx, _ := context.WithTimeout(req.Context(), spec.MaxRuntime)
 	go func() {
 		<-ctx.Done()
-		warnonerror.Close(conn, "runMeasurement: ignoring conn.Close result, connection timed out")
+		warnonerror.Close(conn, "runMeasurement: ignoring conn.Close result")
 	}()
 	// Create measurement archival data.
 	data, err := getData(conn)
