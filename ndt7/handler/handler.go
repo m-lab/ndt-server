@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -68,7 +69,16 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 		ndt7metrics.ClientConnections.WithLabelValues(string(kind), "websocket-error").Inc()
 		return
 	}
-	defer warnonerror.Close(conn, "runMeasurement: ignoring conn.Close result")
+	// Make sure that the connection is closed after (at most) MaxRuntime.
+	// Download and upload tests have their own timeouts, but we have observed
+	// that under particular network conditions the connection can remain open
+	// while the receiver goroutine is blocked on a read syscall, long after
+	// the client is gone. This is a workaround for that.
+	ctx, _ := context.WithTimeout(req.Context(), spec.MaxRuntime)
+	go func() {
+		<-ctx.Done()
+		warnonerror.Close(conn, "runMeasurement: ignoring conn.Close result, connection timed out")
+	}()
 	// Create measurement archival data.
 	data, err := getData(conn)
 	if err != nil {
