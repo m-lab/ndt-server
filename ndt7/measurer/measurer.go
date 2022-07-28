@@ -7,12 +7,24 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/ndt-server/logging"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/netx"
+)
+
+var (
+	BBREnabled = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ndt7_measurer_bbr_enabled",
+			Help: "A counter of every attempt to enable bbr.",
+		},
+		[]string{"status"},
+	)
 )
 
 // Measurer performs measurements
@@ -33,10 +45,13 @@ func New(conn *websocket.Conn, UUID string) *Measurer {
 func (m *Measurer) getSocketAndPossiblyEnableBBR() (netx.ConnInfo, error) {
 	ci := netx.ToConnInfo(m.conn.UnderlyingConn())
 	err := ci.EnableBBR()
+	success := "true"
 	if err != nil {
+		success = "false"
 		logging.Logger.WithError(err).Warn("Cannot enable BBR")
 		// FALLTHROUGH
 	}
+	BBREnabled.WithLabelValues(success).Inc()
 	return ci, nil
 }
 
