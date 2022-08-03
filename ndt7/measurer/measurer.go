@@ -20,7 +20,7 @@ import (
 var (
 	BBREnabled = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "ndt7_measurer_bbr_enabled",
+			Name: "ndt7_measurer_bbr_enabled_total",
 			Help: "A counter of every attempt to enable bbr.",
 		},
 		[]string{"status"},
