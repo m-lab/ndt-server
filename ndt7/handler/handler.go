@@ -2,7 +2,6 @@
 package handler
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -39,6 +38,8 @@ type Handler struct {
 	InsecurePort string
 	// ServerMetadata contains deployment-specific metadata.
 	ServerMetadata []metadata.NameValue
+	//
+	MaxMsgSize int64
 }
 
 // warnAndClose emits message as a warning and the sends a Bad Request
@@ -69,17 +70,7 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 		ndt7metrics.ClientConnections.WithLabelValues(string(kind), "websocket-error").Inc()
 		return
 	}
-	// Make sure that the connection is closed after (at most) MaxRuntime.
-	// Download and upload tests have their own timeouts, but we have observed
-	// that under particular network conditions the connection can remain open
-	// while the receiver goroutine is blocked on a read syscall, long after
-	// the client is gone. This is a workaround for that.
-	ctx, cancel := context.WithTimeout(req.Context(), spec.MaxRuntime)
-	defer cancel()
-	go func() {
-		<-ctx.Done()
-		warnonerror.Close(conn, "runMeasurement: ignoring conn.Close result")
-	}()
+	defer warnonerror.Close(conn, "runMeasurement: ignoring conn.Close result")
 	// Create measurement archival data.
 	data, err := getData(conn)
 	if err != nil {
@@ -107,11 +98,11 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	var rate float64
 	if kind == spec.SubtestDownload {
 		result.Download = data
-		err = download.Do(ctx, conn, data)
+		err = download.Do(req.Context(), conn, data)
 		rate = downRate(data.ServerMeasurements)
 	} else if kind == spec.SubtestUpload {
 		result.Upload = data
-		err = upload.Do(ctx, conn, data)
+		err = upload.Do(req.Context(), conn, data, h.MaxMsgSize)
 		rate = upRate(data.ServerMeasurements)
 	}
 
