@@ -86,9 +86,9 @@ COPY --from=mk /usr/local/bin/measurement_kit /bin/measurement_kit
 RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
 RUN apt-get update && apt-get install -y nodejs libjansson4 libssl1.1 libssl1.0
 ENV GOPATH=/go
-RUN go get github.com/mattn/goveralls
+RUN go install github.com/mattn/goveralls@latest
 ADD . /go/src/github.com/m-lab/ndt-server
-RUN go get github.com/m-lab/ndt7-client-go/cmd/ndt7-client
+RUN go install github.com/m-lab/ndt7-client-go/cmd/ndt7-client@latest
 WORKDIR /go/src/github.com/m-lab/ndt-server/testdata
 RUN npm install .
 WORKDIR /go/src/github.com/m-lab/ndt-server
