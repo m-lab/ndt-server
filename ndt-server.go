@@ -173,9 +173,24 @@ func main() {
 	if (tokenRequired5 || tokenRequired7) && err != nil {
 		rtx.Must(err, "Failed to load verifier for when tokens are required")
 	}
+
+	// Enforce tokens and tx controllers on the same ndt5 resource.
+	// NOTE: raw ndt5 requests cannot honor tokens or differentiate between upload/downloads.
+	ndt5Paths := controller.Paths{
+		"/ndt_protocol": true,
+	}
+	// Enforce Tx limits only on downloads.
+	ndt7TxPaths := controller.Paths{
+		spec.DownloadURLPath: true,
+	}
+	// Enforce tokens on uploads and downloads.
+	ndt7TokenPaths := controller.Paths{
+		spec.DownloadURLPath: true,
+		spec.UploadURLPath:   true,
+	}
 	// NDT5 uses a raw server, which requires tx5. NDT7 is HTTP only.
-	ac5, tx5 := controller.Setup(ctx, v, tokenRequired5, tokenMachine)
-	ac7, _ := controller.Setup(ctx, v, tokenRequired7, tokenMachine)
+	ac5, tx5 := controller.Setup(ctx, v, tokenRequired5, tokenMachine, ndt5Paths, ndt5Paths)
+	ac7, _ := controller.Setup(ctx, v, tokenRequired7, tokenMachine, ndt7TxPaths, ndt7TokenPaths)
 
 	// The ndt5 protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
@@ -189,7 +204,6 @@ func main() {
 	ndt5WsMux := http.NewServeMux()
 	ndt5WsMux.Handle("/", http.FileServer(http.Dir(*htmlDir)))
 	ndt5WsMux.Handle("/ndt_protocol", ndt5handler.NewWS(*dataDir+"/ndt5", serverMetadata))
-	controller.AllowPathLabel("/ndt_protocol")
 	ndt5WsServer := httpServer(
 		*ndt5WsAddr,
 		// NOTE: do not use `ac.Then()` to prevent 'double jeopardy' for
@@ -211,8 +225,6 @@ func main() {
 	}
 	ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
 	ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
-	controller.AllowPathLabel(spec.DownloadURLPath)
-	controller.AllowPathLabel(spec.UploadURLPath)
 	ndt7ServerCleartext := httpServer(
 		*ndt7AddrCleartext,
 		ac7.Then(logging.MakeAccessLogHandler(ndt7Mux)),
