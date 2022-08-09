@@ -13,7 +13,7 @@
 # A base image for building and the final image.
 # NOTE: use debian based golang image to easily access libraries and development
 # packages that are unavailable or harder to setup in alpine-based images.
-FROM golang:1.16.7-buster as ndtbase
+FROM golang:1.18-buster as ndtbase
 WORKDIR /
 RUN apt-get update && apt-get install -y git libmaxminddb0 libevent-2.1-6 \
     libevent-core-2.1-6 libevent-extra-2.1-6 \
@@ -86,9 +86,9 @@ COPY --from=mk /usr/local/bin/measurement_kit /bin/measurement_kit
 RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
 RUN apt-get update && apt-get install -y nodejs libjansson4 libssl1.1 libssl1.0
 ENV GOPATH=/go
-RUN go get github.com/mattn/goveralls
+RUN go install github.com/mattn/goveralls@latest
 ADD . /go/src/github.com/m-lab/ndt-server
-RUN go get github.com/m-lab/ndt7-client-go/cmd/ndt7-client
+RUN go install github.com/m-lab/ndt7-client-go/cmd/ndt7-client@latest
 WORKDIR /go/src/github.com/m-lab/ndt-server/testdata
 RUN npm install .
 WORKDIR /go/src/github.com/m-lab/ndt-server
