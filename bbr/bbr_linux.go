@@ -19,11 +19,15 @@ func enableBBR(fp *os.File) error {
 	if err != nil {
 		return err
 	}
-	rawconn.Control(func(fd uintptr) {
+	var syscallErr error
+	err = rawconn.Control(func(fd uintptr) {
 		// Note: Fd() returns uintptr but on Unix we can safely use int for sockets.
-		err = syscall.SetsockoptString(int(fd), syscall.IPPROTO_TCP, syscall.TCP_CONGESTION, "bbr")
+		syscallErr = syscall.SetsockoptString(int(fd), syscall.IPPROTO_TCP, syscall.TCP_CONGESTION, "bbr")
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	return syscallErr
 }
 
 func getMaxBandwidthAndMinRTT(fp *os.File) (inetdiag.BBRInfo, error) {
@@ -34,9 +38,9 @@ func getMaxBandwidthAndMinRTT(fp *os.File) (inetdiag.BBRInfo, error) {
 	if rawConnErr != nil {
 		return metrics, rawConnErr
 	}
-	var err syscall.Errno
-	rawconn.Control(func(fd uintptr) {
-		_, _, err = syscall.Syscall6(
+	var syscallErr syscall.Errno
+	err := rawconn.Control(func(fd uintptr) {
+		_, _, syscallErr = syscall.Syscall6(
 			uintptr(syscall.SYS_GETSOCKOPT),
 			fd,
 			uintptr(C.IPPROTO_TCP),
@@ -45,15 +49,18 @@ func getMaxBandwidthAndMinRTT(fp *os.File) (inetdiag.BBRInfo, error) {
 			uintptr(unsafe.Pointer(&size)),
 			uintptr(0))
 	})
-	if err != 0 {
+	if err != nil {
+		return metrics, err
+	}
+	if syscallErr != 0 {
 		// C.get_bbr_info returns ENOSYS when the system does not support BBR. In
 		// such case let us map the error to ErrNoSupport, such that this Linux
 		// system looks like any other system where BBR is not available. This way
 		// the code for dealing with this error is not platform dependent.
-		if err == syscall.ENOSYS {
+		if syscallErr == syscall.ENOSYS {
 			return metrics, ErrNoSupport
 		}
-		return metrics, err
+		return metrics, syscallErr
 	}
 	// Apparently, tcp_bbr_info is the only congestion control data structure
 	// to occupy five 32 bit words. Currently, in September 2018, the other two
