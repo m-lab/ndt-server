@@ -11,13 +11,13 @@ import (
 func getTCPInfo(fp *os.File) (*tcp.LinuxTCPInfo, error) {
 	tcpInfo := tcp.LinuxTCPInfo{}
 	tcpInfoLen := uint32(unsafe.Sizeof(tcpInfo))
-	rawConn, rawConnErr := fp.SyscallConn()
-	if rawConnErr != nil {
-		return &tcpInfo, rawConnErr
+	rawConn, err := fp.SyscallConn()
+	if err != nil {
+		return &tcpInfo, err
 	}
-	var err syscall.Errno
-	rawConn.Control(func(fd uintptr) {
-		_, _, err = syscall.Syscall6(
+	var syscallErr syscall.Errno
+	err = rawConn.Control(func(fd uintptr) {
+		_, _, syscallErr = syscall.Syscall6(
 			uintptr(syscall.SYS_GETSOCKOPT),
 			fd,
 			uintptr(syscall.SOL_TCP),
@@ -26,8 +26,11 @@ func getTCPInfo(fp *os.File) (*tcp.LinuxTCPInfo, error) {
 			uintptr(unsafe.Pointer(&tcpInfoLen)),
 			uintptr(0))
 	})
-	if err != 0 {
+	if err != nil {
 		return &tcpInfo, err
+	}
+	if syscallErr != 0 {
+		return &tcpInfo, syscallErr
 	}
 	return &tcpInfo, nil
 }
