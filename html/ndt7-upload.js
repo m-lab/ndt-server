@@ -18,7 +18,7 @@ onmessage = function (ev) {
       sock.close()
       return
     }
-    const maxMessageSize = 16777216 /* = (1<<24) = 16MB */
+    const maxMessageSize = 8388608 /* = (1<<23) = 8MB */
     if (data.length < maxMessageSize && data.length < (total - sock.bufferedAmount)/16) {
       data = new Uint8Array(data.length * 2) // TODO(bassosimone): fill this message
     }
