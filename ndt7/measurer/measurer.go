@@ -23,7 +23,7 @@ var (
 			Name: "ndt7_measurer_bbr_enabled_total",
 			Help: "A counter of every attempt to enable bbr.",
 		},
-		[]string{"status"},
+		[]string{"status", "error"},
 	)
 )
 
@@ -46,12 +46,15 @@ func (m *Measurer) getSocketAndPossiblyEnableBBR() (netx.ConnInfo, error) {
 	ci := netx.ToConnInfo(m.conn.UnderlyingConn())
 	err := ci.EnableBBR()
 	success := "true"
+	errstr := ""
 	if err != nil {
 		success = "false"
-		logging.Logger.WithError(err).Warn("Cannot enable BBR")
+		errstr = err.Error()
+		uuid, _ := ci.GetUUID() // to log error with uuid.
+		logging.Logger.WithError(err).Warn("Cannot enable BBR: " + uuid)
 		// FALLTHROUGH
 	}
-	BBREnabled.WithLabelValues(success).Inc()
+	BBREnabled.WithLabelValues(success, errstr).Inc()
 	return ci, nil
 }
 
