@@ -18,7 +18,7 @@ import (
 // when dockerising an Apache or Nginx instance.
 var Logger = log.Logger{
 	Handler: json.New(os.Stderr),
-	Level:   log.DebugLevel,
+	Level:   log.InfoLevel,
 }
 
 // MakeAccessLogHandler wraps |handler| with another handler that logs
