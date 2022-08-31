@@ -1,5 +1,5 @@
 FROM golang:1.18 as ndt-server-build
-RUN apk add --no-cache git gcc linux-headers musl-dev openssl bash
+RUN apt-get update && apt-get install -y openssl bash
 
 ADD . /go/src/github.com/m-lab/ndt-server
 ADD ./html /html
