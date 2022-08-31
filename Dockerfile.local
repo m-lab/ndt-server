@@ -1,6 +1,4 @@
-FROM golang:1.16.7-alpine3.14 as ndt-server-build
-RUN apk add --no-cache git gcc linux-headers musl-dev openssl bash
-
+FROM golang:1.18 as ndt-server-build
 ADD . /go/src/github.com/m-lab/ndt-server
 ADD ./html /html
 
