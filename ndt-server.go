@@ -98,12 +98,6 @@ func catchSigterm() {
 	}
 }
 
-// Set internal lame duck status and metric.
-func setLameDuck(status float64) {
-	isLameDuck = status != 0
-	lameDuck.Set(status)
-}
-
 func init() {
 	log.SetFlags(log.LUTC | log.LstdFlags | log.Lshortfile)
 }
@@ -156,6 +150,22 @@ func parseDeploymentLabels() []metadata.NameValue {
 	}
 
 	return serverMetadata
+}
+
+// Set internal lame duck status and metric.
+func setLameDuck(status float64) {
+	isLameDuck = status != 0
+	lameDuck.Set(status)
+}
+
+// Handle requests to the /health endpoint.
+// Return a '200' status code only if the server is not in lame duck mode.
+func handleHealth(rw http.ResponseWriter, req *http.Request) {
+	if isLameDuck {
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	rw.WriteHeader(http.StatusOK)
 }
 
 func main() {
@@ -269,14 +279,7 @@ func main() {
 
 	// Set up handler for /health endpoint.
 	healthMux := http.NewServeMux()
-	// Return a '200' status code only if the server is not in lame duck.
-	healthMux.Handle("/health", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if isLameDuck {
-			rw.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		rw.WriteHeader(http.StatusOK)
-	}))
+	healthMux.Handle("/health", http.HandlerFunc(handleHealth))
 	healthServer := httpServer(
 		*healthAddr,
 		healthMux,
