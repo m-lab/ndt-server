@@ -382,3 +382,33 @@ func sortNameValueSlice(nv []metadata.NameValue) {
 		return nv[i].Name < nv[j].Name
 	})
 }
+
+func Test_handleHealth(t *testing.T) {
+	tests := []struct {
+		name     string
+		lameDuck bool
+		want     int
+	}{
+		{
+			name:     "not-lame-duck",
+			lameDuck: false,
+			want:     200,
+		},
+		{
+			name:     "lame-duck",
+			lameDuck: true,
+			want:     500,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isLameDuck = tt.lameDuck
+			writer := httptest.NewRecorder()
+			handleHealth(writer, nil)
+
+			if writer.Code != tt.want {
+				t.Errorf("ndt-server.handleHealth() got = %d, want %d", writer.Code, tt.want)
+			}
+		})
+	}
+}
