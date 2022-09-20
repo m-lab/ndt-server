@@ -38,6 +38,7 @@ var (
 	ndt5Addr          = flag.String("ndt5_addr", ":3001", "The address and port to use for the unencrypted ndt5 test")
 	ndt5WsAddr        = flag.String("ndt5_ws_addr", "127.0.0.1:3002", "The address and port to use for the ndt5 WS test")
 	ndt5WssAddr       = flag.String("ndt5_wss_addr", ":3010", "The address and port to use for the ndt5 WSS test")
+	healthAddr        = flag.String("health_addr", ":8000", "The address and port to use for health checks")
 	certFile          = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
 	tlsVersion        = flag.String("tls.version", "", "Minimum TLS version. Valid values: 1.2 or 1.3")
@@ -47,6 +48,7 @@ var (
 	tokenVerifyKey    = flagx.FileBytesArray{}
 	tokenRequired5    bool
 	tokenRequired7    bool
+	isLameDuck        bool
 	tokenMachine      string
 
 	// A metric to use to signal that the server is in lame duck mode.
@@ -69,7 +71,7 @@ func init() {
 
 func catchSigterm() {
 	// Disable lame duck status.
-	lameDuck.Set(0)
+	setLameDuck(0)
 
 	// Register channel to receive SIGTERM events.
 	c := make(chan os.Signal, 1)
@@ -84,7 +86,7 @@ func catchSigterm() {
 		fmt.Println("Canceled")
 	}
 	// Set lame duck status. This will remain set until exit.
-	lameDuck.Set(1)
+	setLameDuck(1)
 	// When we receive a second SIGTERM, cancel the context and shut everything
 	// down. This should cause main() to exit cleanly.
 	select {
@@ -94,6 +96,11 @@ func catchSigterm() {
 	case <-ctx.Done():
 		fmt.Println("Canceled")
 	}
+}
+
+func setLameDuck(status float64) {
+	isLameDuck = status != 0
+	lameDuck.Set(status)
 }
 
 func init() {
@@ -258,6 +265,22 @@ func main() {
 	} else {
 		log.Printf("Cert=%q and Key=%q means no TLS services will be started.\n", *certFile, *keyFile)
 	}
+
+	// Set up handler for /health endpoint.
+	healthMux := http.NewServeMux()
+	healthMux.Handle("/health", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if isLameDuck {
+			rw.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		rw.WriteHeader(http.StatusOK)
+	}))
+	healthServer := httpServer(
+		*healthAddr,
+		healthMux,
+	)
+	rtx.Must(listener.ListenAndServeAsync(healthServer), "Could not start health server")
+	defer healthServer.Close()
 
 	// Serve until the context is canceled.
 	<-ctx.Done()
