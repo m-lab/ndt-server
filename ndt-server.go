@@ -98,6 +98,7 @@ func catchSigterm() {
 	}
 }
 
+// Set internal lame duck status and metric.
 func setLameDuck(status float64) {
 	isLameDuck = status != 0
 	lameDuck.Set(status)
@@ -268,6 +269,7 @@ func main() {
 
 	// Set up handler for /health endpoint.
 	healthMux := http.NewServeMux()
+	// Return a '200' status code only if the server is not in lame duck.
 	healthMux.Handle("/health", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if isLameDuck {
 			rw.WriteHeader(http.StatusInternalServerError)
