@@ -159,7 +159,7 @@ func setLameDuck(status float64) {
 }
 
 // Handle requests to the /health endpoint.
-// Return a '200' status code only if the server is not in lame duck mode.
+// Writes out a 200 status code only if the server is not in lame duck mode.
 func handleHealth(rw http.ResponseWriter, req *http.Request) {
 	if isLameDuck {
 		rw.WriteHeader(http.StatusInternalServerError)
