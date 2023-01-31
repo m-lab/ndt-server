@@ -8,6 +8,14 @@
 
 'use strict';
 
+// Prefer performance.now() over Date.now() since the former is monotonic.
+var now;
+if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+  now = () => performance.now();
+} else {
+  now = () => Date.now();
+}
+
 function NDTjs(server, serverPort, serverProtocol, serverPath, callbacks,
                updateInterval) {
   this.server = server;
@@ -248,7 +256,7 @@ NDTjs.prototype.ndtC2sTest = function () {
    * The upload function for C2S, encoded as a callback instead of a loop.
    */
   keepSendingData = function () {
-    var currentTime = Date.now() / 1000.0;
+    var currentTime = now() / 1000.0;
     if (connectionOpen) {
       // Monitor the buffersize as it sends and refill if it gets too low.
       if (testConnection.bufferedAmount < 8192) {
@@ -264,7 +272,7 @@ NDTjs.prototype.ndtC2sTest = function () {
           / 1000 / (currentTime - testStart);
         that.callbacks.onprogress('interval_c2s', that.results);
         nextCallback += that.updateInterval;
-        currentTime = Date.now() / 1000.0;
+        currentTime = now() / 1000.0;
       }
     }
     if (currentTime < testStart + 10) {
@@ -298,7 +306,7 @@ NDTjs.prototype.ndtC2sTest = function () {
     }
     if (state === 'WAIT_FOR_TEST_START' && messageType === that.TEST_START) {
       that.callbacks.onstatechange('running_c2s', that.results);
-      testStart = Date.now() / 1000;
+      testStart = now() / 1000;
       keepSendingData();
       state = 'WAIT_FOR_TEST_MSG';
       return false;
@@ -349,7 +357,7 @@ NDTjs.prototype.ndtS2cTest = function (ndtSocket) {
                                             serverPort, that.serverPath, 's2c');
       testConnection.onopen = function () {
         that.logger('Successfully opened S2C test connection.');
-        testStart = Date.now() / 1000;
+        testStart = now() / 1000;
       };
       testConnection.onmessage = function (response) {
         var hdrSize,
@@ -362,13 +370,13 @@ NDTjs.prototype.ndtS2cTest = function (ndtSocket) {
           hdrSize = 10;
         }
         receivedBytes += (hdrSize + response.data.byteLength);
-        currentTime = Date.now() / 1000.0;
+        currentTime = now() / 1000.0;
         if (that.updateInterval && currentTime > (testStart + nextCallback)) {
           that.results.s2cRate = 8 * receivedBytes / 1000
             / (currentTime - testStart);
           that.callbacks.onprogress('interval_s2c', that.results);
           nextCallback += that.updateInterval;
-          currentTime = Date.now() / 1000.0;
+          currentTime = now() / 1000.0;
         }
       };
 
@@ -391,7 +399,7 @@ NDTjs.prototype.ndtS2cTest = function (ndtSocket) {
       state = 'WAIT_FOR_TEST_MSG_OR_TEST_FINISH';
 
       if (testEnd === undefined) {
-        testEnd = Date.now() / 1000;
+        testEnd = now() / 1000;
       }
       // Calculation per spec, compared between client and server
       // understanding.
