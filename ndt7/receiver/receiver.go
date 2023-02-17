@@ -26,12 +26,12 @@ const (
 
 func start(
 	ctx context.Context, conn *websocket.Conn, kind receiverKind,
-	data *model.ArchivalData,
+	data *model.ArchivalData, MaxMsgSize int64,
 ) {
 	logging.Logger.Debug("receiver: start")
 	proto := ndt7metrics.ConnLabel(conn)
 	defer logging.Logger.Debug("receiver: stop")
-	conn.SetReadLimit(spec.MaxMessageSize)
+	conn.SetReadLimit(MaxMsgSize)
 	receiverctx, cancel := context.WithTimeout(ctx, spec.MaxRuntime)
 	defer cancel()
 	err := conn.SetReadDeadline(time.Now().Add(spec.MaxRuntime)) // Liveness!
@@ -106,7 +106,7 @@ func start(
 func StartDownloadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) context.Context {
 	ctx2, cancel2 := context.WithCancel(ctx)
 	go func() {
-		start(ctx2, conn, downloadReceiver, data)
+		start(ctx2, conn, downloadReceiver, data, spec.MaxMessageSize)
 		cancel2()
 	}()
 	return ctx2
@@ -115,10 +115,10 @@ func StartDownloadReceiverAsync(ctx context.Context, conn *websocket.Conn, data 
 // StartUploadReceiverAsync is like StartDownloadReceiverAsync except that it
 // tolerates incoming binary messages, sent by "upload" measurement clients to
 // create network load, and therefore must be allowed.
-func StartUploadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) context.Context {
+func StartUploadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, MaxMsgSize int64) context.Context {
 	ctx2, cancel2 := context.WithCancel(ctx)
 	go func() {
-		start(ctx2, conn, uploadReceiver, data)
+		start(ctx2, conn, uploadReceiver, data, MaxMsgSize)
 		cancel2()
 	}()
 	return ctx2
