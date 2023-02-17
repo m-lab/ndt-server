@@ -347,7 +347,7 @@ message containing `AppInfo` and `TCPInfo` MAY have different values for
 the `ElapsedTime` if the server (or client) collected those two bits of
 information at different times. Usually the times would be very close in
 time but there could be tiny differences caused by collecting distinct
-metrics from distinct threads (or goroutines).
+metrics from distinct threads.
 
 Finally, note that JSON and JavaScript actually define integers as `int53` but
 existing implementations will likely round bigger (or smaller) numbers to
