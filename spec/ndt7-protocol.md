@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.9.0 of the ndt7 specification.
+This is version v0.9.1 of the ndt7 specification.
 
 ## Design choices
 
@@ -340,6 +340,14 @@ Moreover, note that all the variables presented above increase or otherwise
 change consistently during a test. Therefore, the most recent measurement sample
 is a suitable summary of all prior measurements, and the last measurement received
 should be treated as the summary message for the test.
+
+Also, note that the `ElapsedTime` refers to the moment in which a specific
+data structure was collected by the client or the server. In other words, a
+message containing `AppInfo` and `TCPInfo` MAY have different values for
+the `ElapsedTime` if the server (or client) collected those two bits of
+information at different times. Usually the times would be very close in
+time but there could be tiny differences caused by collecting distinct
+metrics from distinct threads (or goroutines).
 
 Finally, note that JSON and JavaScript actually define integers as `int53` but
 existing implementations will likely round bigger (or smaller) numbers to
