@@ -39,6 +39,8 @@ type Handler struct {
 	InsecurePort string
 	// ServerMetadata contains deployment-specific metadata.
 	ServerMetadata []metadata.NameValue
+	// CompressResults controls whether the result files saved by the server are compressed.
+	CompressResults bool
 }
 
 // warnAndClose emits message as a warning and the sends a Bad Request
@@ -176,7 +178,7 @@ func setupResult(conn *websocket.Conn) *data.NDT7Result {
 }
 
 func (h Handler) writeResult(uuid string, kind spec.SubtestKind, result *data.NDT7Result) {
-	fp, err := results.NewFile(uuid, h.DataDir, kind)
+	fp, err := results.NewFile(uuid, h.DataDir, kind, h.CompressResults)
 	if err != nil {
 		logging.Logger.WithError(err).Warn("results.NewFile failed")
 		return

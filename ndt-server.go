@@ -44,6 +44,7 @@ var (
 	tlsVersion        = flag.String("tls.version", "", "Minimum TLS version. Valid values: 1.2 or 1.3")
 	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
 	htmlDir           = flag.String("htmldir", "html", "The directory from which to serve static web content.")
+	compress          = flag.Bool("compress-results", true, "Whether to compress result files")
 	deploymentLabels  = flagx.KeyValue{}
 	tokenVerifyKey    = flagx.FileBytesArray{}
 	tokenRequired5    bool
@@ -236,10 +237,11 @@ func main() {
 	ndt7Mux := http.NewServeMux()
 	ndt7Mux.Handle("/", http.FileServer(http.Dir(*htmlDir)))
 	ndt7Handler := &handler.Handler{
-		DataDir:        *dataDir,
-		SecurePort:     *ndt7Addr,
-		InsecurePort:   *ndt7AddrCleartext,
-		ServerMetadata: serverMetadata,
+		DataDir:         *dataDir,
+		SecurePort:      *ndt7Addr,
+		InsecurePort:    *ndt7AddrCleartext,
+		ServerMetadata:  serverMetadata,
+		CompressResults: *compress,
 	}
 	ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
 	ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
