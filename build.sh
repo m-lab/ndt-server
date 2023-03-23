@@ -19,4 +19,4 @@ go install -v                                                          \
     .
 
 # Install generate-schemas
-go install -v ./cmd/generate-schemas
+cd ./cmd/generate-schemas && go install -v .
