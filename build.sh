@@ -17,3 +17,6 @@ go install -v                                                          \
     -tags netgo                                                        \
     -ldflags "$versionflags -extldflags \"-static\""                   \
     .
+
+# Install generate-schemas
+cd ./cmd/generate-schemas && go install -v .
