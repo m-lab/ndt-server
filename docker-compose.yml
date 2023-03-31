@@ -1,16 +1,27 @@
 version: '3.7'
 services:
   ndt-server:
-    build:
-      context: .
-      dockerfile: Dockerfile.local
+    image: ndt-server
     volumes:
       - ./certs:/certs
-      - ./datadir:/datadir
       - ./html:/html
+      - ./schemas:/schemas
+      - ./resultsdir:/resultsdir
+      - ./localgcs:/localgcs
     cap_drop:
       - ALL
+    depends_on:
+      generate-schemas:
+        condition: service_completed_successfully
+
+    # NOTE: All service containers will use the same network and IP. All ports
+    # must be configured on the first.
     ports:
+      # ndt-server prometheus, alt TLS and alt non-tls ports.
+      - target: 9990
+        published: 9990
+        protocol: tcp
+        mode: bridge
       - target: 4443
         published: 4443
         protocol: tcp
@@ -19,11 +30,55 @@ services:
         published: 8080
         protocol: tcp
         mode: bridge
-    command: [
-      "./ndt-server",
-      "-cert", "/certs/cert.pem",
-      "-key", "/certs/key.pem",
-      "-datadir", "/datadir",
-      "-ndt7_addr", ":4443",
-      "-ndt7_addr_cleartext", ":8080"
-    ]
+      # jostler prometheus.
+      - target: 9991
+        published: 9991
+        protocol: tcp
+        mode: bridge
+    command:
+      - /ndt-server
+      - -cert=/certs/cert.pem
+      - -key=/certs/key.pem
+      - -datadir=/resultsdir/ndt
+      - -ndt7_addr=:4443
+      - -ndt7_addr_cleartext=:8080
+      - -compress-results=false
+      - -prometheusx.listen-address=:9990
+
+  jostler:
+    image: measurementlab/jostler:v1.0.7
+    volumes:
+      - ./resultsdir:/resultsdir
+      - ./schemas:/schemas
+      - ./localgcs:/localgcs
+    network_mode: "service:ndt-server"
+    depends_on:
+      generate-schemas:
+        condition: service_completed_successfully
+    command:
+      - -gcs-local-disk
+      - -mlab-node-name=ndt-mlab1-lga01.mlab-sandbox.measurement-lab.org
+      - -gcs-bucket=newclient,download,upload
+      - -gcs-data-dir=/localgcs/autoload/v1
+      - -local-data-dir=/resultsdir
+      - -experiment=ndt
+      - -datatype=ndt7
+      - -datatype-schema-file=ndt7:/schemas/ndt7.json
+      - -bundle-size-max=81920
+      - -bundle-age-max=10s
+      - -missed-age=20s
+      - -missed-interval=15s
+      - -verbose
+      - -prometheusx.listen-address=:9991
+
+  generate-schemas:
+    image: ndt-server
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    volumes:
+      - ./schemas:/schemas
+    entrypoint:
+    - /go/bin/generate-schemas
+    - -ndt7=/schemas/ndt7.json
+    - -ndt5=/schemas/ndt5.json
