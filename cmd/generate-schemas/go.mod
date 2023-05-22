@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	cloud.google.com/go/bigquery v1.49.0
-	github.com/m-lab/go v0.1.60
+	github.com/m-lab/go v0.1.66
 	github.com/m-lab/ndt-server v0.20.17
 )
 
