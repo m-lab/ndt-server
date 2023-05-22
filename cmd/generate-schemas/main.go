@@ -4,6 +4,7 @@ import (
 	"flag"
 	"io/ioutil"
 
+	"github.com/m-lab/go/bqx"
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/ndt-server/data"
 
@@ -26,6 +27,7 @@ func main() {
 	row7 := data.NDT7Result{}
 	sch, err := bigquery.InferSchema(row7)
 	rtx.Must(err, "failed to generate ndt7 schema")
+	sch = bqx.RemoveRequired(sch)
 	b, err := sch.ToJSONFields()
 	rtx.Must(err, "failed to marshal schema")
 	ioutil.WriteFile(ndt7schema, b, 0o644)
@@ -34,6 +36,7 @@ func main() {
 	row5 := data.NDT7Result{}
 	sch, err = bigquery.InferSchema(row5)
 	rtx.Must(err, "failed to generate ndt5 schema")
+	sch = bqx.RemoveRequired(sch)
 	b, err = sch.ToJSONFields()
 	rtx.Must(err, "failed to marshal schema")
 	ioutil.WriteFile(ndt5schema, b, 0o644)
