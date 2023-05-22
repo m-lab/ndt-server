@@ -4,7 +4,7 @@ import (
 	"flag"
 	"io/ioutil"
 
-	"github.com/m-lab/go/bqx"
+	"github.com/m-lab/go/cloud/bqx"
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/ndt-server/data"
 
