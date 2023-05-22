@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	cloud.google.com/go/bigquery v1.49.0
-	github.com/m-lab/go v0.1.60
+	github.com/m-lab/go v0.1.66
 	github.com/m-lab/ndt-server v0.20.17
 )
 
@@ -57,4 +57,5 @@ require (
 	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
 	google.golang.org/grpc v1.53.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
