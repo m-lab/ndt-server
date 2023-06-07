@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.9.1 of the ndt7 specification.
+This is version v0.9.2 of the ndt7 specification.
 
 ## Design choices
 
@@ -35,11 +35,21 @@ a measurement of your last mile speed. Rather it is a measurement
 of what performance is possible with your device, your current internet
 connection (landline, Wi-Fi, 4G, etc.), the characteristics of
 your ISP and possibly of other ISPs in the middle, and the server
-being used. The main metric measured by ndt7 is the goodput. That is,
-the speed measured at application level, without including the
-overheads of WebSockets, TLS, TCP/IP, and link layer headers. But we
-also provide kernel-level information from `TCP_INFO` where available. For
-all these reasons we say that ndt7 performs application-level measurements.
+being used. Ndt7 supports several three profiles:
+
+1. the *application-level profile* allows to deploy clients and servers
+that only measure the goodput (i.e., the speed measured at the application
+level, without including the overhead of WebSocket, TLS, TCP/IP, and
+link layer headers).
+
+2. the *TCP_INFO profile* relies only on kernel-level information from `TCP_INFO`.
+
+3. the *mixed profile* includes application-level measurements and/or `TCP_INFO`
+depending on whether this information is available.
+
+The M-Lab deployment of ndt7 focuses on measuring the [TCP bulk transport capacity](
+https://www.measurementlab.net/blog/evolution-of-ndt/) and uses the mixed profile. Details
+of what M-Lab specifically collects are out of the scope of this specification.
 
 The presence of network issues (e.g. interference or congestion) should
 cause ndt7 to yield worse measurement results, relative to the expected speed
