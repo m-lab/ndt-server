@@ -41,7 +41,7 @@ the application level, without including the overhead of WebSocket,
 TLS, TCP/IP, and link layer headers). However, the M-Lab deployment of
 ndt7 includes goodput measurements as well as `TCP_INFO` measurements
 collected by the server. This implementation choice allows for
-maximually simpler clients and pushes the complexity to the server.
+maximally simpler clients and pushes the complexity to the server.
 
 The presence of network issues (e.g. interference or congestion) should
 cause ndt7 to yield worse measurement results, relative to the expected speed
