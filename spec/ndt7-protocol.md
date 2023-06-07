@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.9.1 of the ndt7 specification.
+This is version v0.10.0 of the ndt7 specification.
 
 ## Design choices
 
@@ -35,11 +35,13 @@ a measurement of your last mile speed. Rather it is a measurement
 of what performance is possible with your device, your current internet
 connection (landline, Wi-Fi, 4G, etc.), the characteristics of
 your ISP and possibly of other ISPs in the middle, and the server
-being used. The main metric measured by ndt7 is the goodput. That is,
-the speed measured at application level, without including the
-overheads of WebSockets, TLS, TCP/IP, and link layer headers. But we
-also provide kernel-level information from `TCP_INFO` where available. For
-all these reasons we say that ndt7 performs application-level measurements.
+being used. The original design of ndt7 was meant to support client
+and server only measuring the goodput (i.e., the speed measured at
+the application level, without including the overhead of WebSocket,
+TLS, TCP/IP, and link layer headers). However, the M-Lab deployment of
+ndt7 includes goodput measurements as well as `TCP_INFO` measurements
+collected by the server. This implementation choice allows for
+maximually simpler clients and pushes the complexity to the server.
 
 The presence of network issues (e.g. interference or congestion) should
 cause ndt7 to yield worse measurement results, relative to the expected speed
@@ -49,10 +51,6 @@ path, and the slowest hop is usually also the last hop.
 Extra information obtained using `TCP_INFO` should help an expert
 reading the results of a ndt7 experiment to better understand what could
 be the root cause of such performance issues.
-
-To ensure that clients continue to work, we make the design choice that
-clients should be maximally simple, and that all complexity should
-implemented on the server side.
 
 Ndt7 should consume few resources. The maximum runtime of a test should
 be ten seconds, but the server should be able to determine if the performance
