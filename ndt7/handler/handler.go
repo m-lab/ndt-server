@@ -4,10 +4,12 @@ package handler
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -64,6 +66,13 @@ func (h Handler) Upload(rw http.ResponseWriter, req *http.Request) {
 // runMeasurement conditionally runs either download or upload based on kind.
 // The kind argument must be spec.SubtestDownload or spec.SubtestUpload.
 func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, req *http.Request) {
+	// Validate client request before opening the connection.
+	maxBytes, err := validateEarlyExit(req.URL.Query())
+	if err != nil {
+		warnAndClose(rw, err.Error())
+		return
+	}
+
 	// Setup websocket connection.
 	conn := setupConn(rw, req)
 	if conn == nil {
@@ -109,7 +118,7 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	var rate float64
 	if kind == spec.SubtestDownload {
 		result.Download = data
-		err = download.Do(ctx, conn, data)
+		err = download.Do(ctx, conn, data, maxBytes)
 		rate = downRate(data.ServerMeasurements)
 	} else if kind == spec.SubtestUpload {
 		result.Upload = data
@@ -131,11 +140,11 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 // response writer. The request argument is the HTTP request that we received.
 func setupConn(writer http.ResponseWriter, request *http.Request) *websocket.Conn {
 	logging.Logger.Debug("setupConn: upgrading to WebSockets")
-	if request.Header.Get("Sec-WebSocket-Protocol") != spec.SecWebSocketProtocol {
-		warnAndClose(
-			writer, "setupConn: missing Sec-WebSocket-Protocol in request")
-		return nil
-	}
+	// if request.Header.Get("Sec-WebSocket-Protocol") != spec.SecWebSocketProtocol {
+	// 	warnAndClose(
+	// 		writer, "setupConn: missing Sec-WebSocket-Protocol in request")
+	// 	return nil
+	// }
 	headers := http.Header{}
 	headers.Add("Sec-WebSocket-Protocol", spec.SecWebSocketProtocol)
 	upgrader := websocket.Upgrader{
@@ -239,4 +248,24 @@ func appendClientMetadata(data *model.ArchivalData, values url.Values) {
 				Value: values[0], // NOTE: this will ignore multi-value parameters.
 			})
 	}
+}
+
+// validateEarlyExit verifies and returns the "early_exit" parameter value, if there is one.
+func validateEarlyExit(values url.Values) (int64, error) {
+	for name, values := range values {
+		if name != spec.EarlyExitParameterName {
+			continue
+		}
+
+		value := values[0]
+		// if !slices.Contains(spec.ValidEarlyExitValues, value) {
+		// 	return 0, fmt.Errorf("Invalid %s parameter value %s", name, value)
+		// }
+
+		// Convert from MB string to byte int64.
+		bytes, _ := strconv.ParseInt(value, 10, 64)
+		return bytes * 1000000, nil
+	}
+	// Return a default value for the maximum number of bytes.
+	return math.MaxInt64, nil
 }

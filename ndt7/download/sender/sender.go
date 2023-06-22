@@ -3,7 +3,9 @@ package sender
 
 import (
 	"context"
+	"math"
 	"math/rand"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -25,6 +27,20 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	return websocket.NewPreparedMessage(websocket.BinaryMessage, data)
 }
 
+func maxBytes(data *model.ArchivalData) int64 {
+	for _, md := range data.ClientMetadata {
+		if md.Name != "early_exit" {
+			continue
+		}
+		bytes, err := strconv.ParseInt(md.Value, 10, 64)
+		if err != nil {
+			return math.MaxInt64
+		}
+		return bytes
+	}
+	return math.MaxInt64
+}
+
 // Start sends binary messages (bulk download) and measurement messages (status
 // messages) to the client conn. Each measurement message will also be saved to
 // data.
@@ -32,7 +48,7 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 // Liveness guarantee: the sender will not be stuck sending for more than the
 // MaxRuntime of the subtest. This is enforced by setting the write deadline to
 // Time.Now() + MaxRuntime.
-func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) error {
+func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, maxBytes int64) error {
 	logging.Logger.Debug("sender: start")
 	proto := ndt7metrics.ConnLabel(conn)
 
@@ -70,7 +86,9 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 	for {
 		select {
 		case m, ok := <-src:
-			if !ok { // This means that the measurer has terminated
+			// This means that the measurer has terminated or enough bytes have been acked,
+			// so we should end the test.
+			if !ok || m.TCPInfo.BytesAcked >= maxBytes {
 				closer.StartClosing(conn)
 				ndt7metrics.ClientSenderErrors.WithLabelValues(
 					proto, string(spec.SubtestDownload), "measurer-closed").Inc()
