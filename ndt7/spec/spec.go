@@ -74,3 +74,9 @@ const (
 	// SubtestUpload is a upload subtest
 	SubtestUpload = SubtestKind("upload")
 )
+
+// Params defines the client parameters for ndt7 requests.
+type Params struct {
+	IsEarlyExit bool
+	MaxBytes    int64
+}

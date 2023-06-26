@@ -16,13 +16,6 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
-// EarlyExitParams defines the parameters for the sender to end the
-// test early.
-type EarlyExitParams struct {
-	IsEarlyExit bool
-	MaxBytes    int64
-}
-
 func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	data := make([]byte, size)
 	_, err := rand.Read(data)
@@ -39,7 +32,7 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 // Liveness guarantee: the sender will not be stuck sending for more than the
 // MaxRuntime of the subtest. This is enforced by setting the write deadline to
 // Time.Now() + MaxRuntime.
-func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, params *EarlyExitParams) error {
+func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, params *spec.Params) error {
 	logging.Logger.Debug("sender: start")
 	proto := ndt7metrics.ConnLabel(conn)
 
@@ -98,7 +91,8 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, 
 				return err
 			}
 			// End the test once enough bytes have been acked.
-			if params.IsEarlyExit && m.TCPInfo.BytesAcked >= params.MaxBytes {
+			if params.IsEarlyExit && m.TCPInfo != nil &&
+				m.TCPInfo.BytesAcked >= params.MaxBytes {
 				closer.StartClosing(conn)
 				ndt7metrics.ClientSenderErrors.WithLabelValues(
 					proto, string(spec.SubtestDownload), "measurer-closed-early").Inc()

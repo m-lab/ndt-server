@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/m-lab/ndt-server/ndt7/download/sender"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
@@ -17,13 +16,13 @@ func Test_validateEarlyExit(t *testing.T) {
 	tests := []struct {
 		name    string
 		values  url.Values
-		want    *sender.EarlyExitParams
+		want    *spec.Params
 		wantErr bool
 	}{
 		{
 			name:   "valid-param",
 			values: url.Values{"early_exit": {spec.ValidEarlyExitValues[0]}},
-			want: &sender.EarlyExitParams{
+			want: &spec.Params{
 				IsEarlyExit: true,
 				MaxBytes:    250000000,
 			},
@@ -36,9 +35,15 @@ func Test_validateEarlyExit(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "missing-value",
+			values:  url.Values{"early_exit": {""}},
+			want:    nil,
+			wantErr: true,
+		},
+		{
 			name:   "absent-param",
-			values: url.Values{},
-			want: &sender.EarlyExitParams{
+			values: url.Values{"foo": {"bar"}},
+			want: &spec.Params{
 				IsEarlyExit: false,
 				MaxBytes:    0,
 			},

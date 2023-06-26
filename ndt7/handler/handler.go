@@ -22,7 +22,6 @@ import (
 	"github.com/m-lab/ndt-server/metadata"
 	"github.com/m-lab/ndt-server/metrics"
 	"github.com/m-lab/ndt-server/ndt7/download"
-	"github.com/m-lab/ndt-server/ndt7/download/sender"
 	ndt7metrics "github.com/m-lab/ndt-server/ndt7/metrics"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/results"
@@ -252,7 +251,7 @@ func appendClientMetadata(data *model.ArchivalData, values url.Values) {
 }
 
 // validateEarlyExit verifies and returns the "early_exit" parameters.
-func validateEarlyExit(values url.Values) (*sender.EarlyExitParams, error) {
+func validateEarlyExit(values url.Values) (*spec.Params, error) {
 	for name, values := range values {
 		if name != spec.EarlyExitParameterName {
 			continue
@@ -265,12 +264,12 @@ func validateEarlyExit(values url.Values) (*sender.EarlyExitParams, error) {
 
 		// Convert string to int64.
 		bytes, _ := strconv.ParseInt(value, 10, 64)
-		return &sender.EarlyExitParams{
+		return &spec.Params{
 			IsEarlyExit: true,
 			MaxBytes:    bytes * 1000000, // Conver MB to bytes.
 		}, nil
 	}
-	return &sender.EarlyExitParams{
+	return &spec.Params{
 		IsEarlyExit: false,
 	}, nil
 }
