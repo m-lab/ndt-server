@@ -4,7 +4,6 @@ package handler
 import (
 	"context"
 	"fmt"
-	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/exp/slices"
 
 	"github.com/m-lab/access/controller"
 	"github.com/m-lab/go/prometheusx"
@@ -22,6 +22,7 @@ import (
 	"github.com/m-lab/ndt-server/metadata"
 	"github.com/m-lab/ndt-server/metrics"
 	"github.com/m-lab/ndt-server/ndt7/download"
+	"github.com/m-lab/ndt-server/ndt7/download/sender"
 	ndt7metrics "github.com/m-lab/ndt-server/ndt7/metrics"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/results"
@@ -67,7 +68,7 @@ func (h Handler) Upload(rw http.ResponseWriter, req *http.Request) {
 // The kind argument must be spec.SubtestDownload or spec.SubtestUpload.
 func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, req *http.Request) {
 	// Validate client request before opening the connection.
-	maxBytes, err := validateEarlyExit(req.URL.Query())
+	params, err := validateEarlyExit(req.URL.Query())
 	if err != nil {
 		warnAndClose(rw, err.Error())
 		return
@@ -118,7 +119,7 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	var rate float64
 	if kind == spec.SubtestDownload {
 		result.Download = data
-		err = download.Do(ctx, conn, data, maxBytes)
+		err = download.Do(ctx, conn, data, params)
 		rate = downRate(data.ServerMeasurements)
 	} else if kind == spec.SubtestUpload {
 		result.Upload = data
@@ -140,11 +141,11 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 // response writer. The request argument is the HTTP request that we received.
 func setupConn(writer http.ResponseWriter, request *http.Request) *websocket.Conn {
 	logging.Logger.Debug("setupConn: upgrading to WebSockets")
-	// if request.Header.Get("Sec-WebSocket-Protocol") != spec.SecWebSocketProtocol {
-	// 	warnAndClose(
-	// 		writer, "setupConn: missing Sec-WebSocket-Protocol in request")
-	// 	return nil
-	// }
+	if request.Header.Get("Sec-WebSocket-Protocol") != spec.SecWebSocketProtocol {
+		warnAndClose(
+			writer, "setupConn: missing Sec-WebSocket-Protocol in request")
+		return nil
+	}
 	headers := http.Header{}
 	headers.Add("Sec-WebSocket-Protocol", spec.SecWebSocketProtocol)
 	upgrader := websocket.Upgrader{
@@ -250,22 +251,26 @@ func appendClientMetadata(data *model.ArchivalData, values url.Values) {
 	}
 }
 
-// validateEarlyExit verifies and returns the "early_exit" parameter value, if there is one.
-func validateEarlyExit(values url.Values) (int64, error) {
+// validateEarlyExit verifies and returns the "early_exit" parameters.
+func validateEarlyExit(values url.Values) (*sender.EarlyExitParams, error) {
 	for name, values := range values {
 		if name != spec.EarlyExitParameterName {
 			continue
 		}
 
 		value := values[0]
-		// if !slices.Contains(spec.ValidEarlyExitValues, value) {
-		// 	return 0, fmt.Errorf("Invalid %s parameter value %s", name, value)
-		// }
+		if !slices.Contains(spec.ValidEarlyExitValues, value) {
+			return nil, fmt.Errorf("Invalid %s parameter value %s", name, value)
+		}
 
-		// Convert from MB string to byte int64.
+		// Convert string to int64.
 		bytes, _ := strconv.ParseInt(value, 10, 64)
-		return bytes * 1000000, nil
+		return &sender.EarlyExitParams{
+			IsEarlyExit: true,
+			MaxBytes:    bytes * 1000000, // Conver MB to bytes.
+		}, nil
 	}
-	// Return a default value for the maximum number of bytes.
-	return math.MaxInt64, nil
+	return &sender.EarlyExitParams{
+		IsEarlyExit: false,
+	}, nil
 }

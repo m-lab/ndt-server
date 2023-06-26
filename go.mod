@@ -4,11 +4,11 @@ go 1.18
 
 require (
 	github.com/apex/log v1.9.0
-	github.com/google/uuid v1.2.0
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/websocket v1.5.0
 	github.com/m-lab/access v0.0.11
-	github.com/m-lab/go v0.1.53
+	github.com/m-lab/go v0.1.66
 	github.com/m-lab/tcp-info v1.5.3
 	github.com/m-lab/uuid v1.0.1
 	github.com/prometheus/client_golang v1.13.0
@@ -17,21 +17,30 @@ require (
 )
 
 require (
+	github.com/google/go-cmp v0.5.9 // indirect
+	github.com/rogpeppe/go-internal v1.9.0 // indirect
+	github.com/stretchr/testify v1.8.1 // indirect
+	golang.org/x/tools v0.6.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+)
+
+require (
 	github.com/araddon/dateparse v0.0.0-20200409225146-d820a6159ab1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
 	github.com/gocarina/gocsv v0.0.0-20210408192840-02d7211d929d // indirect
-	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/justinas/alice v1.2.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9 // indirect
+	golang.org/x/crypto v0.7.0 // indirect
+	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	golang.org/x/sys v0.7.0 // indirect
+	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 )
