@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/exp/slices"
 
 	"github.com/m-lab/access/controller"
 	"github.com/m-lab/go/prometheusx"
@@ -20,6 +22,7 @@ import (
 	"github.com/m-lab/ndt-server/metadata"
 	"github.com/m-lab/ndt-server/metrics"
 	"github.com/m-lab/ndt-server/ndt7/download"
+	"github.com/m-lab/ndt-server/ndt7/download/sender"
 	ndt7metrics "github.com/m-lab/ndt-server/ndt7/metrics"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/results"
@@ -64,6 +67,13 @@ func (h Handler) Upload(rw http.ResponseWriter, req *http.Request) {
 // runMeasurement conditionally runs either download or upload based on kind.
 // The kind argument must be spec.SubtestDownload or spec.SubtestUpload.
 func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, req *http.Request) {
+	// Validate client request before opening the connection.
+	params, err := validateEarlyExit(req.URL.Query())
+	if err != nil {
+		warnAndClose(rw, err.Error())
+		return
+	}
+
 	// Setup websocket connection.
 	conn := setupConn(rw, req)
 	if conn == nil {
@@ -109,7 +119,7 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	var rate float64
 	if kind == spec.SubtestDownload {
 		result.Download = data
-		err = download.Do(ctx, conn, data)
+		err = download.Do(ctx, conn, data, params)
 		rate = downRate(data.ServerMeasurements)
 	} else if kind == spec.SubtestUpload {
 		result.Upload = data
@@ -239,4 +249,28 @@ func appendClientMetadata(data *model.ArchivalData, values url.Values) {
 				Value: values[0], // NOTE: this will ignore multi-value parameters.
 			})
 	}
+}
+
+// validateEarlyExit verifies and returns the "early_exit" parameters.
+func validateEarlyExit(values url.Values) (*sender.Params, error) {
+	for name, values := range values {
+		if name != spec.EarlyExitParameterName {
+			continue
+		}
+
+		value := values[0]
+		if !slices.Contains(spec.ValidEarlyExitValues, value) {
+			return nil, fmt.Errorf("Invalid %s parameter value %s", name, value)
+		}
+
+		// Convert string to int64.
+		bytes, _ := strconv.ParseInt(value, 10, 64)
+		return &sender.Params{
+			IsEarlyExit: true,
+			MaxBytes:    bytes * 1000000, // Conver MB to bytes.
+		}, nil
+	}
+	return &sender.Params{
+		IsEarlyExit: false,
+	}, nil
 }

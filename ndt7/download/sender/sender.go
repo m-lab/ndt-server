@@ -16,6 +16,12 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
+// Params defines the parameters for the sender to end the test early.
+type Params struct {
+	IsEarlyExit bool
+	MaxBytes    int64
+}
+
 func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	data := make([]byte, size)
 	_, err := rand.Read(data)
@@ -32,7 +38,7 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 // Liveness guarantee: the sender will not be stuck sending for more than the
 // MaxRuntime of the subtest. This is enforced by setting the write deadline to
 // Time.Now() + MaxRuntime.
-func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) error {
+func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, params *Params) error {
 	logging.Logger.Debug("sender: start")
 	proto := ndt7metrics.ConnLabel(conn)
 
@@ -70,7 +76,7 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 	for {
 		select {
 		case m, ok := <-src:
-			if !ok { // This means that the measurer has terminated
+			if !ok { // This means that the measurer has terminated.
 				closer.StartClosing(conn)
 				ndt7metrics.ClientSenderErrors.WithLabelValues(
 					proto, string(spec.SubtestDownload), "measurer-closed").Inc()
@@ -89,6 +95,14 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) 
 				ndt7metrics.ClientSenderErrors.WithLabelValues(
 					proto, string(spec.SubtestDownload), "ping-send-ticks").Inc()
 				return err
+			}
+			// End the test once enough bytes have been acked.
+			if params.IsEarlyExit && m.TCPInfo != nil &&
+				m.TCPInfo.BytesAcked >= params.MaxBytes {
+				closer.StartClosing(conn)
+				ndt7metrics.ClientSenderErrors.WithLabelValues(
+					proto, string(spec.SubtestDownload), "measurer-closed-early").Inc()
+				return nil
 			}
 		default:
 			if err := conn.WritePreparedMessage(preparedMessage); err != nil {

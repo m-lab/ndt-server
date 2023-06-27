@@ -22,6 +22,15 @@ const MaxMessageSize = 1 << 24
 // a good compromise between Go and JavaScript as seen in cloud based tests.
 const MaxScaledMessageSize = 1 << 20
 
+// ValidEarlyExitValues contains the set of accepted MB transfer amounts after which
+// ndt7 download tests can be prematurely terminated.
+// Client requests with values outside of this set will result in a 400 error.
+var ValidEarlyExitValues = []string{"250"}
+
+// EarlyExitParameterName is the name of the parameter that clients can use to terminate
+// ndt7 download tests once the test has transferred as many MB as the parameter's value.
+const EarlyExitParameterName = "early_exit"
+
 // DefaultWebsocketBufferSize is the read and write buffer sizes used when
 // creating a websocket connection. This size is independent of the websocket
 // message sizes defined above (which may be larger) and used to optimize read
@@ -65,3 +74,9 @@ const (
 	// SubtestUpload is a upload subtest
 	SubtestUpload = SubtestKind("upload")
 )
+
+// Params defines the client parameters for ndt7 requests.
+type Params struct {
+	IsEarlyExit bool
+	MaxBytes    int64
+}
