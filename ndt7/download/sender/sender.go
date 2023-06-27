@@ -16,6 +16,12 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
 
+// Params defines the parameters for the sender to end the test early.
+type Params struct {
+	IsEarlyExit bool
+	MaxBytes    int64
+}
+
 func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 	data := make([]byte, size)
 	_, err := rand.Read(data)
@@ -32,7 +38,7 @@ func makePreparedMessage(size int) (*websocket.PreparedMessage, error) {
 // Liveness guarantee: the sender will not be stuck sending for more than the
 // MaxRuntime of the subtest. This is enforced by setting the write deadline to
 // Time.Now() + MaxRuntime.
-func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, params *spec.Params) error {
+func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, params *Params) error {
 	logging.Logger.Debug("sender: start")
 	proto := ndt7metrics.ConnLabel(conn)
 
