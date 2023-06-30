@@ -38,7 +38,7 @@ var (
 	ndt5Addr          = flag.String("ndt5_addr", ":3001", "The address and port to use for the unencrypted ndt5 test")
 	ndt5WsAddr        = flag.String("ndt5_ws_addr", "127.0.0.1:3002", "The address and port to use for the ndt5 WS test")
 	ndt5WssAddr       = flag.String("ndt5_wss_addr", ":3010", "The address and port to use for the ndt5 WSS test")
-	healthAddr        = flag.String("health_addr", "localhost:8000", "The address and port to use for health checks")
+	healthAddr        = flag.String("health_addr", "127.0.0.1:8000", "The address and port to use for health checks")
 	certFile          = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
 	tlsVersion        = flag.String("tls.version", "", "Minimum TLS version. Valid values: 1.2 or 1.3")
