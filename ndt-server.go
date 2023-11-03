@@ -26,6 +26,7 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/platformx"
 	"github.com/m-lab/ndt-server/version"
+	"github.com/m-lab/tcp-info/eventsocket"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -193,6 +194,14 @@ func main() {
 		rtx.Must(err, "Failed to load verifier for when tokens are required")
 	}
 
+	// Make and start the event server.
+	eventSrv := eventsocket.NullServer()
+	if *eventsocket.Filename != "" {
+		eventSrv = eventsocket.New(*eventsocket.Filename)
+	}
+	rtx.Must(eventSrv.Listen(), "Could not listen on", *eventsocket.Filename)
+	go eventSrv.Serve(ctx)
+
 	// Enforce tokens and tx controllers on the same ndt5 resource.
 	// NOTE: raw ndt5 requests cannot honor tokens or differentiate between upload/downloads.
 	ndt5Paths := controller.Paths{
@@ -242,6 +251,7 @@ func main() {
 		InsecurePort:    *ndt7AddrCleartext,
 		ServerMetadata:  serverMetadata,
 		CompressResults: *compress,
+		Events:          eventSrv,
 	}
 	ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
 	ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))

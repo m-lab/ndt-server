@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -54,7 +53,7 @@ func setupMain() func() {
 	cleanups := []func(){}
 
 	// Create self-signed certs in a temp directory.
-	dir, err := ioutil.TempDir("", "TestNdtServerMain")
+	dir, err := os.MkdirTemp("", "TestNdtServerMain")
 	rtx.Must(err, "Could not create tempdir")
 
 	certFile := "cert.pem"
