@@ -12,6 +12,7 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/handler"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/netx"
+	"github.com/m-lab/tcp-info/eventsocket"
 )
 
 // NewNDT7Server creates a local httptest server capable of running an ndt7
@@ -22,7 +23,7 @@ func NewNDT7Server(t *testing.T) (*handler.Handler, *httptest.Server) {
 
 	// TODO: add support for token verifiers.
 	// TODO: add support for TLS server.
-	ndt7Handler := &handler.Handler{DataDir: dir}
+	ndt7Handler := &handler.Handler{DataDir: dir, Events: eventsocket.NullServer()}
 	ndt7Mux := http.NewServeMux()
 	ndt7Mux.Handle(spec.DownloadURLPath, http.HandlerFunc(ndt7Handler.Download))
 	ndt7Mux.Handle(spec.UploadURLPath, http.HandlerFunc(ndt7Handler.Upload))
