@@ -49,13 +49,11 @@ func countFiles(dir string) int {
 	return count
 }
 
-func setupMain() func() {
+func setupMain(t *testing.T) func() {
 	cleanups := []func(){}
 
 	// Create self-signed certs in a temp directory.
-	dir, err := os.MkdirTemp("", "TestNdtServerMain")
-	rtx.Must(err, "Could not create tempdir")
-
+	dir := t.TempDir()
 	certFile := "cert.pem"
 	keyFile := "key.pem"
 
@@ -104,7 +102,7 @@ func (ft *fakeT) Error(args ...interface{}) {
 
 func Test_ContextCancelsMain(t *testing.T) {
 	// Set up certs and the environment vars for the commandline.
-	cleanup := setupMain()
+	cleanup := setupMain(t)
 	defer cleanup()
 
 	// Set up the global context for main()
@@ -131,7 +129,7 @@ func Test_MainIntegrationTest(t *testing.T) {
 		t.Skip("Integration tests take too long")
 	}
 	// Set up certs and the environment vars for the commandline.
-	cleanup := setupMain()
+	cleanup := setupMain(t)
 	defer cleanup()
 
 	// Set up the global context for main()

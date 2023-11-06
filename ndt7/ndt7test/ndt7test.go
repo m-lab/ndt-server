@@ -2,7 +2,6 @@ package ndt7test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -18,9 +17,7 @@ import (
 // NewNDT7Server creates a local httptest server capable of running an ndt7
 // measurement in unittests.
 func NewNDT7Server(t *testing.T) (*handler.Handler, *httptest.Server) {
-	dir, err := ioutil.TempDir("", "ndt7test-*")
-	testingx.Must(t, err, "failed to create temp dir")
-
+	dir := t.TempDir()
 	// TODO: add support for token verifiers.
 	// TODO: add support for TLS server.
 	ndt7Handler := &handler.Handler{DataDir: dir, Events: eventsocket.NullServer()}
