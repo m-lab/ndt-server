@@ -46,7 +46,7 @@ type Handler struct {
 	ServerMetadata []metadata.NameValue
 	// CompressResults controls whether the result files saved by the server are compressed.
 	CompressResults bool
-	// Events is the server for reporting new connections.
+	// Events is for reporting new connections to the event server.
 	Events eventsocket.Server
 }
 
