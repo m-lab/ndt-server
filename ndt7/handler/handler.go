@@ -30,6 +30,8 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/upload"
 	"github.com/m-lab/ndt-server/netx"
 	"github.com/m-lab/ndt-server/version"
+	"github.com/m-lab/tcp-info/eventsocket"
+	"github.com/m-lab/tcp-info/inetdiag"
 )
 
 // Handler handles ndt7 subtests.
@@ -44,6 +46,8 @@ type Handler struct {
 	ServerMetadata []metadata.NameValue
 	// CompressResults controls whether the result files saved by the server are compressed.
 	CompressResults bool
+	// Events is for reporting new connections to the event server.
+	Events eventsocket.Server
 }
 
 // warnAndClose emits message as a warning and the sends a Bad Request
@@ -55,18 +59,18 @@ func warnAndClose(writer http.ResponseWriter, message string) {
 }
 
 // Download handles the download subtest.
-func (h Handler) Download(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) Download(rw http.ResponseWriter, req *http.Request) {
 	h.runMeasurement(spec.SubtestDownload, rw, req)
 }
 
 // Upload handles the upload subtest.
-func (h Handler) Upload(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) Upload(rw http.ResponseWriter, req *http.Request) {
 	h.runMeasurement(spec.SubtestUpload, rw, req)
 }
 
 // runMeasurement conditionally runs either download or upload based on kind.
 // The kind argument must be spec.SubtestDownload or spec.SubtestUpload.
-func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, req *http.Request) {
 	// Validate client request before opening the connection.
 	params, err := validateEarlyExit(req.URL.Query())
 	if err != nil {
@@ -106,13 +110,15 @@ func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, r
 	appendClientMetadata(data, req.URL.Query())
 	data.ServerMetadata = h.ServerMetadata
 	// Create ultimate result.
-	result := setupResult(conn)
+	result, id := setupResult(conn)
 	result.StartTime = time.Now().UTC()
+	h.Events.FlowCreated(result.StartTime, data.UUID, id)
 
-	// Guarantee results are written even if function panics.
+	// Guarantee results are written even if subtest functions panic.
 	defer func() {
 		result.EndTime = time.Now().UTC()
 		h.writeResult(data.UUID, kind, result)
+		h.Events.FlowDeleted(result.EndTime, data.UUID)
 	}()
 
 	// Run measurement.
@@ -165,7 +171,7 @@ func setupConn(writer http.ResponseWriter, request *http.Request) *websocket.Con
 }
 
 // setupResult creates an NDT7Result from the given conn.
-func setupResult(conn *websocket.Conn) *data.NDT7Result {
+func setupResult(conn *websocket.Conn) (*data.NDT7Result, inetdiag.SockID) {
 	// NOTE: unless we plan to run the NDT server over different protocols than TCP,
 	// then we expect RemoteAddr and LocalAddr to always return net.TCPAddr types.
 	clientAddr := netx.ToTCPAddr(conn.RemoteAddr())
@@ -184,7 +190,14 @@ func setupResult(conn *websocket.Conn) *data.NDT7Result {
 		ServerIP:       serverAddr.IP.String(),
 		ServerPort:     serverAddr.Port,
 	}
-	return result
+	id := inetdiag.SockID{
+		SrcIP:  result.ServerIP,
+		DstIP:  result.ClientIP,
+		SPort:  uint16(result.ServerPort),
+		DPort:  uint16(result.ClientPort),
+		Cookie: -1, // Note: we do not populate the socket cookie here.
+	}
+	return result, id
 }
 
 func (h Handler) writeResult(uuid string, kind spec.SubtestKind, result *data.NDT7Result) {
@@ -260,7 +273,7 @@ func validateEarlyExit(values url.Values) (*sender.Params, error) {
 
 		value := values[0]
 		if !slices.Contains(spec.ValidEarlyExitValues, value) {
-			return nil, fmt.Errorf("Invalid %s parameter value %s", name, value)
+			return nil, fmt.Errorf("invalid %s parameter value %s", name, value)
 		}
 
 		// Convert string to int64.
