@@ -114,7 +114,7 @@ func (h *Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, 
 	result.StartTime = time.Now().UTC()
 	h.Events.FlowCreated(result.StartTime, data.UUID, id)
 
-	// Guarantee results are written even if test functions panics.
+	// Guarantee results are written even if subtest functions panic.
 	defer func() {
 		result.EndTime = time.Now().UTC()
 		h.writeResult(data.UUID, kind, result)
