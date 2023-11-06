@@ -35,7 +35,10 @@ func TestHandler_Download(t *testing.T) {
 		fs := &fakeServer{}
 		ndt7h, srv := ndt7test.NewNDT7Server(t)
 		defer srv.Close()
+		// Override the handler Events server with our fake server.
 		ndt7h.Events = fs
+
+		// Run a pseudo test to generate connection events.
 		conn, err := simpleConnect(srv.URL)
 		testingx.Must(t, err, "failed to dial websocket ndt7 test")
 		err = downloadHelper(context.Background(), t, conn)
@@ -45,7 +48,7 @@ func TestHandler_Download(t *testing.T) {
 		// Wait briefly for connection close event.
 		time.Sleep(time.Second)
 
-		// Both events should occur once.
+		// Verify that both events have occurred once.
 		if fs.created == 0 {
 			t.Errorf("flow events created not detected; got %d, want 1", fs.created)
 		}
