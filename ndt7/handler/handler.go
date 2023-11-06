@@ -59,18 +59,18 @@ func warnAndClose(writer http.ResponseWriter, message string) {
 }
 
 // Download handles the download subtest.
-func (h Handler) Download(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) Download(rw http.ResponseWriter, req *http.Request) {
 	h.runMeasurement(spec.SubtestDownload, rw, req)
 }
 
 // Upload handles the upload subtest.
-func (h Handler) Upload(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) Upload(rw http.ResponseWriter, req *http.Request) {
 	h.runMeasurement(spec.SubtestUpload, rw, req)
 }
 
 // runMeasurement conditionally runs either download or upload based on kind.
 // The kind argument must be spec.SubtestDownload or spec.SubtestUpload.
-func (h Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, req *http.Request) {
 	// Validate client request before opening the connection.
 	params, err := validateEarlyExit(req.URL.Query())
 	if err != nil {
