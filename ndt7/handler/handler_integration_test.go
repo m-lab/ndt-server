@@ -18,7 +18,7 @@ import (
 // fakeServer implements the eventsocket.Server interface for testing the ndt7 handler.
 type fakeServer struct {
 	created int
-	deleted int
+	deleted chan bool
 }
 
 func (f *fakeServer) Listen() error               { return nil }
@@ -27,12 +27,12 @@ func (f *fakeServer) FlowCreated(timestamp time.Time, uuid string, sockid inetdi
 	f.created++
 }
 func (f *fakeServer) FlowDeleted(timestamp time.Time, uuid string) {
-	f.deleted++
+	close(f.deleted)
 }
 
 func TestHandler_Download(t *testing.T) {
 	t.Run("download flow events", func(t *testing.T) {
-		fs := &fakeServer{}
+		fs := &fakeServer{deleted: make(chan bool)}
 		ndt7h, srv := ndt7test.NewNDT7Server(t)
 		// Override the handler Events server with our fake server.
 		ndt7h.Events = fs
@@ -49,6 +49,17 @@ func TestHandler_Download(t *testing.T) {
 		// Verify that both events have occurred once.
 		if fs.created == 0 {
 			t.Errorf("flow events created not detected; got %d, want 1", fs.created)
+		}
+		// Since the connection handler goroutine shutdown is independent of the
+		// server and client connection shutdowns, wait for the fakeServer to
+		// receive the delete flow message up to 5 seconds.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		select {
+		case <-ctx.Done():
+			t.Errorf("flow events not deleted before timeout")
+		case <-fs.deleted:
+			// Success.
 		}
 	})
 }
