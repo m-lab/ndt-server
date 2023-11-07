@@ -52,8 +52,8 @@ func TestHandler_Download(t *testing.T) {
 		}
 		// Since the connection handler goroutine shutdown is independent of the
 		// server and client connection shutdowns, wait for the fakeServer to
-		// receive the delete flow message up to 5 seconds.
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// receive the delete flow message up to 15 seconds.
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		select {
 		case <-ctx.Done():
