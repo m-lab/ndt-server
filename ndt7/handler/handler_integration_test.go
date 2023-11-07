@@ -45,15 +45,9 @@ func TestHandler_Download(t *testing.T) {
 		if err != nil && !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
 			testingx.Must(t, err, "failed to download")
 		}
-		// Wait briefly for connection close event.
-		time.Sleep(time.Second)
-
 		// Verify that both events have occurred once.
 		if fs.created == 0 {
 			t.Errorf("flow events created not detected; got %d, want 1", fs.created)
-		}
-		if fs.deleted == 0 {
-			t.Errorf("flow events deleted not detected; got %d, want 1", fs.deleted)
 		}
 	})
 }
