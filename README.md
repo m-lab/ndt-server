@@ -20,6 +20,7 @@ Officially supported by members of M-Lab staff.
 
 Unofficially supported by members of the M-Lab community.
 
+* https://github.com/m-lab/ndt7-client-cc (c++)
 * https://github.com/m-lab/ndt7-client-ios (swift)
 * https://github.com/m-lab/ndt7-client-android (kotlin)
 * https://github.com/m-lab/ndt7-client-android-java (java)
