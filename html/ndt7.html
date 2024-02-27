@@ -1,78 +1,93 @@
 <!doctype html>
 <html lang='en'>
+
 <head>
-  <script type='text/javascript' src='ndt7-core.js'></script>
+  <script type='text/javascript' src='ndt7.js'></script>
   <style>
+    .row {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      width: 100%;
+    }
 
-.row {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  width: 100%;
-}
-
-.result {
-  position: relative;
-  align-items: center;
-  justify-content: center;
-  font-size: 1000%;
-  align: center;
-}
+    .result {
+      position: relative;
+      align-items: center;
+      justify-content: center;
+      font-size: 1000%;
+      align: center;
+    }
   </style>
   <meta charset='utf-8'>
   <title>ndt7 Speed Test</title>
 </head>
+
 <body>
   <div>
+    <div id='server' class='result row'>[Server]</div>
     <div id='download' class='result row'>[Download]</div>
     <div id='upload' class='result row'>[Upload]</div>
   </div>
   <script type='text/javascript'>
-    /* jshint esversion: 6, asi: true */
-    /* globals ndt7core */
-
-    function withElementDo(elementId, callable) {
-      const elem = document.getElementById(elementId)
-      if (elem) {
-        callable(elem)
-      }
-    }
-
-    function updateView(elementId, appInfo) {
-      withElementDo(elementId, function (elem) {
-        const elapsed = appInfo.ElapsedTime / 1e06     /* second */
-        let speed = appInfo.NumBytes / elapsed         /* B/s    */
-        speed *= 8                                     /* bit/s  */
-        speed /= 1e06                                  /* Mbit/s */
-        elem.innerHTML = speed.toFixed(3) + ' Mbit/s'
-      })
-    }
-
-    function runSomething(testName, callback) {
-      ndt7core.run(location.href, testName, function(ev, val) {
-        console.log(ev, val)
-        if (ev === 'complete') {
-          if (callback !== undefined) {
-            callback()
+    ndt7.test(
+      {
+        userAcceptedDataPolicy: true,
+        downloadworkerfile: "ndt7-download-worker.js",
+        uploadworkerfile: "ndt7-upload-worker.js",
+        metadata: {
+          client_name: 'ndt-server-example',
+        },
+        server: location.host,
+        protocol: 'ws',
+      },
+      {
+        serverChosen: function (server) {
+          console.log('Testing to:', {
+            machine: server.machine,
+            locations: server.location,
+          });
+          document.getElementById('server').innerHTML = 'Testing to: ' + server.machine + ' (' + server.location.city + ')';
+        },
+        downloadMeasurement: function (data) {
+          if (data.Source === 'client') {
+            document.getElementById('download').innerHTML = 'Download: ' + data.Data.MeanClientMbps.toFixed(2) + ' Mb/s';
           }
-          return
-        }
-        if (ev === 'measurement' && val.AppInfo !== undefined &&
-            val.Origin === 'client') {
-          updateView(testName, val.AppInfo)
-        }
-      })
-    }
-
-    function runDownload(callback) {
-      runSomething('download', callback)
-    }
-
-    function runUpload(callback) {
-      runSomething('upload', callback)
-    }
-
-    runDownload(function() { runUpload(); })
+        },
+        downloadComplete: function (data) {
+          // (bytes/second) * (bits/byte) / (megabits/bit) = Mbps
+          const serverBw = data.LastServerMeasurement.BBRInfo.BW * 8 / 1000000;
+          const clientGoodput = data.LastClientMeasurement.MeanClientMbps;
+          console.log(
+            `Download test is complete:
+    Instantaneous server bottleneck bandwidth estimate: ${serverBw} Mbps
+    Mean client goodput: ${clientGoodput} Mbps`);
+          document.getElementById('download').innerHTML = clientGoodput.toFixed(2) + ' Mb/s';
+        },
+        uploadMeasurement: function (data) {
+          if (data.Source === 'server') {
+            document.getElementById('upload').innerHTML = (data.Data.TCPInfo.BytesReceived /
+              data.Data.TCPInfo.ElapsedTime * 8).toFixed(2) + ' Mb/s';;
+          }
+        },
+        uploadComplete: function (data) {
+          const bytesReceived = data.LastServerMeasurement.TCPInfo.BytesReceived;
+          const elapsed = data.LastServerMeasurement.TCPInfo.ElapsedTime;
+          // bytes * bits/byte / microseconds = Mbps
+          const throughput =
+            bytesReceived * 8 / elapsed;
+          console.log(
+            `Upload test completed in ${(elapsed / 1000000).toFixed(2)}s
+        Mean server throughput: ${throughput} Mbps`);
+        },
+        error: function (err) {
+          console.log('Error while running the test:', err.message);
+        },
+      },
+    ).then((exitcode) => {
+      console.log("ndt7 test completed with exit code:", exitcode)
+    });
   </script>
 </body>
+
 </html>
