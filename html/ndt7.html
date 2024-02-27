@@ -25,7 +25,6 @@
 
 <body>
   <div>
-    <div id='server' class='result row'>[Server]</div>
     <div id='download' class='result row'>[Download]</div>
     <div id='upload' class='result row'>[Upload]</div>
   </div>
@@ -47,7 +46,7 @@
             machine: server.machine,
             locations: server.location,
           });
-          document.getElementById('server').innerHTML = 'Testing to: ' + server.machine + ' (' + server.location.city + ')';
+          document.getElementById('server').innerHTML = server.machine + ' (' + server.location.city + ')';
         },
         downloadMeasurement: function (data) {
           if (data.Source === 'client') {
