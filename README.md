@@ -6,7 +6,7 @@ This repository contains a [ndt5](
 https://github.com/ndt-project/ndt/wiki/NDTProtocol) and [ndt7](
 spec/ndt7-protocol.md) server written in Go. This code may compile under
 many systems, including macOS and Windows, but is specifically designed
-and tested for running on Linux 4.17+.
+and tested for running on Linux 4.19+.
 
 ## Clients
 
