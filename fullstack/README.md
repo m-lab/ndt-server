@@ -8,7 +8,7 @@ the server with a simple command:
 ```
 After that, point your web browser to
 [http://localhost:3001/static/widget.html](http://localhost:3001/static/widget.html)
-and un a speed test to verify that things work.  The default NDT5 JS client
+and run a speed test to verify that things work.  The default NDT5 JS client
 needs some Javascript client-side optimization (pull requests gratefully
 accepted), but you should still be able to run a speed test immediately.
 
