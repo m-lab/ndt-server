@@ -38,7 +38,7 @@
           client_name: 'ndt-server-example',
         },
         server: location.host,
-        protocol: 'ws',
+	protocol: location.protocol === 'https:' ? 'wss' : 'ws',
       },
       {
         serverChosen: function (server) {
