@@ -27,6 +27,8 @@ import (
 	"github.com/m-lab/ndt-server/platformx"
 	"github.com/m-lab/ndt-server/version"
 	"github.com/m-lab/tcp-info/eventsocket"
+	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -43,15 +45,19 @@ var (
 	certFile          = flag.String("cert", "", "The file with server certificates in PEM format.")
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
 	tlsVersion        = flag.String("tls.version", "", "Minimum TLS version. Valid values: 1.2 or 1.3")
-	dataDir           = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
-	htmlDir           = flag.String("htmldir", "html", "The directory from which to serve static web content.")
-	compress          = flag.Bool("compress-results", true, "Whether to compress result files")
-	deploymentLabels  = flagx.KeyValue{}
-	tokenVerifyKey    = flagx.FileBytesArray{}
-	tokenRequired5    bool
-	tokenRequired7    bool
-	isLameDuck        bool
-	tokenMachine      string
+	autocertEnabled   = flag.Bool("autocert.enabled", false, "Whether to use automatic TLS certificate generation.")
+	autocertHostname  = flagx.FileBytes{}
+	autocertDir       = flag.String("autocert.dir", "autocert", "The directory in which to write autocert files.")
+
+	dataDir          = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
+	htmlDir          = flag.String("htmldir", "html", "The directory from which to serve static web content.")
+	compress         = flag.Bool("compress-results", true, "Whether to compress result files")
+	deploymentLabels = flagx.KeyValue{}
+	tokenVerifyKey   = flagx.FileBytesArray{}
+	tokenRequired5   bool
+	tokenRequired7   bool
+	isLameDuck       bool
+	tokenMachine     string
 
 	// A metric to use to signal that the server is in lame duck mode.
 	lameDuck = promauto.NewGauge(prometheus.GaugeOpts{
@@ -69,6 +75,7 @@ func init() {
 	flag.BoolVar(&tokenRequired7, "ndt7.token.required", false, "Require access token in NDT7 requests")
 	flag.StringVar(&tokenMachine, "token.machine", "", "Use given machine name to verify token claims")
 	flag.Var(&deploymentLabels, "label", "Labels to identify the type of deployment.")
+	flag.Var(&autocertHostname, "autocert.hostname", "File containing the public hostname to request TLS certs for")
 }
 
 func catchSigterm() {
@@ -117,6 +124,12 @@ func httpServer(addr string, handler http.Handler) *http.Server {
 			MinVersion: tls.VersionTLS12,
 		}
 	}
+
+	if *autocertEnabled {
+		// Include ALPN protocol name used by LE's tls-apln-01 challenges.
+		tlsconf.NextProtos = append(tlsconf.NextProtos, acme.ALPNProto)
+	}
+
 	return &http.Server{
 		Addr:      addr,
 		Handler:   handler,
@@ -263,7 +276,6 @@ func main() {
 	rtx.Must(listener.ListenAndServeAsync(ndt7ServerCleartext), "Could not start ndt7 cleartext server")
 	defer ndt7ServerCleartext.Close()
 
-	// Only start TLS-based services if certs and keys are provided
 	if *certFile != "" && *keyFile != "" {
 		// The ndt5 protocol serving WsS-based tests.
 		ndt5WssMux := http.NewServeMux()
@@ -286,7 +298,27 @@ func main() {
 		rtx.Must(listener.ListenAndServeTLSAsync(ndt7Server, *certFile, *keyFile), "Could not start ndt7 server")
 		defer ndt7Server.Close()
 	} else {
-		log.Printf("Cert=%q and Key=%q means no TLS services will be started.\n", *certFile, *keyFile)
+		// Use the autocert package to get TLS certificates if autocert is enabled.
+		if *autocertEnabled && autocertHostname.String() != "" {
+			log.Printf("Setting up autocert for hostname %s\n", autocertHostname.String())
+			m := &autocert.Manager{
+				Prompt:     autocert.AcceptTOS,
+				HostPolicy: autocert.HostWhitelist(autocertHostname.String()),
+				Cache:      autocert.DirCache(*autocertDir),
+			}
+
+			// The ndt7 listener serving up WSS based tests
+			ndt7Server := httpServer(
+				*ndt7Addr,
+				ac7.Then(logging.MakeAccessLogHandler(ndt7Mux)),
+			)
+			ndt7Server.TLSConfig.GetCertificate = m.GetCertificate
+			log.Println("About to listen for ndt7 tests on " + *ndt7Addr)
+			rtx.Must(listener.ListenAndServeTLSAsync(ndt7Server, *certFile, *keyFile), "Could not start ndt7 server")
+			defer ndt7Server.Close()
+		} else {
+			log.Printf("cert/key empty and autocert is disabled, no TLS services will be started.\n")
+		}
 	}
 
 	// Set up handler for /health endpoint.
