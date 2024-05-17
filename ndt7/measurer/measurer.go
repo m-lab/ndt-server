@@ -4,6 +4,7 @@ package measurer
 
 import (
 	"context"
+	"net"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -16,6 +17,9 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/netx"
 )
+
+type ContextKey string
+const RemoteAddrContextKey = ContextKey("remote-addr")
 
 var (
 	BBREnabled = promauto.NewCounterVec(
@@ -87,8 +91,14 @@ func (m *Measurer) loop(ctx context.Context, timeout time.Duration, dst chan<- m
 		return
 	}
 	start := time.Now()
+	var remoteAddr string
+	if fromContext := ctx.Value(RemoteAddrContextKey).(*net.TCPAddr); fromContext != nil {
+		remoteAddr = fromContext.String()
+	} else {
+		remoteAddr = m.conn.RemoteAddr().String()
+	}
 	connectionInfo := &model.ConnectionInfo{
-		Client: m.conn.RemoteAddr().String(),
+		Client: remoteAddr,
 		Server: m.conn.LocalAddr().String(),
 		UUID:   m.uuid,
 	}

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -23,6 +24,7 @@ import (
 	"github.com/m-lab/ndt-server/metrics"
 	"github.com/m-lab/ndt-server/ndt7/download"
 	"github.com/m-lab/ndt-server/ndt7/download/sender"
+	"github.com/m-lab/ndt-server/ndt7/measurer"
 	ndt7metrics "github.com/m-lab/ndt-server/ndt7/metrics"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/results"
@@ -68,6 +70,22 @@ func (h *Handler) Upload(rw http.ResponseWriter, req *http.Request) {
 	h.runMeasurement(spec.SubtestUpload, rw, req)
 }
 
+// We'll need the client's IP address, and sometimes we're behind a proxy.
+// `http.Request.RemoteAddr` nor `websocket.Conn.RemoteAddr()` take this into
+// account.
+func (h *Handler) realClientAddr(req *http.Request, fallback *net.TCPAddr) *net.TCPAddr {
+	forwardedFor := req.Header.Get("X-Forwarded-For")
+	remoteAddrs := strings.SplitN(forwardedFor, ",", 2)
+	if len(remoteAddrs) == 0 {
+		return fallback
+	}
+	parsed := net.ParseIP(remoteAddrs[0])
+	if parsed == nil {
+		return fallback
+	}
+	return &net.TCPAddr{IP: parsed, Port: 1}
+}
+
 // runMeasurement conditionally runs either download or upload based on kind.
 // The kind argument must be spec.SubtestDownload or spec.SubtestUpload.
 func (h *Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, req *http.Request) {
@@ -77,7 +95,6 @@ func (h *Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, 
 		warnAndClose(rw, err.Error())
 		return
 	}
-
 	// Setup websocket connection.
 	conn := setupConn(rw, req)
 	if conn == nil {
@@ -91,6 +108,8 @@ func (h *Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, 
 	// while the receiver goroutine is blocked on a read syscall, long after
 	// the client is gone. This is a workaround for that.
 	ctx, cancel := context.WithTimeout(req.Context(), spec.MaxRuntime)
+	remoteAddr := h.realClientAddr(req, netx.ToTCPAddr(conn.RemoteAddr()))
+	ctx = context.WithValue(ctx, measurer.RemoteAddrContextKey, remoteAddr)
 	defer cancel()
 	go func() {
 		<-ctx.Done()
@@ -110,7 +129,7 @@ func (h *Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, 
 	appendClientMetadata(data, req.URL.Query())
 	data.ServerMetadata = h.ServerMetadata
 	// Create ultimate result.
-	result, id := setupResult(conn)
+	result, id := setupResult(conn, remoteAddr)
 	result.StartTime = time.Now().UTC()
 	h.Events.FlowCreated(result.StartTime, data.UUID, id)
 
@@ -171,10 +190,10 @@ func setupConn(writer http.ResponseWriter, request *http.Request) *websocket.Con
 }
 
 // setupResult creates an NDT7Result from the given conn.
-func setupResult(conn *websocket.Conn) (*data.NDT7Result, inetdiag.SockID) {
+func setupResult(conn *websocket.Conn, remoteAddr *net.TCPAddr) (*data.NDT7Result, inetdiag.SockID) {
 	// NOTE: unless we plan to run the NDT server over different protocols than TCP,
 	// then we expect RemoteAddr and LocalAddr to always return net.TCPAddr types.
-	clientAddr := netx.ToTCPAddr(conn.RemoteAddr())
+	clientAddr := netx.ToTCPAddr(remoteAddr)
 	if clientAddr == nil {
 		clientAddr = &net.TCPAddr{IP: net.ParseIP("::1"), Port: 1}
 	}
