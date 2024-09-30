@@ -46,7 +46,7 @@ var (
 	keyFile           = flag.String("key", "", "The file with server key in PEM format.")
 	tlsVersion        = flag.String("tls.version", "", "Minimum TLS version. Valid values: 1.2 or 1.3")
 	autocertEnabled   = flag.Bool("autocert.enabled", false, "Whether to use automatic TLS certificate generation.")
-	autocertHostname  = flagx.FileBytes{}
+	autocertHostname  = flagx.StringFile{}
 	autocertDir       = flag.String("autocert.dir", "autocert", "The directory in which to write autocert files.")
 
 	dataDir          = flag.String("datadir", "/var/spool/ndt", "The directory in which to write data files")
@@ -57,7 +57,7 @@ var (
 	tokenRequired5   bool
 	tokenRequired7   bool
 	isLameDuck       bool
-	tokenMachine     string
+	tokenMachine     = flagx.StringFile{}
 
 	// A metric to use to signal that the server is in lame duck mode.
 	lameDuck = promauto.NewGauge(prometheus.GaugeOpts{
@@ -73,7 +73,7 @@ func init() {
 	flag.Var(&tokenVerifyKey, "token.verify-key", "Public key for verifying access tokens")
 	flag.BoolVar(&tokenRequired5, "ndt5.token.required", false, "Require access token in NDT5 requests")
 	flag.BoolVar(&tokenRequired7, "ndt7.token.required", false, "Require access token in NDT7 requests")
-	flag.StringVar(&tokenMachine, "token.machine", "", "Use given machine name to verify token claims")
+	flag.Var(&tokenMachine, "token.machine", "Use given machine name to verify token claims")
 	flag.Var(&deploymentLabels, "label", "Labels to identify the type of deployment.")
 	flag.Var(&autocertHostname, "autocert.hostname", "File containing the public hostname to request TLS certs for")
 }
@@ -230,8 +230,8 @@ func main() {
 		spec.UploadURLPath:   true,
 	}
 	// NDT5 uses a raw server, which requires tx5. NDT7 is HTTP only.
-	ac5, tx5 := controller.Setup(ctx, v, tokenRequired5, tokenMachine, ndt5Paths, ndt5Paths)
-	ac7, _ := controller.Setup(ctx, v, tokenRequired7, tokenMachine, ndt7TxPaths, ndt7TokenPaths)
+	ac5, tx5 := controller.Setup(ctx, v, tokenRequired5, tokenMachine.Value, ndt5Paths, ndt5Paths)
+	ac7, _ := controller.Setup(ctx, v, tokenRequired7, tokenMachine.Value, ndt7TxPaths, ndt7TokenPaths)
 
 	// The ndt5 protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".
@@ -299,11 +299,11 @@ func main() {
 		defer ndt7Server.Close()
 	} else {
 		// Use the autocert package to get TLS certificates if autocert is enabled.
-		if *autocertEnabled && autocertHostname.String() != "" {
-			log.Printf("Setting up autocert for hostname %s\n", autocertHostname.String())
+		if *autocertEnabled && autocertHostname.Value != "" {
+			log.Printf("Setting up autocert for hostname %s\n", autocertHostname.Value)
 			m := &autocert.Manager{
 				Prompt:     autocert.AcceptTOS,
-				HostPolicy: autocert.HostWhitelist(autocertHostname.String()),
+				HostPolicy: autocert.HostWhitelist(autocertHostname.Value),
 				Cache:      autocert.DirCache(*autocertDir),
 			}
 
