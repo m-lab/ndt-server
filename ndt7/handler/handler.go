@@ -16,6 +16,7 @@ import (
 
 	"github.com/m-lab/access/controller"
 	"github.com/m-lab/go/prometheusx"
+	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/go/warnonerror"
 	"github.com/m-lab/ndt-server/data"
 	"github.com/m-lab/ndt-server/logging"
@@ -202,14 +203,11 @@ func setupResult(conn *websocket.Conn) (*data.NDT7Result, inetdiag.SockID) {
 
 func (h Handler) writeResult(uuid string, kind spec.SubtestKind, result *data.NDT7Result) {
 	fp, err := results.NewFile(uuid, h.DataDir, kind, h.CompressResults)
-	if err != nil {
-		logging.Logger.WithError(err).Warn("results.NewFile failed")
-		return
-	}
-	if err := fp.WriteResult(result); err != nil {
-		logging.Logger.WithError(err).Warn("failed to write result")
-	}
-	warnonerror.Close(fp, string(kind)+": ignoring fp.Close error")
+	// Note: an ndt-server instance that cannot write results is not useful. This
+	// is a fatal error.
+	rtx.Must(err, "results.NewFile failed")
+	err = fp.WriteResult(result)
+	rtx.Must(err, "failed to write result")
 }
 
 func getData(conn *websocket.Conn) (*model.ArchivalData, error) {
