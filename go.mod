@@ -1,6 +1,6 @@
 module github.com/m-lab/ndt-server
 
-go 1.20
+go 1.23
 
 require (
 	github.com/apex/log v1.9.0
