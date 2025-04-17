@@ -126,12 +126,6 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, 
 			if int64(bulkMessageSize) > totalSent/spec.ScalingFraction {
 				continue // message size still too big compared to sent data
 			}
-			if l := len(data.ServerMeasurements); l > 0 &&
-				data.ServerMeasurements[l-1].BBRInfo != nil &&
-				// Units: (bytes * 1000ms/s) / (bytes/s) = ms, and is being compared with a ms duration.
-				2*int64(bulkMessageSize)*1000/data.ServerMeasurements[l-1].BBRInfo.BW > spec.MaxPoissonSamplingInterval.Milliseconds() {
-				continue // next message size is greater than the client can be expected to consume in the next sampling interval
-			}
 			bulkMessageSize *= 2
 			preparedMessage, err = makePreparedMessage(bulkMessageSize)
 			if err != nil {
