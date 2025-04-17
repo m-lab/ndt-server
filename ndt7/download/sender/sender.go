@@ -92,9 +92,9 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, 
 			}
 			if m.BBRInfo != nil && m.BBRInfo.BW > 0 {
 				// spec.MaxPoissonSamplingInterval is in ms, so we need to convert BW to bytes/ms.
-				// Units: (bytes/sec * sec * ms/sec) = bytes, and is being compared with existing bytes.
+				// Units: ((bytes/sec) * msec / (msec/sec)) = bytes, and is being compared with existing bytes.
 				messageSizeCap = max(messageSizeCap,
-					m.BBRInfo.BW*spec.AveragePoissonSamplingInterval.Microseconds()/1000)
+					m.BBRInfo.BW*spec.AveragePoissonSamplingInterval.Milliseconds()/1000)
 			}
 			// Only save measurements sent to the client.
 			data.ServerMeasurements = append(data.ServerMeasurements, m)
