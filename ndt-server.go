@@ -130,7 +130,7 @@ func httpServer(addr string, handler http.Handler) *http.Server {
 		tlsconf.NextProtos = append(tlsconf.NextProtos, acme.ALPNProto)
 	}
 
-	return &http.Server{
+	server := &http.Server{
 		Addr:      addr,
 		Handler:   handler,
 		TLSConfig: tlsconf,
@@ -140,7 +140,12 @@ func httpServer(addr string, handler http.Handler) *http.Server {
 		// servers.
 		ReadTimeout:  time.Minute,
 		WriteTimeout: time.Minute,
+		// Disable HTTP/2 to fix WebSocket compatibility issues with gorilla/websocket
+		// which doesn't support RFC 8441 HTTP/2 Extended CONNECT for WebSockets
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
+
+	return server
 }
 
 // parseDeploymentLabels() returns an array of key-value pairs of type
