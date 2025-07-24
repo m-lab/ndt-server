@@ -221,6 +221,7 @@ has the following structure:
     "Client": "1.2.3.4:5678",
     "Server": "[::1]:2345",
     "UUID": "<platform-specific-string>"
+    "StartTime": "2019-07-16T15:26:05.987748459-04:00",
   },
   "Origin": "server",
   "Test": "download",
