@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.9.1 of the ndt7 specification.
+This is version v0.10.0 of the ndt7 specification.
 
 ## Design choices
 
@@ -221,6 +221,7 @@ has the following structure:
     "Client": "1.2.3.4:5678",
     "Server": "[::1]:2345",
     "UUID": "<platform-specific-string>"
+    "StartTime": "2019-07-16T15:26:05.987748459-04:00",
   },
   "Origin": "server",
   "Test": "download",
