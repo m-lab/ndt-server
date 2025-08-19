@@ -88,9 +88,10 @@ func (m *Measurer) loop(ctx context.Context, timeout time.Duration, dst chan<- m
 	}
 	start := time.Now()
 	connectionInfo := &model.ConnectionInfo{
-		Client: m.conn.RemoteAddr().String(),
-		Server: m.conn.LocalAddr().String(),
-		UUID:   m.uuid,
+		Client:    m.conn.RemoteAddr().String(),
+		Server:    m.conn.LocalAddr().String(),
+		UUID:      m.uuid,
+		StartTime: start,
 	}
 	// Implementation note: the ticker will close its output channel
 	// after the controlling context is expired.
