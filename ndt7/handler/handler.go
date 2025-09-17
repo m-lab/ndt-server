@@ -208,6 +208,7 @@ func (h Handler) writeResult(uuid string, kind spec.SubtestKind, result *data.ND
 	rtx.Must(err, "results.NewFile failed")
 	err = fp.WriteResult(result)
 	rtx.Must(err, "failed to write result")
+	warnonerror.Close(fp, string(kind)+": ignoring fp.Close error")
 }
 
 func getData(conn *websocket.Conn) (*model.ArchivalData, error) {
