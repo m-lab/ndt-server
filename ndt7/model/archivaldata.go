@@ -39,10 +39,9 @@ type AppInfo struct {
 // ConnectionInfo contains connection info. This structure is described
 // in the ndt7 specification.
 type ConnectionInfo struct {
-	Client    string
-	Server    string
-	UUID      string    `json:",omitempty"`
-	StartTime time.Time `json:",omitempty"`
+	Client string
+	Server string
+	UUID   string `json:",omitempty"`
 }
 
 // The BBRInfo struct contains information measured using BBR. This structure is
