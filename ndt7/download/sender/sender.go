@@ -42,6 +42,8 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, 
 	logging.Logger.Debug("sender: start")
 	proto := ndt7metrics.ConnLabel(conn)
 
+	messageSizeCap := int64(-1) // No cap.
+
 	// Start collecting connection measurements. Measurements will be sent to
 	// src until DefaultRuntime, when the src channel is closed.
 	mr := measurer.New(conn, data.UUID)
@@ -88,6 +90,11 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, 
 					proto, string(spec.SubtestDownload), "write-json").Inc()
 				return err
 			}
+			if m.BBRInfo != nil && m.BBRInfo.BW > 0 {
+				// Units: ((bytes/sec) * msec / (msec/sec)) = bytes, and is being compared with bytes.
+				messageSizeCap = max(messageSizeCap,
+					m.BBRInfo.BW*spec.AveragePoissonSamplingInterval.Milliseconds()/1000)
+			}
 			// Only save measurements sent to the client.
 			data.ServerMeasurements = append(data.ServerMeasurements, m)
 			if err := ping.SendTicks(conn, deadline); err != nil {
@@ -125,6 +132,9 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, 
 			}
 			if int64(bulkMessageSize) > totalSent/spec.ScalingFraction {
 				continue // message size still too big compared to sent data
+			}
+			if messageSizeCap > 0 && 2*int64(bulkMessageSize) > messageSizeCap {
+				continue // next message size is greater than the client can be expected to consume in the next sampling interval
 			}
 			bulkMessageSize *= 2
 			preparedMessage, err = makePreparedMessage(bulkMessageSize)
