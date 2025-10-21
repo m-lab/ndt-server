@@ -16,14 +16,14 @@ COPY --from=measurementlab/tcp-info /licences/zstd/ /licences/zstd/
 # alpine and ubuntu, so just rebuild it here.
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y libpcap-dev golang-go git socat
-RUN go get github.com/m-lab/packet-headers
+RUN go install github.com/m-lab/packet-headers@latest
 RUN mv /root/go/bin/packet-headers /packet-headers
 
 # The NDT server needs the server binary and its HTML files
 COPY --from=measurementlab/ndt-server /ndt-server /
 COPY --from=measurementlab/ndt-server /html /html
 
-COPY fullstack/start.sh /start.sh
+COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
 WORKDIR /

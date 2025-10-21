@@ -1,12 +1,53 @@
-FROM golang:1.20-alpine3.18 as ndt-server-build
-RUN apk add --no-cache git gcc linux-headers musl-dev
-ADD . /go/src/github.com/m-lab/ndt-server
-RUN /go/src/github.com/m-lab/ndt-server/build.sh
+# Traceroute-caller is the most brittle of our tools, as it requires
+# scamper which is not statically linked.  So we work within that image.
+FROM measurementlab/traceroute-caller
 
-# Now copy the built image into the minimal base image
-FROM alpine:3.18
-COPY --from=ndt-server-build /go/bin/ndt-server /
-COPY --from=ndt-server-build /go/bin/generate-schemas /
-ADD ./html /html
+# UUIDs require a little setup to use appropriately. In particular, they need a
+# unique string written to a well-known location to serve as a prefix.
+COPY --from=measurementlab/uuid /create-uuid-prefix-file /
+
+# tcp-info needs its binary and also needs zstd
+COPY --from=measurementlab/tcp-info /bin/tcp-info /tcp-info
+COPY --from=measurementlab/tcp-info /bin/zstd /bin/zstd
+COPY --from=measurementlab/tcp-info /licences/zstd/ /licences/zstd/
+
+# packet-headers needs its binary and libpcap.  There's no good way to get both
+# easily from the image, due to C-linking issues and the differences between
+# alpine and ubuntu, so just rebuild it here.
+ENV DEBIAN_FRONTEND=noninteractive
+# RUN apt-get update && apt-get install -y libpcap-dev golang-go git socat
+# Install dependencies
+RUN apt-get update && apt-get install -y libpcap-dev git socat wget
+
+# Download and install Go 1.20
+RUN wget https://go.dev/dl/go1.20.13.linux-amd64.tar.gz && \
+    rm -rf /usr/local/go && \
+    tar -C /usr/local -xzf go1.20.13.linux-amd64.tar.gz && \
+    rm go1.20.13.linux-amd64.tar.gz
+
+# Set Go 1.20 as the default Go version
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+RUN go install github.com/m-lab/packet-headers@latest
+RUN mv /root/go/bin/packet-headers /packet-headers
+
+# The NDT server needs the server binary and its HTML files
+COPY --from=measurementlab/ndt-server /ndt-server /
+COPY --from=measurementlab/ndt-server /html /html
+
+COPY fullstack/start.sh /start.sh
+RUN chmod +x /start.sh
+
 WORKDIR /
-ENTRYPOINT ["/ndt-server"]
+
+# You can add further arguments to ndt-server, all the other commands are
+# fixed.  Prometheus metrics for tcp-info and traceroute-caller can be
+# found on ports 9991 and 9992 (set in the start script), while the ndt
+# server metrics can be found on port 9990 by default, but can be set by
+# passing --prometheusx.listen-address to that start script.
+#
+# If you would like to run any SSL/TLS-based tests, you'll need to pass in
+# the --cert= and --key= arguments.
+ENTRYPOINT ["/start.sh"]
+
+
