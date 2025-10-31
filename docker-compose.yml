@@ -82,3 +82,9 @@ services:
     - /go/bin/generate-schemas
     - -ndt7=/schemas/ndt7.json
     - -ndt5=/schemas/ndt5.json
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru

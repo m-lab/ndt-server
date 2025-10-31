@@ -30,6 +30,7 @@ import (
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/ndt-server/ndt7/upload"
 	"github.com/m-lab/ndt-server/netx"
+	"github.com/m-lab/ndt-server/redis"
 	"github.com/m-lab/ndt-server/version"
 	"github.com/m-lab/tcp-info/eventsocket"
 	"github.com/m-lab/tcp-info/inetdiag"
@@ -49,6 +50,8 @@ type Handler struct {
 	CompressResults bool
 	// Events is for reporting new connections to the event server.
 	Events eventsocket.Server
+	// RedisClient is the Redis client for caching.
+	RedisClient *redis.Client
 }
 
 // warnAndClose emits message as a warning and the sends a Bad Request
@@ -285,4 +288,39 @@ func validateEarlyExit(values url.Values) (*sender.Params, error) {
 	return &sender.Params{
 		IsEarlyExit: false,
 	}, nil
+}
+
+// checkEarlyTermination queries in-memory database for termination decision every 100 ms.
+// It monitors the termination flag for the given UUID and calls the cancel function
+// when early termination is requested.
+//
+//	0 is proceed (do not terminate early), 1 is terminate early
+//	keys are prefixed by "table_2"
+//	key: "table_2:uuid"
+func (h *Handler) checkEarlyTermination(ctx context.Context, uuid string, cancel context.CancelFunc) {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Context cancelled, stop monitoring
+			return
+		case <-ticker.C:
+			// Query table_2 for termination decision
+			flag, err := h.RedisClient.GetTerminationFlag(ctx, uuid)
+			if err != nil {
+				// Log error but continue monitoring
+				logging.Logger.WithError(err).Warn("checkEarlyTermination: failed to get termination flag")
+				continue
+			}
+
+			// If flag == 1, trigger early termination
+			if flag == 1 {
+				logging.Logger.Debug("checkEarlyTermination: termination flag set, cancelling context")
+				cancel()
+				return
+			}
+		}
+	}
 }
