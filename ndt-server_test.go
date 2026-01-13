@@ -155,53 +155,10 @@ func Test_MainIntegrationTest(t *testing.T) {
 		ignoreData bool
 	}
 	tests := []testcase{
-		// NDT5 TLV-only clients.
-		{
-			// NOTE: we must disable the middle-box test in the ndt5 TLV client because it unconditionally expects
-			// that test to run irrespective of what the server supports.
-			name: "web100clt (ndt5 TLV)",
-			cmd:  "timeout 45s /bin/web100clt-without-json-support --name localhost --port " + ndt5Addr + " --disablemid",
-		},
-		{
-			name: "libndt-client - ndt5 NDT with JSON, download test",
-			cmd:  "timeout 45s /bin/libndt-client localhost --port " + ndt5Addr + " --download",
-		},
-		{
-			name: "libndt-client - ndt5 NDT with JSON, upload test",
-			cmd:  "timeout 45s /bin/libndt-client localhost --port " + ndt5Addr + " --upload",
-		},
-		// Verify that ndt5 clients don't crash when we agree to only run a subset of the requested tests.
-		{
-			name: "Request all tests with web100clt (with JSON)",
-			cmd:  "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + ndt5Addr,
-		},
-		// The ndt5 client without JSON support looks like it DOES crash, although
-		// the exact cause has not been investigated.
-		// TODO(https://github.com/m-lab/ndt-server/issues/66) - make the following test case pass:
-		// 	{
-		// 		name: "Request all tests with web100clt (ndt5 TLV)",
-		// 		cmd:  "timeout 45s /bin/web100clt-without-json-support --name localhost --port " + ndt5Addr,
-		// 	},
-		// Test libndt JSON clients
-		{
-			name: "libndt-client - ndt5 NDT with JSON, download test",
-			cmd:  "timeout 45s /bin/libndt-client localhost --port " + ndt5Addr + " --json --download",
-		},
-		{
-			name: "libndt-client - ndt5 NDT with JSON, upload test",
-			cmd:  "timeout 45s /bin/libndt-client localhost --port " + ndt5Addr + " --json --upload",
-		},
-		{
-			name: "libndt-client - ndt7, download test",
-			cmd:  "timeout 45s /bin/libndt-client localhost --port " + ndt7Addr + " --ndt7 --download",
-			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
-			ignoreData: true,
-		},
-		// Test ndt5 raw JSON clients
-		{
-			name: "web100clt (with JSON), no MID or SFW",
-			cmd:  "timeout 45s /bin/web100clt-with-json-support --name localhost --port " + ndt5Addr,
-		},
+		// NOTE: Legacy C++ clients (web100clt, libndt-client, measurement_kit) have been
+		// removed due to compatibility issues with modern compilers. NDT5 protocol is
+		// tested via the Node.js WebSocket client below. NDT7 is tested via ndt7-client-go.
+
 		// Test ndt5 WS clients connected to the HTTP port
 		{
 			name: "Upload & Download ndt5 WS",
@@ -272,11 +229,6 @@ func Test_MainIntegrationTest(t *testing.T) {
 			cmd:  "timeout 45s ndt7-client -scheme ws -server localhost:" + ndt7AddrCleartext,
 			// Ignore data because Travis does not support BBR.  Once Travis does support BBR, delete this.
 			ignoreData: true,
-		},
-		// Measurement Kit client
-		{
-			name: "measurement_kit testing ndt5 protocol",
-			cmd:  "timeout 45s measurement_kit --no-bouncer --no-collector --no-json --no-geoip ndt -p " + ndt5Addr + " localhost",
 		},
 	}
 
