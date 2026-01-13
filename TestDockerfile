@@ -13,14 +13,11 @@
 # A base image for building and the final image.
 # NOTE: use debian based golang image to easily access libraries and development
 # packages that are unavailable or harder to setup in alpine-based images.
-FROM golang:1.18-buster as ndtbase
+FROM golang:1.25-bookworm as ndtbase
 WORKDIR /
-RUN sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' /etc/apt/sources.list && \
-    sed -i 's|http://security.debian.org/debian-security|http://archive.debian.org/debian-security|g' /etc/apt/sources.list && \
-    sed -i '/buster-updates/d' /etc/apt/sources.list
-RUN apt-get update && apt-get install -y git libmaxminddb0 libevent-2.1-6 \
-    libevent-core-2.1-6 libevent-extra-2.1-6 \
-    libevent-openssl-2.1-6 libevent-pthreads-2.1-6
+RUN apt-get update && apt-get install -y git libmaxminddb0 libevent-2.1-7 \
+    libevent-core-2.1-7 libevent-extra-2.1-7 \
+    libevent-openssl-2.1-7 libevent-pthreads-2.1-7
 
 
 # A base image for building clients.
@@ -86,8 +83,8 @@ COPY --from=ndtrawjson /ndt/src/web100clt /bin/web100clt-with-json-support
 COPY --from=ndtrawnojson /ndt/src/web100clt /bin/web100clt-without-json-support
 COPY --from=libndt /libndt/libndt-client /bin/libndt-client
 COPY --from=mk /usr/local/bin/measurement_kit /bin/measurement_kit
-RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
-RUN apt-get update && apt-get install -y nodejs libjansson4 libssl1.1 libssl1.0
+RUN curl -sL https://deb.nodesource.com/setup_20.x | bash -
+RUN apt-get update && apt-get install -y nodejs libjansson4 libssl3
 ENV GOPATH=/go
 RUN go install github.com/mattn/goveralls@latest
 ADD . /go/src/github.com/m-lab/ndt-server
