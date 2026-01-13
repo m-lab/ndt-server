@@ -1,4 +1,4 @@
-[![GoDoc](https://godoc.org/github.com/m-lab/ndt-server?status.svg)](https://godoc.org/github.com/m-lab/ndt-server) [![Build Status](https://app.travis-ci.com/m-lab/ndt-server.svg?branch=main)](https://travis-ci.com/m-lab/ndt-server) [![Coverage Status](https://coveralls.io/repos/github/m-lab/ndt-server/badge.svg?branch=main)](https://coveralls.io/github/m-lab/ndt-server?branch=main) [![Go Report Card](https://goreportcard.com/badge/github.com/m-lab/ndt-server)](https://goreportcard.com/report/github.com/m-lab/ndt-server)
+[![GoDoc](https://godoc.org/github.com/m-lab/ndt-server?status.svg)](https://godoc.org/github.com/m-lab/ndt-server) [![CI](https://github.com/m-lab/ndt-server/actions/workflows/ci.yml/badge.svg)](https://github.com/m-lab/ndt-server/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/m-lab/ndt-server/badge.svg?branch=main)](https://coveralls.io/github/m-lab/ndt-server?branch=main) [![Go Report Card](https://goreportcard.com/badge/github.com/m-lab/ndt-server)](https://goreportcard.com/report/github.com/m-lab/ndt-server)
 
 # ndt-server
 
