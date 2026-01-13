@@ -5,7 +5,7 @@
 # See <https://docs.travis-ci.com/user/languages/minimal-and-generic/>
 # See <https://travis-ci.org/m-lab/ndt-server/builds/496487913>
 language: minimal
-dist: xenial
+dist: jammy
 
 services:
 - docker
