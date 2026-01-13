@@ -1,6 +1,6 @@
 module github.com/m-lab/ndt-server/cmd/generate-schemas
 
-go 1.23.0
+go 1.25
 
 require (
 	cloud.google.com/go/bigquery v1.49.0
