@@ -277,6 +277,9 @@ func validateEarlyExit(values url.Values) (*sender.Params, error) {
 
 		// Convert string to int64.
 		bytes, _ := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s parameter value %s", name, value)
+		}
 		return &sender.Params{
 			IsEarlyExit: true,
 			MaxBytes:    bytes * 1000000, // Conver MB to bytes.
