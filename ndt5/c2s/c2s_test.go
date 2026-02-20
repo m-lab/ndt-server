@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	 "runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -33,6 +34,9 @@ func MustMakeNetConnection(ctx context.Context) (protocol.MeasuredConnection, ne
 }
 
 func Test_DrainForeverButMeasureFor_NormalOperation(t *testing.T) {
+	 if runtime.GOOS != "linux" {
+        t.Skip("Skipping test: requires Linux TCP features")
+    }
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sConn, cConn := MustMakeNetConnection(ctx)
@@ -57,6 +61,9 @@ func Test_DrainForeverButMeasureFor_NormalOperation(t *testing.T) {
 }
 
 func Test_DrainForeverButMeasureFor_EarlyClientQuit(t *testing.T) {
+	 if runtime.GOOS != "linux" {
+        t.Skip("Skipping test: requires Linux TCP features")
+    }
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sConn, cConn := MustMakeNetConnection(ctx)
@@ -100,6 +107,9 @@ func MustMakeWsConnection(ctx context.Context) (protocol.MeasuredConnection, *we
 }
 
 func Test_DrainForeverButMeasureFor_CountsAllBytesNotJustWsGoodput(t *testing.T) {
+	  if runtime.GOOS != "linux" {
+        t.Skip("Skipping test: requires Linux TCP features")
+    }
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sConn, cConn := MustMakeWsConnection(ctx)
