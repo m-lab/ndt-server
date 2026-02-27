@@ -165,8 +165,8 @@ change the message size.
 
 The expected duration of a test is _up to_ ten seconds. The zero time to
 establish duration is the time when the WebSocket handshake completed. If
-a test has been running for at least 13 seconds, an implementation MAY close the
-underlying TLS connection. This is allowed to keep the overall duration
+a test has been running for at least thirdteen seconds, an implementation MAY
+close the underlying TLS connection. This is allowed to keep the overall duration
 of each test within a thirteen second upper bound. Ideally this SHOULD
 be implemented so that immediately after thirteen seconds have elapsed, the
 underlying TLS connection is closed. This can be implemented, e.g., in C/C++
