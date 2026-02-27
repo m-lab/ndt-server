@@ -57,7 +57,7 @@ implemented on the server side.
 Ndt7 should consume few resources. The maximum runtime of a test should
 be ten seconds since the WebSocket handshake completed. The server should
 be able to determine if the performance has stabilized in less than
-ten seconds and end the test early.
+ten seconds and, if so, end the test early.
 
 ## Protocol description
 
