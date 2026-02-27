@@ -7,7 +7,7 @@ protocol](https://github.com/ndt-project/ndt). Ndt7 is based on
 WebSocket and TLS, and takes advantage of TCP BBR, where this
 flavour of TCP is available.
 
-This is version v0.10.0 of the ndt7 specification.
+This is version v0.11.0 of the ndt7 specification.
 
 ## Design choices
 
@@ -55,8 +55,9 @@ clients should be maximally simple, and that all complexity should
 implemented on the server side.
 
 Ndt7 should consume few resources. The maximum runtime of a test should
-be ten seconds, but the server should be able to determine if the performance
-if performance has stabilized in less than ten seconds and end the test early.
+be ten seconds counted starting from when the WebSocket handshake
+completed. The server should be able to determine if the performance
+has stabilized in less than ten seconds and end the test early.
 
 ## Protocol description
 
@@ -122,6 +123,11 @@ Connection: Upgrade\r\n
 \r\n
 ```
 
+The client SHOULD set a reasonable timeout (e.g., 5-10 seconds) to
+allow for the TCP connect, TLS handshake, and WebSocket handshake
+to complete. The test proper starts _after_ the WebSocket handshake
+has successfully completed.
+
 ### WebSocket channel usage
 
 Once the WebSocket channel is established, the client and the server
@@ -157,8 +163,9 @@ MAY change the size of such messages to accommodate for fast clients, as
 mentioned above. See the appendix for a possible algorithm to dynamically
 change the message size.
 
-The expected duration of a test is _up to_ ten seconds. If a test has
-been running for at least thirteen seconds, an implementation MAY close the
+The expected duration of a test is _up to_ ten seconds. The zero time to
+establish duration is the time when the WebSocket handshake completed. If
+a test has been running for at least 13 seconds, an implementation MAY close the
 underlying TLS connection. This is allowed to keep the overall duration
 of each test within a thirteen second upper bound. Ideally this SHOULD
 be implemented so that immediately after thirteen seconds have elapsed, the
