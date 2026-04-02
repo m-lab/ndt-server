@@ -109,6 +109,7 @@ func (h *Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, 
 
 	// Collect most client metadata from request parameters.
 	appendClientMetadata(data, req.URL.Query())
+	appendIntegrationMetadata(data, req.Context())
 	data.ServerMetadata = h.ServerMetadata
 	// Create ultimate result.
 	result, id := setupResult(conn)
@@ -260,6 +261,24 @@ func appendClientMetadata(data *model.ArchivalData, values url.Values) {
 				Name:  name,
 				Value: values[0], // NOTE: this will ignore multi-value parameters.
 			})
+	}
+}
+
+// appendIntegrationMetadata extracts integration claims from the request context
+// and appends them to ClientMetadata. These claims (int_id, key_id) are set by
+// the access token controller when the token contains integration-specific fields.
+func appendIntegrationMetadata(data *model.ArchivalData, ctx context.Context) {
+	ic := controller.GetIntegrationClaims(ctx)
+	if ic == nil {
+		return
+	}
+	if ic.IntegrationID != "" {
+		data.ClientMetadata = append(data.ClientMetadata,
+			metadata.NameValue{Name: "int_id", Value: ic.IntegrationID})
+	}
+	if ic.KeyID != "" {
+		data.ClientMetadata = append(data.ClientMetadata,
+			metadata.NameValue{Name: "key_id", Value: ic.KeyID})
 	}
 }
 

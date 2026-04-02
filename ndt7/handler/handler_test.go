@@ -2,13 +2,78 @@
 package handler
 
 import (
+	"context"
 	"net/url"
 	"reflect"
 	"testing"
 
+	"github.com/m-lab/access/controller"
+	"github.com/m-lab/access/token"
 	"github.com/m-lab/ndt-server/ndt7/download/sender"
+	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 )
+
+func TestAppendIntegrationMetadata(t *testing.T) {
+	tests := []struct {
+		name      string
+		ic        *token.IntegrationClaims
+		wantLen   int
+		wantIntID string
+		wantKeyID string
+	}{
+		{
+			name:    "nil-claims",
+			ic:      nil,
+			wantLen: 0,
+		},
+		{
+			name:    "empty-claims",
+			ic:      &token.IntegrationClaims{},
+			wantLen: 0,
+		},
+		{
+			name:      "with-both-claims",
+			ic:        &token.IntegrationClaims{IntegrationID: "test-int", KeyID: "ki_test"},
+			wantLen:   2,
+			wantIntID: "test-int",
+			wantKeyID: "ki_test",
+		},
+		{
+			name:      "with-int-id-only",
+			ic:        &token.IntegrationClaims{IntegrationID: "test-int"},
+			wantLen:   1,
+			wantIntID: "test-int",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := &model.ArchivalData{}
+			ctx := context.Background()
+			if tt.ic != nil {
+				ctx = controller.SetIntegrationClaims(ctx, tt.ic)
+			}
+			appendIntegrationMetadata(data, ctx)
+			if len(data.ClientMetadata) != tt.wantLen {
+				t.Errorf("Expected %d metadata entries, got %d: %+v", tt.wantLen, len(data.ClientMetadata), data.ClientMetadata)
+			}
+			for _, nv := range data.ClientMetadata {
+				switch nv.Name {
+				case "int_id":
+					if nv.Value != tt.wantIntID {
+						t.Errorf("Expected int_id %q, got %q", tt.wantIntID, nv.Value)
+					}
+				case "key_id":
+					if nv.Value != tt.wantKeyID {
+						t.Errorf("Expected key_id %q, got %q", tt.wantKeyID, nv.Value)
+					}
+				default:
+					t.Errorf("Unexpected metadata entry: %+v", nv)
+				}
+			}
+		})
+	}
+}
 
 func Test_validateEarlyExit(t *testing.T) {
 	type args struct {
