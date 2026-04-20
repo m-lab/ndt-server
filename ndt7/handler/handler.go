@@ -268,7 +268,7 @@ func appendClientMetadata(data *model.ArchivalData, values url.Values) {
 // and appends them to ClientMetadata. These claims (int_id, key_id) are set by
 // the access token controller when the token contains integration-specific fields.
 func appendIntegrationMetadata(data *model.ArchivalData, ctx context.Context) {
-	ic := controller.GetIntegrationClaims(ctx)
+	ic, _ := controller.GetCustomClaim(ctx).(*IntegrationClaims)
 	if ic == nil {
 		return
 	}

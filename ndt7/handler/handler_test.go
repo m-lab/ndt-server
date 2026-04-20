@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/m-lab/access/controller"
-	"github.com/m-lab/access/token"
 	"github.com/m-lab/ndt-server/ndt7/download/sender"
 	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/spec"
@@ -17,7 +16,7 @@ import (
 func TestAppendIntegrationMetadata(t *testing.T) {
 	tests := []struct {
 		name      string
-		ic        *token.IntegrationClaims
+		ic        *IntegrationClaims
 		wantLen   int
 		wantIntID string
 		wantKeyID string
@@ -29,19 +28,19 @@ func TestAppendIntegrationMetadata(t *testing.T) {
 		},
 		{
 			name:    "empty-claims",
-			ic:      &token.IntegrationClaims{},
+			ic:      &IntegrationClaims{},
 			wantLen: 0,
 		},
 		{
 			name:      "with-both-claims",
-			ic:        &token.IntegrationClaims{IntegrationID: "test-int", KeyID: "ki_test"},
+			ic:        &IntegrationClaims{IntegrationID: "test-int", KeyID: "ki_test"},
 			wantLen:   2,
 			wantIntID: "test-int",
 			wantKeyID: "ki_test",
 		},
 		{
 			name:      "with-int-id-only",
-			ic:        &token.IntegrationClaims{IntegrationID: "test-int"},
+			ic:        &IntegrationClaims{IntegrationID: "test-int"},
 			wantLen:   1,
 			wantIntID: "test-int",
 		},
@@ -51,7 +50,7 @@ func TestAppendIntegrationMetadata(t *testing.T) {
 			data := &model.ArchivalData{}
 			ctx := context.Background()
 			if tt.ic != nil {
-				ctx = controller.SetIntegrationClaims(ctx, tt.ic)
+				ctx = controller.SetCustomClaim(ctx, tt.ic)
 			}
 			appendIntegrationMetadata(data, ctx)
 			if len(data.ClientMetadata) != tt.wantLen {
