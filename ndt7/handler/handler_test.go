@@ -16,41 +16,46 @@ import (
 func TestAppendIntegrationMetadata(t *testing.T) {
 	tests := []struct {
 		name      string
-		ic        *IntegrationClaims
+		claim     any
 		wantLen   int
 		wantIntID string
 		wantKeyID string
 	}{
 		{
 			name:    "nil-claims",
-			ic:      nil,
+			claim:   nil,
 			wantLen: 0,
 		},
 		{
 			name:    "empty-claims",
-			ic:      &IntegrationClaims{},
+			claim:   &IntegrationClaims{},
 			wantLen: 0,
 		},
 		{
 			name:      "with-both-claims",
-			ic:        &IntegrationClaims{IntegrationID: "test-int", KeyID: "ki_test"},
+			claim:     &IntegrationClaims{IntegrationID: "test-int", KeyID: "ki_test"},
 			wantLen:   2,
 			wantIntID: "test-int",
 			wantKeyID: "ki_test",
 		},
 		{
 			name:      "with-int-id-only",
-			ic:        &IntegrationClaims{IntegrationID: "test-int"},
+			claim:     &IntegrationClaims{IntegrationID: "test-int"},
 			wantLen:   1,
 			wantIntID: "test-int",
+		},
+		{
+			name:    "unexpected-claim-type",
+			claim:   &struct{ Foo string }{Foo: "bar"},
+			wantLen: 0,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			data := &model.ArchivalData{}
 			ctx := context.Background()
-			if tt.ic != nil {
-				ctx = controller.SetCustomClaim(ctx, tt.ic)
+			if tt.claim != nil {
+				ctx = controller.SetCustomClaim(ctx, tt.claim)
 			}
 			appendIntegrationMetadata(data, ctx)
 			if len(data.ClientMetadata) != tt.wantLen {
