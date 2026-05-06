@@ -246,7 +246,7 @@ func downRate(m []model.Measurement) float64 {
 }
 
 // excludeKeyRe is a regexp for excluding request parameters from client metadata.
-var excludeKeyRe = regexp.MustCompile("^server_")
+var excludeKeyRe = regexp.MustCompile("^server_|^int_id$|^key_id$")
 
 // appendClientMetadata adds |values| to the archival client metadata contained
 // in the request parameter values. Some select key patterns will be excluded.
