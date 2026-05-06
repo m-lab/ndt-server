@@ -7,7 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/websocket v1.5.3
-	github.com/m-lab/access v0.0.13
+	github.com/m-lab/access v0.1.0
 	github.com/m-lab/go v0.1.76
 	github.com/m-lab/tcp-info v1.8.0
 	github.com/m-lab/uuid v1.0.2

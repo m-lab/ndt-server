@@ -236,7 +236,9 @@ func main() {
 	}
 	// NDT5 uses a raw server, which requires tx5. NDT7 is HTTP only.
 	ac5, tx5 := controller.Setup(ctx, v, tokenRequired5, tokenMachine.Value, ndt5Paths, ndt5Paths)
-	ac7, _ := controller.Setup(ctx, v, tokenRequired7, tokenMachine.Value, ndt7TxPaths, ndt7TokenPaths)
+	ac7, _ := controller.Setup(ctx, v, tokenRequired7, tokenMachine.Value, ndt7TxPaths, ndt7TokenPaths,
+		controller.WithCustomClaim(func() any { return &handler.IntegrationClaims{} }),
+	)
 
 	// The ndt5 protocol serving non-HTTP-based tests - forwards to Ws-based
 	// server if the first three bytes are "GET".

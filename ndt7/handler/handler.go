@@ -109,6 +109,7 @@ func (h *Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, 
 
 	// Collect most client metadata from request parameters.
 	appendClientMetadata(data, req.URL.Query())
+	appendIntegrationMetadata(req.Context(), data)
 	data.ServerMetadata = h.ServerMetadata
 	// Create ultimate result.
 	result, id := setupResult(conn)
@@ -244,8 +245,11 @@ func downRate(m []model.Measurement) float64 {
 	return mbps
 }
 
-// excludeKeyRe is a regexp for excluding request parameters from client metadata.
-var excludeKeyRe = regexp.MustCompile("^server_")
+// excludeKeyRe excludes request parameters from client metadata. server_*
+// params are internal; int_id and key_id are excluded from the query string
+// because their authoritative source is the verified access token (written
+// by appendIntegrationMetadata), so user-supplied values must not override them.
+var excludeKeyRe = regexp.MustCompile("^server_|^int_id$|^key_id$")
 
 // appendClientMetadata adds |values| to the archival client metadata contained
 // in the request parameter values. Some select key patterns will be excluded.
@@ -260,6 +264,32 @@ func appendClientMetadata(data *model.ArchivalData, values url.Values) {
 				Name:  name,
 				Value: values[0], // NOTE: this will ignore multi-value parameters.
 			})
+	}
+}
+
+// appendIntegrationMetadata extracts integration claims from the request context
+// and appends them to ClientMetadata. These claims (int_id, key_id) are set by
+// the access token controller when the token contains integration-specific fields.
+//
+// Each field is appended independently so that an upstream policy change (e.g.
+// stop issuing key_id) takes effect without a matching ndt-server change.
+func appendIntegrationMetadata(ctx context.Context, data *model.ArchivalData) {
+	claim := controller.GetCustomClaim(ctx)
+	if claim == nil {
+		return
+	}
+	ic, ok := claim.(*IntegrationClaims)
+	if !ok {
+		logging.Logger.Warnf("appendIntegrationMetadata: unexpected custom claim type %T", claim)
+		return
+	}
+	if ic.IntegrationID != "" {
+		data.ClientMetadata = append(data.ClientMetadata,
+			metadata.NameValue{Name: "int_id", Value: ic.IntegrationID})
+	}
+	if ic.KeyID != "" {
+		data.ClientMetadata = append(data.ClientMetadata,
+			metadata.NameValue{Name: "key_id", Value: ic.KeyID})
 	}
 }
 

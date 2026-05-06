@@ -15,7 +15,10 @@ type ArchivalData struct {
 	EndTime            time.Time
 	ServerMeasurements []Measurement
 	ClientMeasurements []Measurement
-	ClientMetadata     []metadata.NameValue `json:",omitempty"`
+	// ClientMetadata contains entries from the client's query string and,
+	// when present, integration claims (int_id, key_id) from the verified
+	// access token.
+	ClientMetadata []metadata.NameValue `json:",omitempty"`
 	ServerMetadata     []metadata.NameValue `json:",omitempty"`
 }
 
