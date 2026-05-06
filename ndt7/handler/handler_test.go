@@ -45,6 +45,12 @@ func TestAppendIntegrationMetadata(t *testing.T) {
 			wantIntID: "test-int",
 		},
 		{
+			name:      "with-key-id-only",
+			claim:     &IntegrationClaims{KeyID: "ki_test"},
+			wantLen:   1,
+			wantKeyID: "ki_test",
+		},
+		{
 			name:    "unexpected-claim-type",
 			claim:   &struct{ Foo string }{Foo: "bar"},
 			wantLen: 0,
@@ -57,7 +63,7 @@ func TestAppendIntegrationMetadata(t *testing.T) {
 			if tt.claim != nil {
 				ctx = controller.SetCustomClaim(ctx, tt.claim)
 			}
-			appendIntegrationMetadata(data, ctx)
+			appendIntegrationMetadata(ctx, data)
 			if len(data.ClientMetadata) != tt.wantLen {
 				t.Errorf("Expected %d metadata entries, got %d: %+v", tt.wantLen, len(data.ClientMetadata), data.ClientMetadata)
 			}
@@ -79,10 +85,29 @@ func TestAppendIntegrationMetadata(t *testing.T) {
 	}
 }
 
-func Test_validateEarlyExit(t *testing.T) {
-	type args struct {
-		values url.Values
+func TestAppendClientMetadata_FiltersIntegrationKeys(t *testing.T) {
+	data := &model.ArchivalData{}
+	values := url.Values{
+		"client_name": {"ndt7-client"},
+		"int_id":      {"spoofed-int"},
+		"key_id":      {"spoofed-key"},
+		"server_foo":  {"bar"},
 	}
+	appendClientMetadata(data, values)
+	for _, nv := range data.ClientMetadata {
+		switch nv.Name {
+		case "int_id", "key_id":
+			t.Errorf("int_id/key_id should be filtered from query string, got %+v", nv)
+		case "server_foo":
+			t.Errorf("server_ keys should be filtered, got %+v", nv)
+		}
+	}
+	if len(data.ClientMetadata) != 1 || data.ClientMetadata[0].Name != "client_name" {
+		t.Errorf("Expected only client_name, got %+v", data.ClientMetadata)
+	}
+}
+
+func Test_validateEarlyExit(t *testing.T) {
 	tests := []struct {
 		name    string
 		values  url.Values

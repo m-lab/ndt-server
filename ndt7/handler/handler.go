@@ -109,7 +109,7 @@ func (h *Handler) runMeasurement(kind spec.SubtestKind, rw http.ResponseWriter, 
 
 	// Collect most client metadata from request parameters.
 	appendClientMetadata(data, req.URL.Query())
-	appendIntegrationMetadata(data, req.Context())
+	appendIntegrationMetadata(req.Context(), data)
 	data.ServerMetadata = h.ServerMetadata
 	// Create ultimate result.
 	result, id := setupResult(conn)
@@ -245,7 +245,10 @@ func downRate(m []model.Measurement) float64 {
 	return mbps
 }
 
-// excludeKeyRe is a regexp for excluding request parameters from client metadata.
+// excludeKeyRe excludes request parameters from client metadata. server_*
+// params are internal; int_id and key_id are excluded from the query string
+// because their authoritative source is the verified access token (written
+// by appendIntegrationMetadata), so user-supplied values must not override them.
 var excludeKeyRe = regexp.MustCompile("^server_|^int_id$|^key_id$")
 
 // appendClientMetadata adds |values| to the archival client metadata contained
@@ -267,7 +270,10 @@ func appendClientMetadata(data *model.ArchivalData, values url.Values) {
 // appendIntegrationMetadata extracts integration claims from the request context
 // and appends them to ClientMetadata. These claims (int_id, key_id) are set by
 // the access token controller when the token contains integration-specific fields.
-func appendIntegrationMetadata(data *model.ArchivalData, ctx context.Context) {
+//
+// Each field is appended independently so that an upstream policy change (e.g.
+// stop issuing key_id) takes effect without a matching ndt-server change.
+func appendIntegrationMetadata(ctx context.Context, data *model.ArchivalData) {
 	claim := controller.GetCustomClaim(ctx)
 	if claim == nil {
 		return
