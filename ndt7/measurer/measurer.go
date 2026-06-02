@@ -64,14 +64,8 @@ func measure(measurement *model.Measurement, ci netx.ConnInfo, elapsed time.Dura
 	t := int64(elapsed / time.Microsecond)
 	bbrinfo, tcpInfo, err := ci.ReadInfo()
 	if err == nil {
-		measurement.BBRInfo = &model.BBRInfo{
-			BBRInfo:     bbrinfo,
-			ElapsedTime: t,
-		}
-		measurement.TCPInfo = &model.TCPInfo{
-			LinuxTCPInfo: tcpInfo,
-			ElapsedTime:  t,
-		}
+		measurement.BBRInfo = model.NewBBRInfo(bbrinfo, t)
+		measurement.TCPInfo = model.NewTCPInfo(tcpInfo, t)
 	}
 }
 
