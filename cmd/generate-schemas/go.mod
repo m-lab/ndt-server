@@ -2,6 +2,12 @@ module github.com/m-lab/ndt-server/cmd/generate-schemas
 
 go 1.25
 
+// Build against the enclosing working tree so the generated schemas always
+// describe the ndt-server being built alongside them, and so builds do not
+// depend on a released version (the pinned release still used cgo, which
+// breaks CGO_ENABLED=0 builds).
+replace github.com/m-lab/ndt-server => ../..
+
 require (
 	cloud.google.com/go/bigquery v1.50.0
 	github.com/m-lab/go v0.1.76
