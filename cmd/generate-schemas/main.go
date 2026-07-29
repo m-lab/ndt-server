@@ -33,7 +33,7 @@ func main() {
 	ioutil.WriteFile(ndt7schema, b, 0o644)
 
 	// Generate and save ndt5 schema for autoloading.
-	row5 := data.NDT7Result{}
+	row5 := data.NDT5Result{}
 	sch, err = bigquery.InferSchema(row5)
 	rtx.Must(err, "failed to generate ndt5 schema")
 	sch = bqx.RemoveRequired(sch)
