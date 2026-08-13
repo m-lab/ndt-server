@@ -1,5 +1,5 @@
 FROM golang:1.25-alpine3.21 as ndt-server-build
-RUN apk add --no-cache git gcc linux-headers musl-dev
+RUN apk add --no-cache git
 ADD . /go/src/github.com/m-lab/ndt-server
 RUN /go/src/github.com/m-lab/ndt-server/build.sh
 

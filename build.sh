@@ -13,10 +13,9 @@ versionflags="-X github.com/m-lab/ndt-server/version.Version=$VERSION"
 
 COMMIT=$(git log -1 --format=%h)
 versionflags="${versionflags} -X github.com/m-lab/go/prometheusx.GitShortCommit=${COMMIT}"
-go install -v                                                          \
-    -tags netgo                                                        \
-    -ldflags "$versionflags -extldflags \"-static\""                   \
+CGO_ENABLED=0 go install -v                                            \
+    -ldflags "$versionflags"                                           \
     .
 
 # Install generate-schemas
-cd ./cmd/generate-schemas && go install -v .
+cd ./cmd/generate-schemas && CGO_ENABLED=0 go install -v .
