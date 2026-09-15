@@ -421,8 +421,11 @@ caused by the queuing delay in the sender's buffer. In some cases, this
 delay may be large enough that clients SHOULD NOT rely on server measurements
 to timely update their user interface during this test.
 
-During the upload, the server could help a client by sending messages
-containing its application-level measurements:
+During the upload, the server SHOULD help a client by including `AppInfo`
+in its measurement messages, where `NumBytes` counts the application-level
+bytes received so far. This lets clients compute the upload goodput without
+relying on `TCPInfo.BytesReceived`, which includes WebSocket framing and is
+only available on Linux servers:
 
 ```
 > GET /ndt/v7/upload Upgrade: websocket

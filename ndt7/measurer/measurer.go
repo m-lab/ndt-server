@@ -27,18 +27,27 @@ var (
 	)
 )
 
+// AppInfoSource provides application-level measurements to include in the
+// server's measurement messages. It is optional: the download subtest has no
+// meaningful server-side application counter and passes nil.
+type AppInfoSource interface {
+	AppInfo() *model.AppInfo
+}
+
 // Measurer performs measurements
 type Measurer struct {
-	conn   *websocket.Conn
-	uuid   string
-	ticker *memoryless.Ticker
+	conn    *websocket.Conn
+	uuid    string
+	appInfo AppInfoSource
+	ticker  *memoryless.Ticker
 }
 
 // New creates a new measurer instance
-func New(conn *websocket.Conn, UUID string) *Measurer {
+func New(conn *websocket.Conn, UUID string, appInfo AppInfoSource) *Measurer {
 	return &Measurer{
-		conn: conn,
-		uuid: UUID,
+		conn:    conn,
+		uuid:    UUID,
+		appInfo: appInfo,
 	}
 }
 
@@ -102,6 +111,9 @@ func (m *Measurer) loop(ctx context.Context, timeout time.Duration, dst chan<- m
 	for now := range ticker.C {
 		var measurement model.Measurement
 		measure(&measurement, ci, now.Sub(start))
+		if m.appInfo != nil {
+			measurement.AppInfo = m.appInfo.AppInfo()
+		}
 		measurement.ConnectionInfo = connectionInfo
 		dst <- measurement // Liveness: this is blocking
 	}

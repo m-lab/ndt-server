@@ -158,3 +158,51 @@ func Test_validateEarlyExit(t *testing.T) {
 		})
 	}
 }
+
+func Test_upRate(t *testing.T) {
+	tests := []struct {
+		name string
+		m    []model.Measurement
+		want float64
+	}{
+		{name: "empty", m: nil, want: 0},
+		{
+			name: "prefers AppInfo over TCPInfo",
+			m: []model.Measurement{{
+				AppInfo: &model.AppInfo{NumBytes: 1000, ElapsedTime: 8},
+				TCPInfo: &model.TCPInfo{BytesReceived: 2000, ElapsedTime: 8},
+			}},
+			want: 1000,
+		},
+		{
+			name: "falls back to TCPInfo.BytesReceived",
+			m: []model.Measurement{{
+				TCPInfo: &model.TCPInfo{BytesReceived: 2000, ElapsedTime: 8},
+			}},
+			want: 2000,
+		},
+		{
+			name: "uses last measurement",
+			m: []model.Measurement{
+				{AppInfo: &model.AppInfo{NumBytes: 1, ElapsedTime: 8}},
+				{AppInfo: &model.AppInfo{NumBytes: 3000, ElapsedTime: 8}},
+			},
+			want: 3000,
+		},
+		{
+			name: "zero elapsed AppInfo does not divide by zero",
+			m: []model.Measurement{{
+				AppInfo: &model.AppInfo{NumBytes: 1000, ElapsedTime: 0},
+				TCPInfo: &model.TCPInfo{BytesReceived: 2000, ElapsedTime: 8},
+			}},
+			want: 2000,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := upRate(tt.m); got != tt.want {
+				t.Errorf("upRate() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

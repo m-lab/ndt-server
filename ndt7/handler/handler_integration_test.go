@@ -10,6 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/m-lab/go/testingx"
+	"github.com/m-lab/ndt-server/ndt7/model"
 	"github.com/m-lab/ndt-server/ndt7/ndt7test"
 	"github.com/m-lab/ndt-server/ndt7/spec"
 	"github.com/m-lab/tcp-info/inetdiag"
@@ -90,4 +91,69 @@ func downloadHelper(ctx context.Context, t *testing.T, conn *websocket.Conn) err
 	}
 	// We only read one message, so this is an early close.
 	return conn.Close()
+}
+
+func TestHandler_Upload_ServerAppInfo(t *testing.T) {
+	_, srv := ndt7test.NewNDT7Server(t)
+	defer srv.Close()
+
+	URL, _ := url.Parse(srv.URL)
+	URL.Scheme = "ws"
+	URL.Path = spec.UploadURLPath
+	headers := http.Header{}
+	headers.Add("Sec-WebSocket-Protocol", spec.SecWebSocketProtocol)
+	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
+	conn, _, err := dialer.DialContext(context.Background(), URL.String(), headers)
+	testingx.Must(t, err, "failed to dial upload")
+	defer conn.Close()
+
+	// Read server measurements concurrently until the connection closes.
+	msgs := make(chan model.Measurement, 128)
+	go func() {
+		defer close(msgs)
+		conn.SetReadLimit(spec.MaxMessageSize)
+		for {
+			var m model.Measurement
+			if err := conn.ReadJSON(&m); err != nil {
+				return
+			}
+			msgs <- m
+		}
+	}()
+
+	// Upload for about one second, then close the write side.
+	payload := make([]byte, 1<<13)
+	var sent int64
+	stop := time.Now().Add(1200 * time.Millisecond)
+	for time.Now().Before(stop) {
+		testingx.Must(t, conn.WriteMessage(websocket.BinaryMessage, payload), "write binary")
+		sent += int64(len(payload))
+	}
+	// Give the measurer a chance to sample after the last bytes landed.
+	time.Sleep(700 * time.Millisecond)
+	conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	conn.Close()
+
+	var last *model.Measurement
+	for m := range msgs {
+		if m.AppInfo != nil {
+			mm := m
+			last = &mm
+		}
+	}
+	if last == nil {
+		t.Fatal("no server measurement carried AppInfo during upload")
+	}
+	if last.AppInfo.NumBytes <= 0 || last.AppInfo.NumBytes > sent {
+		t.Errorf("AppInfo.NumBytes = %d, want in (0, %d]", last.AppInfo.NumBytes, sent)
+	}
+	if last.AppInfo.ElapsedTime <= 0 {
+		t.Errorf("AppInfo.ElapsedTime = %d, want > 0", last.AppInfo.ElapsedTime)
+	}
+	// Application bytes exclude WebSocket framing, so they never exceed the
+	// kernel's count of received bytes (TCPInfo is nil off Linux).
+	if last.TCPInfo != nil && last.AppInfo.NumBytes > last.TCPInfo.BytesReceived {
+		t.Errorf("AppInfo.NumBytes %d > TCPInfo.BytesReceived %d",
+			last.AppInfo.NumBytes, last.TCPInfo.BytesReceived)
+	}
 }

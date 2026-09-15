@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -24,9 +26,39 @@ const (
 	uploadReceiver
 )
 
+// UploadReceiver reads the client's messages during the upload subtest and
+// counts the application-level payload bytes it receives, so that the server
+// can report an AppInfo measurement to the client.
+type UploadReceiver struct {
+	ctx      context.Context
+	start    time.Time
+	numBytes atomic.Int64
+}
+
+// Done returns a channel that is closed when the receiver terminates.
+func (r *UploadReceiver) Done() <-chan struct{} {
+	return r.ctx.Done()
+}
+
+// AppInfo returns a snapshot of the application-level bytes received so far
+// and the time elapsed (in microseconds) since the receiver started.
+func (r *UploadReceiver) AppInfo() *model.AppInfo {
+	return &model.AppInfo{
+		NumBytes:    r.numBytes.Load(),
+		ElapsedTime: int64(time.Since(r.start) / time.Microsecond),
+	}
+}
+
+// Write implements io.Writer by counting and discarding bytes, so that the
+// counter advances as chunks of a large message are read.
+func (r *UploadReceiver) Write(p []byte) (int, error) {
+	r.numBytes.Add(int64(len(p)))
+	return len(p), nil
+}
+
 func start(
 	ctx context.Context, conn *websocket.Conn, kind receiverKind,
-	data *model.ArchivalData,
+	data *model.ArchivalData, counter io.Writer,
 ) {
 	logging.Logger.Debug("receiver: start")
 	proto := ndt7metrics.ConnLabel(conn)
@@ -52,6 +84,7 @@ func start(
 		}
 		return err
 	})
+	buf := make([]byte, 32*1024)
 	for receiverctx.Err() == nil { // Liveness!
 		// By getting a Reader here we avoid allocating memory for the message
 		// when the message type is not websocket.TextMessage.
@@ -69,8 +102,18 @@ func start(
 					proto, fmt.Sprint(kind), "wrong-message-type").Inc()
 				return // Unexpected message type
 			default:
-				// NOTE: this is the bulk upload path. In this case, the mdata is not used.
-				continue // No further processing required
+				// NOTE: this is the bulk upload path. The payload is discarded,
+				// but when a counter is present it is read through it so that
+				// the upload AppInfo tracks the application-level bytes received.
+				if counter == nil {
+					continue // No further processing required
+				}
+				if _, err := io.CopyBuffer(counter, r, buf); err != nil {
+					ndt7metrics.ClientReceiverErrors.WithLabelValues(
+						proto, fmt.Sprint(kind), "read-binary-message").Inc()
+					return
+				}
+				continue
 			}
 		}
 		// This is a TextMessage, so we must read it.
@@ -106,7 +149,7 @@ func start(
 func StartDownloadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) context.Context {
 	ctx2, cancel2 := context.WithCancel(ctx)
 	go func() {
-		start(ctx2, conn, downloadReceiver, data)
+		start(ctx2, conn, downloadReceiver, data, nil)
 		cancel2()
 	}()
 	return ctx2
@@ -115,11 +158,12 @@ func StartDownloadReceiverAsync(ctx context.Context, conn *websocket.Conn, data 
 // StartUploadReceiverAsync is like StartDownloadReceiverAsync except that it
 // tolerates incoming binary messages, sent by "upload" measurement clients to
 // create network load, and therefore must be allowed.
-func StartUploadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) context.Context {
+func StartUploadReceiverAsync(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) *UploadReceiver {
 	ctx2, cancel2 := context.WithCancel(ctx)
+	recv := &UploadReceiver{ctx: ctx2, start: time.Now()}
 	go func() {
-		start(ctx2, conn, uploadReceiver, data)
+		start(ctx2, conn, uploadReceiver, data, recv)
 		cancel2()
 	}()
-	return ctx2
+	return recv
 }

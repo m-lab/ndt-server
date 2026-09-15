@@ -44,7 +44,7 @@ func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, 
 
 	// Start collecting connection measurements. Measurements will be sent to
 	// src until DefaultRuntime, when the src channel is closed.
-	mr := measurer.New(conn, data.UUID)
+	mr := measurer.New(conn, data.UUID, nil)
 	src := mr.Start(ctx, spec.DefaultRuntime)
 	defer logging.Logger.Debug("sender: stop")
 	defer mr.Stop(src)

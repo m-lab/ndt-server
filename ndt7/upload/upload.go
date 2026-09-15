@@ -24,7 +24,7 @@ func Do(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) err
 
 	// Perform upload and save server-measurements in data.
 	// TODO: move sender.Start logic to this file.
-	err := sender.Start(ctx, conn, data)
+	err := sender.Start(ctx, conn, data, recv)
 
 	// Block on the receiver completing to guarantee that access to data is synchronous.
 	<-recv.Done()

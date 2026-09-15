@@ -21,13 +21,13 @@ import (
 // Liveness guarantee: the sender will not be stuck sending for more than the
 // MaxRuntime of the subtest. This is enforced by setting the write deadline to
 // Time.Now() + MaxRuntime.
-func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData) error {
+func Start(ctx context.Context, conn *websocket.Conn, data *model.ArchivalData, appInfo measurer.AppInfoSource) error {
 	logging.Logger.Debug("sender: start")
 	proto := ndt7metrics.ConnLabel(conn)
 
 	// Start collecting connection measurements. Measurements will be sent to
 	// src until DefaultRuntime, when the src channel is closed.
-	mr := measurer.New(conn, data.UUID)
+	mr := measurer.New(conn, data.UUID, appInfo)
 	src := mr.Start(ctx, spec.DefaultRuntime)
 	defer logging.Logger.Debug("sender: stop")
 	defer mr.Stop(src)
