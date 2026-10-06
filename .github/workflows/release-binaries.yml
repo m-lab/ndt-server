@@ -50,11 +50,12 @@ jobs:
           go-version: stable
 
       # go version -m omits -ldflags under -trimpath, so the check looks for
-      # the version stamp in the binary itself.
+      # the version stamp in the binary itself. Build outside the checkout: an
+      # untracked dist/ would make Go stamp vcs.modified=true on the later builds.
       - name: Build
         run: |
           version="${TAG:-$(git describe --tags --always)}"
-          bin="dist/ndt-server_${version}_linux_amd64"
+          bin="${RUNNER_TEMP}/dist/ndt-server_${version}_linux_amd64"
           ldflags="-s -w"
           ldflags+=" -X github.com/m-lab/ndt-server/version.Version=${version}"
           ldflags+=" -X github.com/m-lab/go/prometheusx.GitShortCommit=$(git log -1 --format=%h)"
@@ -64,9 +65,9 @@ jobs:
 
           # A nested module: build it from its own directory.
           (cd cmd/generate-schemas && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" \
-            -o "../../dist/generate-schemas_${version}_linux_amd64" .)
+            -o "${RUNNER_TEMP}/dist/generate-schemas_${version}_linux_amd64" .)
 
-          for bin in dist/*; do
+          for bin in "${RUNNER_TEMP}"/dist/*; do
             file -L "${bin}" | grep "statically linked" ||
               { echo "ERROR: ${bin} is not statically linked" >&2; exit 1; }
             go version -m "${bin}"
@@ -77,7 +78,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cd dist
+          cd "${RUNNER_TEMP}/dist"
           sha256sum *_linux_amd64 > checksums.txt
           cat checksums.txt
           gh release upload "${TAG}" *_linux_amd64 checksums.txt --clobber --repo "${GITHUB_REPOSITORY}"
