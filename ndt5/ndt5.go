@@ -44,7 +44,7 @@ func SaveData(record *data.NDT5Result, datadir string) {
 		return
 	}
 	dir := path.Join(datadir, record.StartTime.Format("2006/01/02"))
-	err := os.MkdirAll(dir, 0777)
+	err := os.MkdirAll(dir, 0775)
 	if err != nil {
 		log.Printf("Could not create directory %s: %v\n", dir, err)
 		return

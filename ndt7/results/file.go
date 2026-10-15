@@ -32,7 +32,7 @@ type File struct {
 func newFile(datadir, what, uuid string, compress bool) (*File, error) {
 	timestamp := time.Now().UTC()
 	dir := path.Join(datadir, "ndt7", timestamp.Format("2006/01/02"))
-	err := os.MkdirAll(dir, 0755)
+	err := os.MkdirAll(dir, 0775)
 	if err != nil {
 		return nil, err
 	}
